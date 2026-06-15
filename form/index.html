@@ -270,32 +270,132 @@ Hook 아이디어: ${d.hookIdea}
       ssat>=85 ? "현재 시험 강점을 유지하면서 인터뷰 답변과 에세이 소재를 Hook 중심으로 정리하세요." : "SSAT 진단 시험을 기준으로 Reading/Verbal 보완 루틴을 즉시 시작하세요.",
       "추천서 후보에게 전달할 학생 강점 요약 1페이지를 만들고, 학교별 Fit 문장을 준비하세요."
     ];
+    const student=d.nameKo||"입력 학생";
+    const target=`${d.targetYear||"목표 연도"}년 ${d.targetGrade||"목표 학년"} 입학`;
+    const goalScore=Math.min(92,total+24);
+    const gap=Math.max(0,goalScore-total);
+    const spikeCount=[d.mainSport,d.specialSubject,d.instrument,d.mainHook].filter(Boolean).length||1;
+    const schoolCount=schools.length+(d.dreamSchools||d.matchSchools||d.safetySchools?3:0);
+    const esc=(v)=>String(v||"—").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+    const itemHtml=(items,color)=>items.map(x=>`<div class="pr-diag-item"><span style="background:${color}"></span><p>${esc(x)}</p></div>`).join("");
+    const fallbackStrengths=strengths.length?strengths:["입력된 학생 정보를 기반으로 강점 축을 구성할 수 있습니다. 활동별 기간, 수상, 역할을 추가하면 제안서 설득력이 높아집니다."];
+    const fallbackWeaknesses=weaknesses.length?weaknesses:["현재 입력값 기준으로 치명적 공백은 크지 않습니다. 다만 시험, 추천서, 학교 리스트, Hook 문장을 더 구체화해야 합니다."];
 
-    return `📊 예스유학 루브릭 점수 추정: ${total}/100
+    return `<div class="proposal-report">
+      <style>
+        .proposal-report{background:white;color:#111827;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+        .pr-cover{background:#1a2744;color:white;padding:36px 34px 30px}
+        .pr-logo{font-size:10px;font-weight:700;letter-spacing:.14em;color:#93c5fd;text-transform:uppercase;margin-bottom:24px}
+        .pr-cover h1{font-family:'Noto Serif KR',serif;font-size:26px;line-height:1.35;margin-bottom:8px}
+        .pr-cover h2{font-size:13px;font-weight:400;color:#bfdbfe;margin-bottom:22px}
+        .pr-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid rgba(255,255,255,.16);padding-top:16px}
+        .pr-meta small{display:block;font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+        .pr-meta b{font-size:12px;font-weight:600}
+        .pr-body{padding:28px 34px 34px}
+        .pr-section{margin-top:34px}.pr-section:first-child{margin-top:0}
+        .pr-hdr{display:flex;align-items:center;gap:9px;border-bottom:2px solid #1a2744;padding-bottom:7px;margin-bottom:16px}
+        .pr-num{background:#1a2744;color:white;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px}
+        .pr-title{font-size:15px;font-weight:800;color:#1a2744}.pr-sub{font-size:10px;color:#6b7280;margin-left:auto}
+        .pr-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+        .pr-stat{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px}.pr-stat strong{display:block;font-size:21px}.pr-stat span{font-size:9px;color:#6b7280;line-height:1.35}
+        .pr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pr-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        .pr-card{border:1px solid #e5e7eb;border-radius:9px;padding:12px 14px;background:white;border-top:3px solid #2563a8}
+        .pr-card h4{font-size:12px;margin-bottom:6px;color:#111827}.pr-card p,.pr-card li{font-size:11px;color:#374151;line-height:1.65}
+        .pr-bar{height:7px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin:8px 0}.pr-fill{height:100%;border-radius:99px}
+        .pr-diag-item{display:flex;gap:7px;margin:7px 0}.pr-diag-item span{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}.pr-diag-item p{margin:0;font-size:11px;line-height:1.65;color:#374151}
+        .pr-note{background:#f0f7ff;border-left:4px solid #2563a8;border-radius:8px;padding:12px 14px;font-size:12px;line-height:1.7;color:#1f2937}
+        .pr-table{width:100%;border-collapse:collapse;font-size:10.5px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}.pr-table th{background:#1a2744;color:white;text-align:left;padding:7px}.pr-table td{border-top:1px solid #e5e7eb;padding:7px;vertical-align:top}.pr-chip{display:inline-block;border-radius:20px;padding:2px 7px;font-size:9px;font-weight:700}.green{background:#d1fae5;color:#065f46}.amber{background:#fef3c7;color:#92400e}.red{background:#fee2e2;color:#991b1b}.blue{background:#dbeafe;color:#1e40af}.purple{background:#ede9fe;color:#4c1d95}
+        @media(max-width:760px){.pr-body,.pr-cover{padding-left:18px;padding-right:18px}.pr-meta,.pr-stats,.pr-grid,.pr-grid3{grid-template-columns:1fr}.pr-sub{display:none}}
+      </style>
+      <div class="pr-cover">
+        <div class="pr-logo">예스유학 · 시니어보딩 프렙 프로그램</div>
+        <h1>${esc(student)} 학생<br>탑 시니어보딩스쿨 합격 전략 제안서</h1>
+        <h2>${esc(d.currentSchool||"현재 학교")} → Top Boarding School · ${esc(target)} 목표</h2>
+        <div class="pr-meta">
+          <div><small>학생명</small><b>${esc(student)}</b></div>
+          <div><small>현재 학교</small><b>${esc(d.currentSchool||"입력 필요")}</b></div>
+          <div><small>목표 입학</small><b>${esc(target)}</b></div>
+          <div><small>작성 기준</small><b>Tool 1 입력 데이터</b></div>
+        </div>
+      </div>
+      <div class="pr-body">
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">01</span><span class="pr-title">현재 학생 진단 — 예스유학 루브릭 분석</span><span class="pr-sub">총점 100점 기준</span></div>
+          <div class="pr-stats">
+            <div class="pr-stat"><strong style="color:#dc2626">${total}점</strong><span>현재 추정 총점<br>100점 기준</span></div>
+            <div class="pr-stat"><strong style="color:#2563a8">${goalScore}점</strong><span>지원 목표 점수</span></div>
+            <div class="pr-stat"><strong style="color:#d97706">+${gap}점</strong><span>향상 필요 점수</span></div>
+            <div class="pr-stat"><strong style="color:#0d6e56">${spikeCount}개</strong><span>핵심 스파이크 후보</span></div>
+            <div class="pr-stat"><strong style="color:#4c1d95">${schoolCount}개교</strong><span>목표 지원 학교군</span></div>
+          </div>
+          <div class="pr-grid">
+            <div class="pr-card" style="border-top-color:#2563a8"><h4>School Academics / 25점</h4><p>현재 ${Math.round(academic)}점 → 목표 ${Math.min(25,Math.round(academic+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${academic/25*100}%;background:#2563a8"></div></div><p>성적: ${esc(d.currentGrades||d.prevGrades)}<br>시험: SSAT ${esc(d.ssatOverall||"미입력")} / TOEFL ${esc(d.toeflScore||"미입력")}</p></div>
+            <div class="pr-card" style="border-top-color:#0d6e56"><h4>School Culture / 15점</h4><p>현재 ${Math.round(leadership)}점 → 목표 ${Math.min(15,Math.round(leadership+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${leadership/15*100}%;background:#0d6e56"></div></div><p>리더십: ${esc(d.leadershipRoles)}<br>봉사: ${esc(d.serviceActivities||d.serviceHours)}</p></div>
+            <div class="pr-card" style="border-top-color:#7c3aed"><h4>Clubs & Activities / 25점</h4><p>현재 ${Math.round(sport+arts)}점 → 목표 ${Math.min(25,Math.round(sport+arts+5))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${Math.min(100,(sport+arts)/25*100)}%;background:#7c3aed"></div></div><p>스포츠: ${esc(d.mainSport)}<br>예술: ${esc(d.instrument||d.dramaExp||d.visualArts)}</p></div>
+            <div class="pr-card" style="border-top-color:#c2410c"><h4>Special Hook & Strategy / 35점</h4><p>현재 ${Math.round(hook+planning)}점 → 목표 ${Math.min(35,Math.round(hook+planning+8))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${Math.min(100,(hook+planning)/35*100)}%;background:#c2410c"></div></div><p>Hook: ${esc(bestHook)}<br>학교 전략: ${esc(d.schoolPriority||"Dream/Match/Safety 구분 필요")}</p></div>
+          </div>
+          <div class="pr-grid" style="margin-top:14px">
+            <div class="pr-card" style="border-top-color:#16a34a"><h4>✓ 핵심 강점</h4>${itemHtml(fallbackStrengths,"#16a34a")}</div>
+            <div class="pr-card" style="border-top-color:#dc2626"><h4>⚠ 보완 필요 약점</h4>${itemHtml(fallbackWeaknesses,"#dc2626")}</div>
+          </div>
+        </div>
 
-- 학업/시험: ${Math.round(academic)}/25
-- 스포츠/EC 스파이크: ${Math.round(sport)}/20
-- 예술/표현 활동: ${Math.round(arts)}/15
-- 리더십/봉사: ${Math.round(leadership)}/15
-- Hook 선명도: ${Math.round(hook)}/15
-- 지원 전략 준비도: ${Math.round(planning)}/10
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">02</span><span class="pr-title">왜 바로 탑 보딩 합격이 어려운가 — 원인 분석</span><span class="pr-sub">전략적 준비 이유</span></div>
+          <div class="pr-note"><b>핵심 진단:</b> 현재 데이터는 좋은 재료가 있지만, 탑 보딩 합격을 위해서는 미국 입학처가 검증할 수 있는 시험 점수, 추천서, 활동 지속성, 학교별 Fit 문장이 필요합니다.</div>
+          <div class="pr-grid3" style="margin-top:12px">
+            <div class="pr-card" style="border-top-color:#dc2626"><h4>01. 시험 기준</h4><p>SSAT ${esc(d.ssatOverall||"미입력")} 기준. 탑 보딩은 90~95%+를 안정권으로 보므로 Reading/Verbal 보완 또는 첫 진단 시험이 필요합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#d97706"><h4>02. 검증 가능한 EC</h4><p>${esc(d.mainSport||"주력 활동")} 경험은 강점이지만, 대회명·수상·코치 추천·영상 자료로 객관화해야 합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#7c3aed"><h4>03. Hook 미세 조정</h4><p>${esc(bestHook)} 이 서사를 에세이, 인터뷰, 추천서에서 같은 문장으로 반복되도록 정리해야 합니다.</p></div>
+          </div>
+        </div>
 
-✅ 핵심 강점 TOP 3
-${strengths.length?strengths.map((x,i)=>`${i+1}. ${x}`).join("\n"):"1. 아직 입력 데이터가 부족합니다. 학업, 활동, 목표학교 정보를 더 채우면 강점 분석이 구체화됩니다."}
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">03</span><span class="pr-title">아카데믹 플랜 — 내신 · SSAT · 추천서</span></div>
+          <table class="pr-table"><thead><tr><th>영역</th><th>현재 데이터</th><th>목표</th><th>전략</th></tr></thead><tbody>
+            <tr><td>내신</td><td>${esc(d.currentGrades||d.prevGrades)}</td><td>A/A+ 유지</td><td>핵심 과목 교사와 추천서 소재를 매월 축적</td></tr>
+            <tr><td>SSAT</td><td>Overall ${esc(d.ssatOverall||"미응시")} / Math ${esc(d.ssatMath||"미입력")} / Reading ${esc(d.ssatReading||"미입력")} / Verbal ${esc(d.ssatVerbal||"미입력")}</td><td>90~95%+</td><td>Math 강점 유지, Reading 지문 분석, Verbal 단어 루틴</td></tr>
+            <tr><td>추천서</td><td>${esc(d.recLetterCandidates)}</td><td>학업 2명 + 특기 1명 + 생활 1명</td><td>Current Teacher 기준으로 증명 포인트 분담</td></tr>
+          </tbody></table>
+        </div>
 
-⚠️ 보완 필요 약점 TOP 3
-${weaknesses.length?weaknesses.map((x,i)=>`${i+1}. ${x}`).join("\n"):"1. 큰 공백은 보이지 않습니다. 다만 각 활동의 성과, 기간, 역할을 더 구체화하면 제안서 완성도가 올라갑니다."}
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">04</span><span class="pr-title">EC 플랜 — 시즌별 활동 전략</span></div>
+          <div class="pr-grid3">
+            <div class="pr-card" style="border-top-color:#c2410c"><h4>가을 시즌</h4><p>리더십/클럽/인터뷰 소재 확보. ${esc(d.fallSport||"가을 스포츠")}와 글쓰기/토론 활동을 병행합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#1e40af"><h4>겨울 시즌</h4><p>${esc(d.winterSport||d.mainSport||"겨울 핵심 활동")}을 대표 스파이크로 강화하고, 코치/지도자 추천 근거를 확보합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#0d6e56"><h4>봄 시즌</h4><p>${esc(d.springSport||"봄 활동")}과 봉사 프로젝트를 결합해 School Culture 점수를 끌어올립니다.</p></div>
+          </div>
+        </div>
 
-🎯 추천 메인 Hook
-${bestHook}
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">05</span><span class="pr-title">방학 일정 & 세부 액션 플랜</span></div>
+          <div class="pr-grid">
+            <div class="pr-card" style="border-top-color:#4c1d95"><h4>여름방학</h4><p>${esc(d.summerActivity||"SSAT 집중, 에세이 소재 정리, 캠퍼스 방문, 대표 활동 결과물 제작")}</p></div>
+            <div class="pr-card" style="border-top-color:#1e3a8a"><h4>겨울방학</h4><p>${esc(d.winterActivity||"대회 출전, 봉사 시간 확보, 추천서 후보 미팅, 시험 보완")}</p></div>
+          </div>
+        </div>
 
-🏫 Fit 추천 학교 3개
-1. ${schools[0]} - 현재 입력된 강점과 목표 학교군을 기준으로 Dream/Reach 포지션에서 검토할 수 있습니다.
-2. ${schools[1]} - 학업과 활동 균형을 보여줄 수 있는 Match 후보로 정리하기 좋습니다.
-3. ${schools[2]} - 지원 안정성을 확보하는 Safety/Target 후보로 함께 비교해볼 수 있습니다.
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">06</span><span class="pr-title">Hook & Special Interest — 3대 스파이크 기획</span></div>
+          <div class="pr-grid3">
+            <div class="pr-card" style="border-top-color:#0d6e56"><h4>Hook A</h4><p>${esc(bestHook)}</p></div>
+            <div class="pr-card" style="border-top-color:#2563a8"><h4>Hook B</h4><p>${esc(d.specialSubject||d.researchProject||"학업 강점을 프로젝트/연구/대회 결과물로 확장")}</p></div>
+            <div class="pr-card" style="border-top-color:#c2410c"><h4>Hook C</h4><p>${esc(d.instrument||d.dramaExp||d.serviceActivities||"예술·봉사·리더십을 캠퍼스 기여도로 연결")}</p></div>
+          </div>
+        </div>
 
-📋 지금 당장 시작할 액션 3가지
-${actions.map((x,i)=>`${i+1}. ${x}`).join("\n")}`;
+        <div class="pr-section">
+          <div class="pr-hdr"><span class="pr-num">07</span><span class="pr-title">예스유학 Student Gateway — 향후 아웃컴 예측</span></div>
+          <table class="pr-table"><thead><tr><th>학교명</th><th>현재 진단</th><th>준비 후 전망</th><th>전략 포인트</th></tr></thead><tbody>
+            <tr><td>${esc(schools[0])}</td><td><span class="pr-chip red">Reach</span></td><td><span class="pr-chip amber">가능성 상승</span></td><td>SSAT 95%+와 Hook 완성 필요</td></tr>
+            <tr><td>${esc(schools[1])}</td><td><span class="pr-chip amber">Target</span></td><td><span class="pr-chip green">합격 가능</span></td><td>활동 지속성과 추천서 품질 확보</td></tr>
+            <tr><td>${esc(schools[2])}</td><td><span class="pr-chip blue">Safety/Target</span></td><td><span class="pr-chip green">합격 유력</span></td><td>학교 Fit 문장과 인터뷰 완성</td></tr>
+          </tbody></table>
+          <div class="pr-note" style="margin-top:12px"><b>합격 전략 요약:</b> ${esc(actions.join(" "))}</div>
+        </div>
+      </div>
+    </div>`;
   };
 
   const analyze=()=>{
@@ -307,7 +407,8 @@ ${actions.map((x,i)=>`${i+1}. ${x}`).join("\n")}`;
   };
 
   const copy=()=>{
-    const full=txt()+(ai?"\n\n[AI 분석 결과]\n"+ai:"");
+    const cleanAi=ai?ai.replace(/<style[\s\S]*?<\/style>/g,"").replace(/<br\s*\/?>/g,"\n").replace(/<\/(div|p|h1|h2|h3|h4|tr)>/g,"\n").replace(/<[^>]+>/g,"").replace(/\n{3,}/g,"\n\n").trim():"";
+    const full=txt()+(cleanAi?"\n\n[제안서 분석 결과]\n"+cleanAi:"");
     navigator.clipboard.writeText(full).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
   };
 
@@ -618,9 +719,7 @@ ${actions.map((x,i)=>`${i+1}. ${x}`).join("\n")}`;
             </button>
 
             {ai&&<div>
-              <div style={{background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,padding:"16px 18px",marginBottom:12,whiteSpace:"pre-wrap",fontSize:13,lineHeight:1.9,color:"#14532d"}}>
-                {ai}
-              </div>
+              <div style={{marginBottom:12}} dangerouslySetInnerHTML={{__html:ai}} />
               <button onClick={analyze} style={{width:"100%",padding:"10px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,fontSize:12,cursor:"pointer",marginBottom:10}}>
                 🔄 분석 다시 생성
               </button>
