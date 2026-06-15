@@ -470,10 +470,125 @@ Hook 아이디어: ${d.hookIdea}
     </div>`;
   };
 
+  const localAnalysisTool2=(source=d)=>{
+    const d=source;
+    const has=(...keys)=>keys.some(k=>String(d[k]||"").trim());
+    const num=(v)=>parseInt(String(v||"").replace(/[^0-9]/g,""),10)||0;
+    const cap=(v,max,min=0)=>Math.max(min,Math.min(max,Math.round(v)));
+    const esc=(v)=>String(v||"미입력").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+    const list=(v)=>String(v||"").split(/\n|,|·|ㆍ|;/).map(x=>x.trim()).filter(Boolean);
+    const hasText=(v,re)=>re.test(String(v||"").toLowerCase());
+
+    const ssat=num(d.ssatOverall), toefl=num(d.toeflScore);
+    const gradeText=[d.prevGrades,d.currentGrades].join(" ").toLowerCase();
+    const prevGrade=cap(hasText(d.prevGrades,/a\+|all a|honor|distinction|최우수|우수|head of college/)?5:has("prevGrades")?3:2,5);
+    const currentGrade=cap(hasText(d.currentGrades,/a\+|all a|전과목\s*a|gpa\s*3\.9|gpa\s*4|honor|distinction|최우수/)?10:hasText(gradeText,/most a|a\/b|some b|대부분/)?8:has("currentGrades")?6:4,10);
+    const academicReco=cap((has("recLetterCandidates")?3:1)+(has("academicAwards","specialSubject","researchProject")?1:0)+(currentGrade>=8?1:0),5);
+    const academics=cap(prevGrade+currentGrade+academicReco,20);
+
+    const interview=cap((toefl>=110?6:toefl>=100?5:toefl>=90?4:toefl?3:3)+(has("studentPersonality")?2:0)+(has("schoolPriority","dreamSchools")?2:0),10);
+    const lifeReco=cap((has("recLetterCandidates")?3:1)+(has("leadershipRoles")?1:0)+(has("studentPersonality")?1:0),5);
+    const service=cap(has("serviceActivities")?(String(d.serviceHours).includes("100")?5:String(d.serviceHours).includes("50")?4:String(d.serviceHours).includes("20")?3:2):1,5);
+    const culture=cap(interview+lifeReco+service,20);
+
+    const meaningful=(v)=>String(v||"").trim()&&!/^(없음|없다|none|no|n\/a|-|—|미입력)$/i.test(String(v||"").trim());
+    const clubItems=list(d.clubs).filter(meaningful);
+    const clubText=[d.clubs,d.leadershipRoles,d.leadershipAwards].join(" ");
+    const leadershipText=[d.leadershipRoles,d.leadershipAwards].join(" ");
+    const leaderKeyword=/president|captain|founder|co-founder|leader|chair|prefect|student council|head|대표|회장|주장|창립|리더|임원|부장|반장|학생회/i;
+    const impactKeyword=/award|winner|competition|conference|mun|mathcounts|olympiad|publication|fundraising|service|수상|대회|입상|발표|기부|봉사|프로젝트/i;
+    const durationKeyword=/20\d{2}|year|years|ongoing|현재|지속|년|학기|semester/i;
+    const noLeadership=/없음|없다|none|no leadership|not yet|미입력/i.test(leadershipText);
+    const leaderDetected=!noLeadership&&leaderKeyword.test(clubText);
+    const leadershipAwardMeaningful=meaningful(d.leadershipAwards)&&!/없음|없다|none|no/i.test(String(d.leadershipAwards));
+    const clubLeader=cap((leaderDetected?3:0)+(leadershipAwardMeaningful?1:0)+(leaderDetected&&clubItems.length>=3?1:0),5);
+    const memberOnly=clubItems.length>0&&!leaderDetected&&clubItems.every(x=>/member|회원|참여|participant/i.test(x));
+    const clubImpactRaw=cap((impactKeyword.test(d.clubs)?3:0)+(leadershipAwardMeaningful?2:0)+(has("academicAwards")?1:0)+(clubItems.length>=4?2:clubItems.length>=2?1:clubItems.length?0:0)+(leaderDetected?2:0),10);
+    const clubImpact=memberOnly?Math.min(clubImpactRaw,4):clubImpactRaw;
+    const clubDuration=cap((durationKeyword.test(clubText)?3:0)+(clubItems.length>=3?1:clubItems.length?1:0)+(has("serviceActivities")?1:0),5);
+    const clubs=memberOnly?Math.min(cap(clubLeader+clubImpact+clubDuration,20),6):cap(clubLeader+clubImpact+clubDuration,20);
+
+    const sportImpact=cap((has("mainSport")?3:0)+(has("mainSportAwards","allSportAwards")?4:0)+(has("mainSportLevel")?2:0)+(has("coachInfo")?1:0),10);
+    const sportPotential=cap((has("mainSportYears")?2:0)+(has("fallSport","winterSport","springSport")?2:0)+(has("trainingHours","sportCertificates")?1:0),5);
+    const sports=cap(sportImpact+sportPotential,15);
+    const music=cap((has("instrument")?2:0)+(has("musicYears")?1:0)+(has("musicAwards")?2:0),5);
+    const artsOther=cap((has("dramaExp")&&!/없음|none|no/i.test(String(d.dramaExp))?2:0)+(has("visualArts","otherArts")?2:0)+(has("dramaDetails")?1:0),5);
+    const arts=cap(music+artsOther,10);
+    const misc=cap((has("mainHook")?2:0)+(has("hookIdea","researchProject")?3:0)+(has("academicAwards")?2:0)+(has("writingExp","hobbies")?2:0)+(has("parentRequests")?1:0),10);
+    const sportsArtsMisc=cap(sports+arts+misc,35);
+    const testingBonus=cap((ssat>=95?3:ssat>=90?2:ssat>=85?1:0)+(toefl>=110?2:toefl>=105?1:0),5);
+    const total=cap(academics+culture+clubs+sportsArtsMisc+testingBonus,100);
+    const goalScore=cap(Math.max(total+18,88),95);
+    const gap=Math.max(0,goalScore-total);
+
+    const student=d.nameKo||"입력 학생";
+    const target=`${d.targetYear||"목표 연도"} ${d.targetGrade||"목표 학년"}`;
+    const topHook=d.mainHook||d.hookIdea||d.mainSport||d.specialSubject||"지원서 전체를 관통할 대표 Hook 정리 필요";
+    const requested=(d.dreamSchools+"\n"+d.matchSchools+"\n"+d.safetySchools).split(/[,·ㆍ\n]/).map(x=>x.trim()).filter(Boolean);
+    const findSchool=(name)=>SCHOOL_DB.find(s=>s.name.toLowerCase().includes(name.toLowerCase())||name.toLowerCase().includes(s.name.toLowerCase().replace(" school","")));
+    const pool=(requested.length?requested.map(n=>findSchool(n)||{name:n,ssat:92,accept:20,yesRank:"-",niche:"-",state:"",boarding:"-",profile:"사용자가 지정한 목표 학교"}):SCHOOL_DB.slice(0,8));
+    const rows=pool.slice(0,8).map(s=>{
+      const fit=cap(72 + (ssat?(ssat-(s.ssat||92))*1.2:-12) + (toefl>=105?5:toefl?0:-4) + (clubs>=14?4:clubs<=6?-5:0) + (sportsArtsMisc>=27?4:0) - ((s.accept&&s.accept<15)?5:0),100);
+      const band=fit>=82?"상향 Target":fit>=70?"Balanced Target":fit>=58?"Reach":"High Reach";
+      const after=fit>=78?"지원 가능권":fit>=65?"보완 후 가능":"전략적 리치";
+      return {...s,fit,band,after};
+    });
+
+    const strengthItems=[
+      `<b>Academics ${academics}/20:</b> 이전 성적 ${prevGrade}/5, 현재 성적 ${currentGrade}/10, 학업 추천서 준비도 ${academicReco}/5로 산정했습니다.`,
+      `<b>School Culture ${culture}/20:</b> 인터뷰 ${interview}/10, Student Life 추천서 ${lifeReco}/5, 봉사 ${service}/5입니다.`,
+      `<b>Sports/Arts/Misc ${sportsArtsMisc}/35:</b> Sports ${sports}/15, Arts ${arts}/10, Misc/Hook ${misc}/10으로 분리했습니다.`,
+      `<b>Hook:</b> ${esc(topHook)}를 에세이, 인터뷰, 추천서가 반복해서 증명하는 한 문장으로 고정해야 합니다.`
+    ];
+    const weakItems=[
+      ssat?`<b>SSAT:</b> 현재 ${ssat}%입니다. Exeter/Andover/Choate급 데이터 기준 안정권은 95%+라 Reading/Verbal 보완 계획이 필요합니다.`:"<b>SSAT:</b> 미입력 상태입니다. 상위권 보딩 판단에서 가장 먼저 비는 항목입니다.",
+      `<b>Clubs & Activities ${clubs}/20:</b> 리더 ${clubLeader}/5, 임팩트 ${clubImpact}/10, 기간 ${clubDuration}/5입니다. 단순 멤버십 2개만으로는 고득점이 나오지 않게 수정했습니다.`,
+      service<4?`<b>봉사:</b> 현재 ${service}/5입니다. 기관명, 역할, 누적 시간, 증빙 가능성을 갖춰야 School Culture 점수가 올라갑니다.`:`<b>봉사:</b> 현재 ${service}/5로 기록 기반은 있으나 추천서 문장으로 연결해야 합니다.`,
+      clubLeader<4?`<b>리더십:</b> 공식 직함이 약하면 Clubs의 5점 리더 항목이 비어 보입니다. 회장, founder, captain, project lead 중 하나를 만들어야 합니다.`:`<b>리더십:</b> 직함은 확인되므로 실제 산출물과 후임 구조를 만들어야 합니다.`
+    ];
+    const rejectData=[
+      ["01","SSAT/TOEFL 기준이 아직 학교별 안정권과 다를 수 있음",`현재 SSAT ${ssat||"미입력"} / TOEFL ${toefl||"미입력"}입니다. School Rankings의 상위권 학교는 SSAT 94~97%가 반복됩니다.`,"8주 단위 Mock, Reading/Verbal 오답 유형표, TOEFL speaking 인터뷰 전환 훈련"],
+      ["02","Clubs 점수는 멤버십 수가 아니라 리더·임팩트·기간으로 판단",`현재 Clubs는 ${clubs}/20입니다. 리더 ${clubLeader}, 임팩트 ${clubImpact}, 기간 ${clubDuration}으로 산정했습니다.`,"한 활동을 대표 프로젝트로 정하고 공식 직함, 결과물, 추천 가능자를 확보"],
+      ["03","봉사와 커뮤니티 기여의 증빙 부족",`봉사 항목은 ${service}/5입니다. 시간만이 아니라 기관명과 역할이 있어야 Student Life 추천서가 강해집니다.`,"50~100h 목표, 기관 확인서, 학생 역할 설명문 작성"],
+      ["04","Hook 문장이 아직 지원서 전체를 끌고 갈 만큼 선명하지 않음",`현재 Hook 후보는 '${esc(topHook)}'입니다. 하지만 학교가 기억할 한 문장으로 압축되어야 합니다.`,"에세이, 활동, 인터뷰 답변을 같은 주제로 묶기"],
+      ["05","추천서 전략이 과목별로 분리되어야 함",`추천서 후보: ${esc(d.recLetterCandidates)}`,"Academic 2명, Student Life 1명, Coach/Mentor 1명으로 증거 문장 배정"],
+      ["06","학교별 Fit 근거가 더 촘촘해야 함",`목표 학교: ${esc(requested.join(", ")||"미입력")}`,"학교별 SSAT 기준, 합격률, 보딩 비율, 프로그램 Fit을 표로 비교"],
+      ["07","방학 산출물이 합격 자료로 전환되어야 함",`여름: ${esc(d.summerActivity)} / 겨울: ${esc(d.winterActivity)}`,"논문형 리포트, 경기 기록, 공연/전시 포트폴리오, 봉사 확인서로 남기기"]
+    ];
+    const chipClass=(band)=>band==="High Reach"?"oc-low":band==="Reach"?"oc-mid":"oc-high";
+
+    return `<div class="page generated-tool2">
+      <style>
+        .generated-tool2{max-width:980px;margin:0 auto;background:#fff;color:#111827;font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;border:1px solid #d1d5db}
+        .generated-tool2 .cover{background:#1a2744;color:white;padding:52px 46px 42px}.generated-tool2 .logo{font-size:11px;font-weight:700;letter-spacing:.16em;color:#93c5fd;text-transform:uppercase;margin-bottom:36px}.generated-tool2 h1{font-family:'Noto Serif KR',serif;font-size:34px;line-height:1.28;margin-bottom:12px}.generated-tool2 .subtitle{font-size:15px;color:#bfdbfe;line-height:1.7}.generated-tool2 .meta{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border-top:1px solid rgba(255,255,255,.18);margin-top:34px;padding-top:18px}.generated-tool2 .meta-lbl{display:block;font-size:10px;color:#93c5fd;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}.generated-tool2 .meta-val{font-size:13px;font-weight:600}.generated-tool2 .content{padding:34px 44px}.generated-tool2 .section{margin-top:42px}.generated-tool2 .section:first-child{margin-top:0}.generated-tool2 .sec-hdr{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1a2744;padding-bottom:8px;margin-bottom:18px}.generated-tool2 .sec-num{background:#1a2744;color:white;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}.generated-tool2 .sec-title{font-size:17px;font-weight:800;color:#1a2744}.generated-tool2 .sec-sub{margin-left:auto;font-size:10px;color:#6b7280}.generated-tool2 .sub-hdr{font-size:14px;font-weight:800;color:#1a2744;margin:20px 0 10px}.generated-tool2 .stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}.generated-tool2 .stat-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center}.generated-tool2 .stat-val{font-size:24px;font-weight:800}.generated-tool2 .stat-lbl{font-size:10px;color:#6b7280;line-height:1.45}.generated-tool2 .rubric-grid,.generated-tool2 .diag-grid,.generated-tool2 .diag-school-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.generated-tool2 .rub-card,.generated-tool2 .diag-card,.generated-tool2 .season-card,.generated-tool2 .vac-card,.generated-tool2 .hook-card,.generated-tool2 .diag-school-card{border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:14px}.generated-tool2 .rub-title{font-size:13px;font-weight:800}.generated-tool2 .rub-pts{color:#6b7280}.generated-tool2 .rub-now{font-size:12px;font-weight:800;margin:7px 0}.generated-tool2 .rub-bar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-bottom:9px}.generated-tool2 .rub-bar-fill{height:100%;border-radius:99px}.generated-tool2 .rub-items,.generated-tool2 .diag-item,.generated-tool2 .reject-body,.generated-tool2 td,.generated-tool2 p{font-size:11.5px;line-height:1.7;color:#374151}.generated-tool2 .diag-title{font-size:13px;font-weight:800;margin-bottom:9px}.generated-tool2 .diag-item{display:flex;gap:8px;margin:8px 0}.generated-tool2 .diag-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none}.generated-tool2 .highlight-box,.generated-tool2 .note-box{background:#f0f7ff;border-left:4px solid #2563a8;border-radius:8px;padding:13px 15px;font-size:12px;line-height:1.75;color:#1f2937}.generated-tool2 .reject-grid,.generated-tool2 .season-grid,.generated-tool2 .vac-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.generated-tool2 .reject-card{border:1px solid #e5e7eb;border-radius:8px;padding:13px;background:#fff}.generated-tool2 .reject-num{display:inline-block;background:#fee2e2;color:#991b1b;font-weight:800;font-size:10px;border-radius:99px;padding:3px 8px;margin-bottom:7px}.generated-tool2 .reject-title{font-size:13px;font-weight:800;color:#111827;margin-bottom:5px}.generated-tool2 .reject-solution{margin-top:8px;background:#fff7ed;border-radius:6px;padding:8px;font-size:11px;color:#92400e;line-height:1.6}.generated-tool2 .tbl-wrap{overflow:auto}.generated-tool2 table{width:100%;border-collapse:collapse;font-size:11px}.generated-tool2 th{background:#1a2744;color:white;text-align:left;padding:8px}.generated-tool2 td{border:1px solid #e5e7eb;padding:8px;vertical-align:top}.generated-tool2 .ssat-grid,.generated-tool2 .rec-grid,.generated-tool2 .hook-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.generated-tool2 .season-title,.generated-tool2 .hook-hdr,.generated-tool2 .dsc-title{font-size:13px;font-weight:800;color:#1a2744;margin-bottom:8px}.generated-tool2 .season-item{font-size:11.5px;line-height:1.7;margin:6px 0}.generated-tool2 .gateway-tbl th{font-size:10px}.generated-tool2 .outcome-chip{display:inline-block;border-radius:99px;padding:3px 8px;font-size:10px;font-weight:800}.generated-tool2 .oc-low{background:#fee2e2;color:#991b1b}.generated-tool2 .oc-mid{background:#fef3c7;color:#92400e}.generated-tool2 .oc-high{background:#d1fae5;color:#065f46}.generated-tool2 .dsc-row{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;border-bottom:1px solid #e5e7eb;padding:7px 0;font-size:11px}.generated-tool2 .traffic{border-radius:99px;padding:2px 7px;font-size:10px;font-weight:800}.generated-tool2 .t-red{background:#fee2e2;color:#991b1b}.generated-tool2 .t-yellow{background:#fef3c7;color:#92400e}.generated-tool2 .t-green{background:#d1fae5;color:#065f46}@media(max-width:800px){.generated-tool2 .content,.generated-tool2 .cover{padding-left:18px;padding-right:18px}.generated-tool2 .meta,.generated-tool2 .stat-row,.generated-tool2 .rubric-grid,.generated-tool2 .diag-grid,.generated-tool2 .reject-grid,.generated-tool2 .ssat-grid,.generated-tool2 .rec-grid,.generated-tool2 .season-grid,.generated-tool2 .vac-grid,.generated-tool2 .hook-grid,.generated-tool2 .diag-school-grid{grid-template-columns:1fr}.generated-tool2 .sec-sub{display:none}}
+      </style>
+      <div class="cover"><div class="logo">예스유학 · 전략 제안서</div><h1>${esc(student)} 학생<br>미국 보딩스쿨 합격 전략 제안서</h1><div class="subtitle">${esc(d.currentSchool||"현재 학교 미입력")} · ${esc(target)} 목표 · Tool 1 입력 데이터 기반 자동 분석</div><div class="meta"><div><span class="meta-lbl">Student</span><span class="meta-val">${esc(student)}</span></div><div><span class="meta-lbl">Current</span><span class="meta-val">${esc(d.currentGrade||"미입력")}</span></div><div><span class="meta-lbl">Target</span><span class="meta-val">${esc(target)}</span></div><div><span class="meta-lbl">Model</span><span class="meta-val">Rubric + 합격자 데이터</span></div></div></div>
+      <div class="content">
+        <div class="section"><div class="sec-hdr"><span class="sec-num">01</span><span class="sec-title">현재 학생 진단 — 예스유학 루브릭 분석</span><span class="sec-sub">총점 100점 기준</span></div>
+          <div class="stat-row"><div class="stat-card"><div class="stat-val" style="color:#dc2626">${total}점</div><div class="stat-lbl">현재 추정 총점</div></div><div class="stat-card"><div class="stat-val" style="color:#2563a8">${goalScore}점</div><div class="stat-lbl">지원 목표 점수</div></div><div class="stat-card"><div class="stat-val" style="color:#d97706">+${gap}점</div><div class="stat-lbl">보완 필요 점수</div></div><div class="stat-card"><div class="stat-val" style="color:#0d6e56">${[d.mainSport,d.specialSubject,d.instrument,d.mainHook].filter(Boolean).length||1}개</div><div class="stat-lbl">스파이크 후보</div></div><div class="stat-card"><div class="stat-val" style="color:#4c1d95">${rows.length}개교</div><div class="stat-lbl">분석 학교</div></div></div>
+          <div class="rubric-grid">
+            <div class="rub-card" style="border-top:3px solid #2563a8"><div class="rub-title">School Academics <span class="rub-pts">/ 20점</span></div><div class="rub-now" style="color:#2563a8">현재 ${academics}점 · 목표 ${Math.min(20,academics+3)}점</div><div class="rub-bar"><div class="rub-bar-fill" style="width:${academics/20*100}%;background:#2563a8"></div></div><div class="rub-items"><b>이전 성적(5):</b> ${prevGrade}/5 · ${esc(d.prevGrades)}<br><b>현재 성적(10):</b> ${currentGrade}/10 · ${esc(d.currentGrades)}<br><b>Academic 추천서(5):</b> ${academicReco}/5 · ${esc(d.recLetterCandidates)}</div></div>
+            <div class="rub-card" style="border-top:3px solid #0d6e56"><div class="rub-title">School Culture <span class="rub-pts">/ 20점</span></div><div class="rub-now" style="color:#0d6e56">현재 ${culture}점 · 목표 ${Math.min(20,culture+4)}점</div><div class="rub-bar"><div class="rub-bar-fill" style="width:${culture/20*100}%;background:#0d6e56"></div></div><div class="rub-items"><b>인터뷰(10):</b> ${interview}/10 · TOEFL ${toefl||"미입력"} 및 성격/학교조사 기반<br><b>Student Life 추천서(5):</b> ${lifeReco}/5<br><b>봉사(5):</b> ${service}/5 · ${esc(d.serviceActivities||d.serviceHours)}</div></div>
+            <div class="rub-card" style="border-top:3px solid #7c3aed"><div class="rub-title">Clubs & Activities <span class="rub-pts">/ 20점</span></div><div class="rub-now" style="color:#7c3aed">현재 ${clubs}점 · 목표 ${Math.min(20,clubs+6)}점</div><div class="rub-bar"><div class="rub-bar-fill" style="width:${clubs/20*100}%;background:#7c3aed"></div></div><div class="rub-items"><b>리더(5):</b> ${clubLeader}/5 · 공식 직함/대표 역할만 반영<br><b>임팩트(10):</b> ${clubImpact}/10 · 수상·대회·프로젝트·커뮤니티 결과물 기준<br><b>기간(5):</b> ${clubDuration}/5 · 지속 기간과 누적성 기준<br><b>입력 활동:</b> ${esc(d.clubs)}</div></div>
+            <div class="rub-card" style="border-top:3px solid #c2410c"><div class="rub-title">Sports + Arts + Misc <span class="rub-pts">/ 35점</span></div><div class="rub-now" style="color:#c2410c">현재 ${sportsArtsMisc}점 · 목표 ${Math.min(35,sportsArtsMisc+6)}점</div><div class="rub-bar"><div class="rub-bar-fill" style="width:${sportsArtsMisc/35*100}%;background:#c2410c"></div></div><div class="rub-items"><b>Sports(15):</b> ${sports}/15 · ${esc(d.mainSport||d.fallSport||d.winterSport)}<br><b>Arts(10):</b> ${arts}/10 · Music ${music}/5, Theater/Visual ${artsOther}/5<br><b>Misc/Hook(10):</b> ${misc}/10 · ${esc(topHook)}</div></div>
+          </div>
+          <div class="sub-hdr">강점 / 약점 종합</div><div class="diag-grid"><div class="diag-card" style="border-top:3px solid #16a34a"><div class="diag-title" style="color:#15803d">핵심 강점과 근거</div>${strengthItems.map(x=>`<div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span>${x}</span></div>`).join("")}</div><div class="diag-card" style="border-top:3px solid #dc2626"><div class="diag-title" style="color:#dc2626">보완 필요 항목과 근거</div>${weakItems.map(x=>`<div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span>${x}</span></div>`).join("")}</div></div>
+        </div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">02</span><span class="sec-title">왜 탑 시니어보딩에 바로 합격이 어려운가 — 7가지 원인 분석</span><span class="sec-sub">루브릭 gap 분석</span></div><div class="highlight-box"><b>핵심 판단:</b> 현재 총점은 ${total}점입니다. 합격자 데이터에서 상위권 학생은 시험, EC Strength, 리더십, Hook이 동시에 4~5 수준으로 보이는데, 이 학생은 특히 Clubs & Activities가 ${clubs}/20으로 별도 보완이 필요합니다.</div><div class="reject-grid" style="margin-top:14px">${rejectData.map(r=>`<div class="reject-card"><div class="reject-num">${r[0]}</div><div class="reject-title">${r[1]}</div><div class="reject-body">${r[2]}</div><div class="reject-solution">→ ${r[3]}</div></div>`).join("")}</div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">03</span><span class="sec-title">아카데믹 플랜 — 내신 · SSAT · 추천서</span></div><div class="sub-hdr">3-1. 과목별 내신 전략</div><div class="tbl-wrap"><table><thead><tr><th>과목</th><th>현재 강점</th><th>목표</th><th>전략</th></tr></thead><tbody><tr><td>English / Humanities</td><td>${esc(d.englishLevel||d.currentGrades)}</td><td>A/A+와 글쓰기 증거</td><td>주 1회 에세이, 독서 로그, 인터뷰 답변 문장화</td></tr><tr><td>Math / Science</td><td>${esc(d.specialSubject||d.academicAwards)}</td><td>수상 또는 프로젝트 산출물</td><td>대회 결과와 연구 주제를 Hook과 연결</td></tr><tr><td>Recommendation</td><td>${esc(d.recLetterCandidates)}</td><td>Academic 2명 + Life 1명</td><td>각 교사에게 증명할 문장과 사례를 사전 배정</td></tr></tbody></table></div><div class="sub-hdr">3-2. SSAT 전략 & 일정</div><div class="ssat-grid"><div class="diag-card"><div class="diag-title">Math</div><p>현재 ${esc(d.ssatMath)}. 강점이면 유지 훈련, 약점이면 계산 속도와 오답 유형을 고정합니다.</p></div><div class="diag-card"><div class="diag-title">Reading</div><p>현재 ${esc(d.ssatReading)}. 상위권 보딩은 긴 지문 추론과 어휘 문맥 문제가 핵심입니다.</p></div><div class="diag-card"><div class="diag-title">Verbal</div><p>현재 ${esc(d.ssatVerbal)}. 2,000단어 루틴과 analogy/synonym 오답 노트를 운영합니다.</p></div></div><div class="sub-hdr">3-3. Recommendation 전략</div><div class="rec-grid"><div class="diag-card"><div class="diag-title">Academic</div><p>성적 우수함보다 수업 기여, 질문의 깊이, 피드백 반영 사례를 요청합니다.</p></div><div class="diag-card"><div class="diag-title">Student Life</div><p>기숙사/커뮤니티에서 신뢰받을 학생이라는 근거가 필요합니다.</p></div><div class="diag-card"><div class="diag-title">Spike Mentor</div><p>${esc(topHook)}를 외부 시선으로 증명할 코치·멘토 추천을 확보합니다.</p></div></div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">04</span><span class="sec-title">EC 플랜 — 시즌별 활동 전략</span></div><div class="season-grid"><div class="season-card"><div class="season-title">Fall</div><div class="season-item">클럽은 단순 참여가 아니라 한 가지 산출물의 owner가 되어야 합니다.</div><div class="season-item">${esc(d.fallSport||"가을 스포츠/활동 입력 필요")}</div></div><div class="season-card"><div class="season-title">Winter</div><div class="season-item">${esc(d.winterSport||d.mainSport||"겨울 대표 활동 입력 필요")}</div><div class="season-item">코치/지도자의 관찰 문장을 추천서 자산으로 축적합니다.</div></div><div class="season-card"><div class="season-title">Spring</div><div class="season-item">${esc(d.springSport||"봄 활동 입력 필요")}</div><div class="season-item">봉사 또는 리더십 프로젝트를 마감 결과물로 만듭니다.</div></div></div><div class="note-box" style="margin-top:12px">Clubs & Activities는 스포츠/아트와 분리했습니다. 따라서 클럽 멤버십 2개만 있는 학생은 리더, 임팩트, 기간 증거가 없으면 높은 점수를 받지 않습니다.</div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">05</span><span class="sec-title">방학 일정 & 세부 액션 플랜</span></div><div class="vac-grid"><div class="vac-card"><b>Thanksgiving</b><p>학교별 Why 자료와 인터뷰 답변 초안 작성</p></div><div class="vac-card"><b>Winter</b><p>${esc(d.winterActivity||"SSAT 보완, 봉사 증빙, 대표 활동 결과물 정리")}</p></div><div class="vac-card"><b>Spring</b><p>추천서 후보 미팅과 활동 산출물 1차 완성</p></div><div class="vac-card"><b>Summer</b><p>${esc(d.summerActivity||"캠프/연구/대회/포트폴리오 중 하나를 공식 결과물로 완성")}</p></div></div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">06</span><span class="sec-title">Hook & Special Interest — 3대 스파이크 기획</span></div><div class="hook-card"><div class="hook-hdr">Spike 1. 대표 Hook</div><div class="hook-grid"><div><b>현재 소재</b><p>${esc(topHook)}</p></div><div><b>증명 자료</b><p>${esc(d.mainSportAwards||d.academicAwards||d.researchProject)}</p></div><div><b>지원서 문장</b><p>“나는 이 관심사를 학교 커뮤니티 안에서 실제 기여로 바꾸는 학생”으로 정리합니다.</p></div></div></div><div class="hook-card" style="margin-top:12px"><div class="hook-hdr">Spike 2. Academic + Activity 연결</div><p>${esc(d.specialSubject||"학업 강점")}을 ${esc(d.clubs||"클럽/프로젝트")}와 연결해 한 개의 깊은 프로젝트로 만듭니다.</p></div><div class="hook-card" style="margin-top:12px"><div class="hook-hdr">Spike 3. Community Contribution</div><p>${esc(d.serviceActivities||"봉사/커뮤니티 기여")}를 누적 시간, 역할, 결과물, 추천 가능자로 증명합니다.</p></div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">07</span><span class="sec-title">예스유학 Student Gateway — 향후 아웃컴 예측</span></div><div class="tbl-wrap"><table class="gateway-tbl"><thead><tr><th>학교</th><th>학교 데이터</th><th>현재 진단</th><th>보완 후 전망</th><th>핵심 근거</th></tr></thead><tbody>${rows.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td>Yes Rank ${esc(s.yesRank)} · Niche ${esc(s.niche)}<br>SSAT 기준 ${esc(s.ssat)}% · 합격률 ${esc(s.accept)}%</td><td><span class="outcome-chip ${chipClass(s.band)}">${s.band}</span><br>Fit ${s.fit}/100</td><td>${s.after}</td><td>${esc(s.profile)}</td></tr>`).join("")}</tbody></table></div><div class="note-box" style="margin-top:12px"><b>리스트 전략:</b> Dream은 시험과 Hook 기준을 먼저 맞추고, Target은 클럽 리더십/봉사 증빙으로 합격 가능성을 올리며, Likely는 학생의 현재 강점이 바로 읽히는 학교로 배치합니다.</div></div>
+        <div class="section"><div class="sec-hdr"><span class="sec-num">08</span><span class="sec-title">앤도버 · 엑시터 진단표 — 합격 기준 vs 현재 수준</span></div><div class="diag-school-grid"><div class="diag-school-card"><div class="dsc-title">Phillips Academy Andover</div><div class="dsc-row"><span>SSAT</span><span>97%권</span><span><span class="traffic ${ssat>=95?"t-green":ssat>=88?"t-yellow":"t-red"}">${ssat||"미입력"}</span></span></div><div class="dsc-row"><span>Academics</span><span>최상위 내신+추천서</span><span>${academics}/20</span></div><div class="dsc-row"><span>Leadership/EC</span><span>명확한 임팩트</span><span>${clubs}/20</span></div></div><div class="diag-school-card"><div class="dsc-title">Phillips Exeter Academy</div><div class="dsc-row"><span>SSAT</span><span>96%권</span><span><span class="traffic ${ssat>=95?"t-green":ssat>=88?"t-yellow":"t-red"}">${ssat||"미입력"}</span></span></div><div class="dsc-row"><span>Harkness Fit</span><span>토론·글쓰기·질문</span><span>${interview}/10</span></div><div class="dsc-row"><span>Specialty</span><span>기억나는 한 문장</span><span>${misc}/10</span></div></div></div><div class="sub-hdr">앤도버·엑시터 합격을 위한 체크리스트</div><div class="diag-grid"><div class="diag-card"><div class="diag-title">필수 보완</div><p>SSAT 95%+, Clubs 리더/임팩트/기간 증거, Academic 추천서 2명, Student Life 추천서 1명.</p></div><div class="diag-card"><div class="diag-title">합격 서사</div><p>${esc(topHook)}를 학교 커뮤니티에서 어떻게 확장할지 에세이와 인터뷰에서 반복합니다.</p></div></div></div>
+      </div>
+    </div>`;
+  };
+
   const analyze=()=>{
     setLoading(true);
     setTimeout(()=>{
-      setAi(localAnalysis());
+      setAi(localAnalysisTool2());
       setLoading(false);
     },350);
   };
@@ -562,7 +677,7 @@ Hook 아이디어: ${d.hookIdea}
     const next=parseCopiedData(raw);
     setD(next);
     setStep(9);
-    setAi(localAnalysis(next));
+    setAi(localAnalysisTool2(next));
     setStartMode("form");
     setImportErr("");
   };
