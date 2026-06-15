@@ -49,6 +49,46 @@ const init={
   studentPersonality:"",parentRequests:"",
 };
 
+const MODEL_RUBRIC=[
+  {key:"academics",label:"School Academics",max:20,items:["이전 성적 5","현재 성적 10","Academic 추천서 5"],ideal:"All A/A+ · Honor Roll · 교사가 학업 태도와 기여도를 강하게 증언"},
+  {key:"testing",label:"Standardized Testing",max:10,items:["SSAT 95%+","TOEFL 110+"],ideal:"탑 보딩 Reach군은 SSAT 95%+, TOEFL 110+ 또는 면제 조건이 안정권"},
+  {key:"culture",label:"School Culture",max:20,items:["인터뷰 10","Student Life 추천서 5","봉사 5"],ideal:"유창한 영어 인터뷰, 공동체 기여, 공식 봉사 기록"},
+  {key:"clubs",label:"Clubs & Activities",max:20,items:["리더 5","임팩트 10","기간 5"],ideal:"2년 이상 지속된 커뮤니티 기반 활동과 명확한 리더십"},
+  {key:"arts",label:"Arts",max:10,items:["음악/연극/아트"],ideal:"학교 공연·오케스트라·포트폴리오처럼 캠퍼스에서 재현 가능한 예술 기여"},
+  {key:"sports",label:"Sports",max:15,items:["스포츠 임팩트 10","포텐셜 5"],ideal:"JV/Varsity 가능성, 코치 추천, 대회 실적, 3시즌 활동"},
+  {key:"misc",label:"Misc. / Hook",max:10,items:["Awards","Special Interest","Hook"],ideal:"논문·경시·특기 프로젝트처럼 학교가 기억할 한 문장"}
+];
+
+const BENCHMARKS=[
+  {name:"High Reach 합격형",ssat:96,toefl:112,gpa:"A",english:95,fit:100,ec:4.5,leadership:4.5,hook:4,schools:["Andover","Hotchkiss","Deerfield","Loomis Chaffee"]},
+  {name:"Strong Target 합격형",ssat:85,toefl:100,gpa:"A",english:90,fit:100,ec:4.5,leadership:4,hook:5,schools:["Loomis Chaffee","Lake Forest","Mercersburg","Woodberry Forest"]},
+  {name:"EC Hook 보완형",ssat:80,toefl:102,gpa:"Most A / Some B",english:85,fit:80,ec:4,leadership:3.5,hook:4,schools:["Target/Match 중심"]},
+  {name:"시험 보완 필요형",ssat:30,toefl:79,gpa:"B",english:65,fit:80,ec:2,leadership:1,hook:2,schools:["Berkshire","Governor's","Westtown","Williston"]}
+];
+
+const SCHOOL_DB=[
+  {name:"Phillips Exeter Academy",yesRank:2,niche:3,state:"NH",students:1078,boarding:80,intl:9,avgSAT:1470,accept:14,ssat:96,profile:"Harkness 탐구형, 최상위 학업·글쓰기·토론 역량 필요"},
+  {name:"Phillips Academy Andover",yesRank:1,niche:2,state:"MA",students:1187,boarding:72,intl:11,avgSAT:1480,accept:13,ssat:97,profile:"최상위 학업, 리더십, 에세이 완성도, 공적 임팩트 필요"},
+  {name:"Choate Rosemary Hall",yesRank:3,niche:4,state:"CT",students:869,boarding:77,intl:18,avgSAT:1430,accept:11,ssat:96,profile:"연극·예술·글쓰기와 균형형 리더십이 강한 학교"},
+  {name:"Groton School",yesRank:6,niche:1,state:"MA",students:379,boarding:85,intl:11,avgSAT:1450,accept:9,ssat:95,profile:"작은 커뮤니티, 추천서·인성·학업 균형이 매우 중요"},
+  {name:"Hotchkiss School",yesRank:5,niche:5,state:"CT",students:624,boarding:98,intl:14,avgSAT:1440,accept:13,ssat:94,profile:"강한 보딩 문화, 스포츠/아웃도어/학업 스파이크 활용 가능"},
+  {name:"Lawrenceville School",yesRank:4,niche:7,state:"NJ",students:819,boarding:70,intl:16,avgSAT:1460,accept:16,ssat:96,profile:"House system, 토론·리더십·학업 우수성 중시"},
+  {name:"St. Paul's School",yesRank:8,niche:6,state:"NH",students:535,boarding:100,intl:19,avgSAT:1430,accept:15.7,ssat:96,profile:"100% 보딩, 성숙도와 공동체 Fit 중요"},
+  {name:"Deerfield Academy",yesRank:7,niche:14,state:"MA",students:663,boarding:88,intl:14,avgSAT:1450,accept:12,ssat:92,profile:"전통적 보딩, 3시즌 스포츠·리더십·추천서 강점 필요"},
+  {name:"Loomis Chaffee School",yesRank:21,niche:10,state:"CT",students:726,boarding:71,intl:15,avgSAT:1410,accept:17,ssat:92,profile:"상위권 Target 후보, 학업+활동 균형형 학생에 적합"},
+  {name:"Middlesex School",yesRank:12,niche:17,state:"MA",students:409,boarding:70,intl:12,avgSAT:1430,accept:14,ssat:94,profile:"소규모 학업 강도, 교사 추천서와 글쓰기 중요"},
+  {name:"St. Mark's School",yesRank:20,niche:21,state:"MA",students:375,boarding:76,intl:21,avgSAT:1410,accept:29,ssat:90,profile:"상위권 Match, 균형형 활동과 인터뷰 Fit 중요"},
+  {name:"Taft School",yesRank:14,niche:23,state:"CT",students:601,boarding:82,intl:21,avgSAT:1380,accept:20,ssat:91,profile:"전통 보딩, 리더십·운동·예술 활동 조합에 적합"},
+  {name:"Berkshire School",yesRank:50,niche:48,state:"MA",students:400,boarding:90,intl:17,avgSAT:1340,accept:20,ssat:86,profile:"스포츠·스키·아웃도어 강점 학생에게 전략적 Target/Likely"},
+  {name:"Northfield Mount Hermon School",yesRank:31,niche:53,state:"MA",students:667,boarding:84,intl:26,avgSAT:1390,accept:31,ssat:90,profile:"국제학생 비율 높고 활동형 학생에게 현실적 Target"},
+  {name:"Kent School",yesRank:19,niche:39,state:"CT",students:520,boarding:93,intl:28,avgSAT:1400,accept:38,ssat:91,profile:"보딩 비율 높고 국제학생 환경, 안정 지원 후보"},
+  {name:"Mercersburg Academy",yesRank:44,niche:31,state:"PA",students:446,boarding:84,intl:22,avgSAT:1380,accept:33,ssat:89,profile:"균형형 학생에게 Safety/Target 후보"},
+  {name:"Lake Forest Academy",yesRank:28,niche:13,state:"IL",students:437,boarding:48,intl:25,avgSAT:1400,accept:31,ssat:92,profile:"국제학생 친화, 학업·활동 균형형 Match"},
+  {name:"Peddie School",yesRank:17,niche:61,state:"NJ",students:532,boarding:58,intl:21,avgSAT:1410,accept:22,ssat:93,profile:"STEM·수영 등 특정 강점 활용 가능"},
+  {name:"Culver Academies",yesRank:27,niche:54,state:"IN",students:830,boarding:98,intl:20,avgSAT:1320,accept:54,ssat:87,profile:"리더십·음악·극장·봉사 요소가 강한 안정권 후보"},
+  {name:"Williston Northampton School",yesRank:36,niche:69,state:"MA",students:455,boarding:63,intl:26,avgSAT:1320,accept:33,ssat:86,profile:"시험 보완 중인 학생에게 현실적 Safety/Target"}
+];
+
 function Field({label,required,hint,children}){
   return(
     <div style={{marginBottom:16}}>
@@ -232,32 +272,51 @@ Hook 아이디어: ${d.hookIdea}
     const filled=(keys)=>keys.reduce((n,k)=>n+(String(d[k]||"").trim()?1:0),0);
     const has=(...keys)=>keys.some(k=>String(d[k]||"").trim());
     const num=(v)=>parseInt(String(v||"").replace(/[^0-9]/g,""),10)||0;
-    const cap=(value,max)=>Math.min(max,value);
+    const cap=(value,max,min=0)=>Math.max(min,Math.min(max,value));
     const ssat=num(d.ssatOverall), math=num(d.ssatMath), toefl=num(d.toeflScore);
+    const textAll=Object.values(d).join(" ").toLowerCase();
+    const gpaText=(d.currentGrades||d.prevGrades||"").toLowerCase();
+    const gpaScore=/all\s*a\+|전과목\s*a\+|a\+/.test(gpaText)?20:/all\s*a|전과목\s*a|gpa\s*3\.9|gpa\s*4|honor|distinction|최상위/.test(gpaText)?18:/most\s*a|some\s*b|a\s*&\s*b|a,b|대부분\s*a/.test(gpaText)?15:/\bb\b|most\s*b|some\s*a/.test(gpaText)?11:/\bc\b|d and below|d/.test(gpaText)?7:filled(["prevGrades","currentGrades"])?12:8;
+    const academicReco=has("recLetterCandidates")?4:has("currentGrades","prevGrades")?3:2;
+    const academics=cap(gpaScore+academicReco,20);
+    const testing=cap((ssat?ssat/10:0)+(toefl?Math.max(0,(toefl-80)/3):0),10);
+    const englishFluency=toefl>=110?95:toefl>=105?90:toefl>=100?85:toefl>=90?75:toefl?60:70;
+    const interview=cap((englishFluency/100)*6 + (has("studentPersonality","leadershipRoles")?2:0) + (has("schoolPriority","dreamSchools")?2:0),10);
+    const studentLifeReco=cap((has("recLetterCandidates")?3:1)+(has("studentPersonality")?1:0)+(has("leadershipRoles")?1:0),5);
+    const service=cap(has("serviceActivities")?(String(d.serviceHours).includes("100")?5:String(d.serviceHours).includes("50")?4:String(d.serviceHours).includes("20")?3:2):1,5);
+    const culture=cap(interview+studentLifeReco+service,20);
+    const ecStrength=cap(filled(["mainSport","instrument","dramaExp","visualArts","clubs","academicPrograms"])*0.75 + (has("mainSportAwards","academicAwards","musicAwards","leadershipAwards")?2:0),5);
+    const leadershipScore=cap((has("leadershipRoles")?3:1)+(has("clubs","serviceActivities")?1:0)+(has("leadershipAwards")?1:0),5);
+    const hookScore=cap((has("mainHook")?3:1)+(has("hookIdea","researchProject")?1:0)+(has("academicAwards","mainSportAwards")?1:0),5);
+    const clubs=cap(leadershipScore + ecStrength*2 + (filled(["clubs","mainSport","instrument","serviceActivities"])>=3?5:2),20);
+    const arts=cap((has("instrument")?3:0)+(has("musicAwards")?2:0)+(has("dramaExp")&&!/없음|none|미경험/.test(String(d.dramaExp))?3:0)+(has("visualArts","otherArts")?2:0),10);
+    const sports=cap((has("mainSport")?5:0)+(has("mainSportAwards")?4:0)+(has("mainSportLevel")?2:0)+(has("fallSport","winterSport","springSport")?2:0)+(has("coachInfo")?2:0),15);
+    const misc=cap((has("academicAwards")?3:0)+(has("researchProject","hookIdea")?3:0)+(has("mainHook")?2:0)+(has("writingExp","hobbies")?2:0),10);
+    const total=cap(Math.round(academics+testing+culture+clubs+arts+sports+misc),100);
 
-    const academic=cap(12 + filled(["prevGrades","currentGrades","academicAwards","specialSubject","researchProject","academicPrograms"])*2 + (ssat>=90?5:ssat>=80?4:ssat>=70?3:ssat?2:0) + (toefl>=105?3:toefl>=95?2:0), 25);
-    const sport=cap(6 + filled(["mainSport","mainSportYears","mainSportLevel","mainSportAwards","allSportAwards","sportCertificates","trainingHours","coachInfo"])*2, 20);
-    const arts=cap(4 + filled(["instrument","musicYears","musicLevel","musicAwards","dramaExp","dramaDetails","visualArts","otherArts"])*1.5, 15);
-    const leadership=cap(4 + filled(["leadershipRoles","serviceActivities","serviceHours","clubs","leadershipAwards"])*2, 15);
-    const hook=cap(5 + filled(["mainHook","hookIdea","hobbies","writingExp","studentPersonality"])*2, 15);
-    const planning=cap(3 + filled(["dreamSchools","matchSchools","safetySchools","summerActivity","winterActivity","academicCamps","recLetterCandidates","schoolPriority"])*1.25, 10);
-    const total=Math.round(academic+sport+arts+leadership+hook+planning);
+    const benchmark=BENCHMARKS.slice().sort((a,b)=>
+      Math.abs((ssat||70)-a.ssat)+Math.abs((toefl||100)-a.toefl)+Math.abs(hookScore-a.hook)
+      -(Math.abs((ssat||70)-b.ssat)+Math.abs((toefl||100)-b.toefl)+Math.abs(hookScore-b.hook))
+    )[0];
 
     const strengths=[
-      has("mainSport","mainSportAwards") && `스포츠 스파이크가 분명합니다. ${d.mainSport||"주력 스포츠"} 활동과 수상/훈련 기록은 보딩스쿨이 좋아하는 지속성 있는 EC 축으로 정리할 수 있습니다.`,
-      has("academicAwards","specialSubject","researchProject") && `학업 강점이 보입니다. ${d.specialSubject||"강점 과목"}과 수상/연구 경험을 연결하면 단순 성적보다 설득력 있는 학업 서사가 됩니다.`,
-      has("instrument","musicAwards","dramaExp") && `예술 활동이 보조 스파이크로 작동할 수 있습니다. 음악/공연 경험은 캠퍼스 기여도와 균형감을 보여주는 요소입니다.`,
-      has("leadershipRoles","serviceActivities","serviceHours") && `리더십과 봉사 기록이 있습니다. 역할, 시간, 성과를 숫자로 정리하면 추천서와 인터뷰에서 강한 근거가 됩니다.`,
-      has("summerActivity","winterActivity","academicCamps") && `방학 활동 계획이 있어 실행 로드맵을 만들기 좋습니다. 계절별 목표를 입시 포트폴리오와 연결할 수 있습니다.`
-    ].filter(Boolean).slice(0,3);
+      ssat>=90 && `SSAT ${ssat}%는 Reach 학교군에서도 검토 가능한 시험 기반입니다. 특히 Math ${d.ssatMath||"강점"}가 높다면 Exeter·Andover형 학업 리스크를 낮출 수 있습니다.`,
+      toefl>=105 && `TOEFL ${toefl}점은 국제학생 영어 리스크를 크게 줄입니다. 인터뷰 훈련과 연결하면 School Culture 점수 상승 여지가 큽니다.`,
+      has("mainSport","mainSportAwards") && `${d.mainSport} 활동은 Sports 15점 중 임팩트/포텐셜을 동시에 만들 수 있는 축입니다. 코치 추천, 영상, 대회명으로 검증 가능성을 높이면 학교별 Fit이 선명해집니다.`,
+      has("academicAwards","specialSubject","researchProject") && `${d.specialSubject||"학업"} 강점과 ${d.researchProject||"수상/연구"} 경험은 Misc/Hook 10점과 Academics 20점을 함께 끌어올릴 수 있습니다.`,
+      has("leadershipRoles","serviceActivities") && `리더십·봉사 기록은 Inboardy 모델의 School Culture 20점에서 핵심입니다. 역할, 기관, 누적시간을 공식 기록으로 정리하면 추천서 소재가 됩니다.`,
+      has("instrument","dramaExp","visualArts") && `예술 활동은 Arts 10점에서 보조 차별화 요소입니다. 특히 연극·공연·포트폴리오 형태로 학교 커뮤니티 기여도를 보여줄 수 있습니다.`
+    ].filter(Boolean).slice(0,4);
 
     const weaknesses=[
-      !ssat && "SSAT/표준시험 정보가 부족합니다. 목표 학교군이 높다면 1차 진단 시험을 보고 Math, Reading, Verbal별 보완 계획을 세워야 합니다.",
-      ssat && ssat<85 && "SSAT 전체 백분위가 탑 보딩 안정권에는 아직 부족할 수 있습니다. Math 강점은 유지하고 Reading/Verbal을 8~12주 단위로 끌어올리는 계획이 필요합니다.",
-      !has("mainHook","hookIdea") && "메인 Hook이 아직 선명하지 않습니다. 스포츠, 학업, 예술 중 하나를 대표 서사로 정하고 한 문장으로 압축해야 합니다.",
-      !has("recLetterCandidates") && "추천서 후보 정보가 부족합니다. 현재 교사, 코치, 멘토를 최소 5명까지 정리하고 각 추천서가 증명할 포인트를 나누는 것이 좋습니다.",
-      !has("dreamSchools","matchSchools","safetySchools") && "학교 리스트가 아직 완성되지 않았습니다. Dream, Match, Safety를 나누어 지원 리스크를 낮춰야 합니다."
-    ].filter(Boolean).slice(0,3);
+      !ssat && "SSAT 데이터가 없습니다. 엑셀 모델 기준 Reach 학교는 SSAT 95%+, Target도 85~92%가 안전하므로 우선 진단 시험이 필요합니다.",
+      ssat && ssat<85 && `SSAT ${ssat}%는 상위 20개 보딩 기준으로 시험 리스크가 큽니다. Reading/Verbal을 분리해 1차 목표 85%, 최종 90%+로 끌어올려야 합니다.`,
+      toefl && toefl<100 && `TOEFL ${toefl}점은 ESL/국제학생 검토에서 약점이 됩니다. 최소 100+, 상위권은 105~110+를 목표로 해야 합니다.`,
+      !has("serviceActivities") && "봉사활동 공식 기록이 부족합니다. School Culture 루브릭의 봉사 5점을 위해 기관명, 역할, 누적시간, 증빙 가능성을 만들어야 합니다.",
+      !has("leadershipRoles") && "리더십 직함이 부족합니다. Clubs & Activities 20점에서 리더 5점이 비어 보일 수 있으므로 클럽 임원·프로젝트 리더 역할이 필요합니다.",
+      !has("mainHook","hookIdea") && "Hook이 아직 약합니다. 합격자 데이터에서 강한 학생은 EC Strength 4~5, Hook 4~5를 보이므로 한 문장 Specialty가 필요합니다.",
+      !has("recLetterCandidates") && "추천서 후보가 정리되지 않았습니다. Current Teacher, Student Life, 특기 코치/멘토 추천서를 분리해야 합니다."
+    ].filter(Boolean).slice(0,5);
 
     const bestHook=d.mainHook || d.hookIdea || [
       d.mainSport && `${d.mainSport}를 중심으로 학업적 호기심과 성실한 훈련 태도를 함께 보여주는 학생`,
@@ -265,23 +324,32 @@ Hook 아이디어: ${d.hookIdea}
       "성실한 학업 태도와 다양한 활동 경험을 바탕으로 보딩 커뮤니티에 기여할 수 있는 학생"
     ].filter(Boolean)[0];
 
-    const schools=(d.dreamSchools||d.matchSchools||d.safetySchools||"Choate Rosemary Hall, Loomis Chaffee, St. Mark's School")
-      .split(/[,·\n]/).map(s=>s.trim()).filter(Boolean).slice(0,3);
-    while(schools.length<3) schools.push(["Loomis Chaffee","St. Mark's School","Tabor Academy"][schools.length]);
+    const requestedSchools=(d.dreamSchools+"\n"+d.matchSchools+"\n"+d.safetySchools).split(/[,·\n]/).map(s=>s.trim()).filter(Boolean);
+    const findSchool=(name)=>SCHOOL_DB.find(s=>s.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(s.name.toLowerCase().replace(" school","")));
+    const basePool=requestedSchools.length?requestedSchools.map(n=>findSchool(n)||{name:n,ssat:92,accept:20,yesRank:null,niche:null,state:"",boarding:null,intl:null,profile:"사용자 지정 목표 학교"}):SCHOOL_DB;
+    const schoolScore=(s)=>cap(100 - Math.abs((ssat||75)-(s.ssat||90))*1.6 - ((s.yesRank||40)/3) + (sports>=10 && /ski|sport|athletic|outdoor/i.test(s.profile)?8:0) + (toefl>=105?4:0),100);
+    const schoolRows=basePool.map(s=>{
+      const fit=schoolScore(s);
+      const band=fit>=82?"Target/High Fit":fit>=70?"Balanced Target":fit>=58?"Reach": "High Reach";
+      const after=fit>=78?"합격 가능":fit>=65?"준비 후 가능성 상승":"전략적 리치";
+      return {...s,fit,band,after};
+    }).sort((a,b)=>b.fit-a.fit).slice(0,6);
 
     const actions=[
-      "입력된 활동을 연도, 역할, 수상, 주당 시간 기준으로 다시 정리해서 이력서형 activity list를 만드세요.",
-      ssat>=85 ? "현재 시험 강점을 유지하면서 인터뷰 답변과 에세이 소재를 Hook 중심으로 정리하세요." : "SSAT 진단 시험을 기준으로 Reading/Verbal 보완 루틴을 즉시 시작하세요.",
-      "추천서 후보에게 전달할 학생 강점 요약 1페이지를 만들고, 학교별 Fit 문장을 준비하세요."
+      ssat>=90 ? "SSAT는 유지 전략으로 두고, 학교별 Why essay와 인터뷰 스크립트에 시간을 배분하세요." : "SSAT를 Reading/Verbal 중심으로 재설계하세요. 8주 단위 Mock → 오답 유형 → 단어/지문 루틴을 고정해야 합니다.",
+      "활동은 나열이 아니라 Inboardy EC Strength 4~5로 보이도록 대회명, 역할, 기간, 임팩트, 추천 가능자를 표로 정리하세요.",
+      "추천서는 학업 2명, Student Life 1명, 특기 코치/멘토 1명으로 분리하고 각 추천서가 증명할 문장을 미리 배정하세요.",
+      "학교 리스트는 Reach 30%, Target 40%, Likely 30%로 재배치하고 각 학교의 SSAT 기준·합격률·보딩 비율을 비교하세요."
     ];
     const student=d.nameKo||"입력 학생";
-    const target=`${d.targetYear||"목표 연도"}년 ${d.targetGrade||"목표 학년"} 입학`;
+    const studentLabel=student.endsWith("학생")?student:`${student} 학생`;
+    const target=d.targetYear||d.targetGrade ? `${d.targetYear||"목표 연도"}년 ${d.targetGrade||"목표 학년"} 입학` : "목표 입학 정보 입력 필요";
     const goalScore=Math.max(total,Math.min(92,total+24));
     const gap=Math.max(0,goalScore-total);
-    const activityScore=Math.min(25,Math.round(sport+arts));
+    const activityScore=Math.min(25,Math.round(clubs + arts/2 + sports/2));
     const activityGoal=Math.min(25,activityScore+5);
     const spikeCount=[d.mainSport,d.specialSubject,d.instrument,d.mainHook].filter(Boolean).length||1;
-    const schoolCount=schools.length+(d.dreamSchools||d.matchSchools||d.safetySchools?3:0);
+    const schoolCount=schoolRows.length;
     const esc=(v)=>String(v||"—").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
     const itemHtml=(items,color)=>items.map(x=>`<div class="pr-diag-item"><span style="background:${color}"></span><p>${esc(x)}</p></div>`).join("");
     const fallbackStrengths=strengths.length?strengths:["입력된 학생 정보를 기반으로 강점 축을 구성할 수 있습니다. 활동별 기간, 수상, 역할을 추가하면 제안서 설득력이 높아집니다."];
@@ -315,7 +383,7 @@ Hook 아이디어: ${d.hookIdea}
       </style>
       <div class="pr-cover">
         <div class="pr-logo">예스유학 · 시니어보딩 프렙 프로그램</div>
-        <h1>${esc(student)} 학생<br>탑 시니어보딩스쿨 합격 전략 제안서</h1>
+        <h1>${esc(studentLabel)}<br>탑 시니어보딩스쿨 합격 전략 제안서</h1>
         <h2>${esc(d.currentSchool||"현재 학교")} → Top Boarding School · ${esc(target)} 목표</h2>
         <div class="pr-meta">
           <div><small>학생명</small><b>${esc(student)}</b></div>
@@ -335,10 +403,10 @@ Hook 아이디어: ${d.hookIdea}
             <div class="pr-stat"><strong style="color:#4c1d95">${schoolCount}개교</strong><span>목표 지원 학교군</span></div>
           </div>
           <div class="pr-grid">
-            <div class="pr-card" style="border-top-color:#2563a8"><h4>School Academics / 25점</h4><p>현재 ${Math.round(academic)}점 → 목표 ${Math.min(25,Math.round(academic+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${academic/25*100}%;background:#2563a8"></div></div><p>성적: ${esc(d.currentGrades||d.prevGrades)}<br>시험: SSAT ${esc(d.ssatOverall||"미입력")} / TOEFL ${esc(d.toeflScore||"미입력")}</p></div>
-            <div class="pr-card" style="border-top-color:#0d6e56"><h4>School Culture / 15점</h4><p>현재 ${Math.round(leadership)}점 → 목표 ${Math.min(15,Math.round(leadership+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${leadership/15*100}%;background:#0d6e56"></div></div><p>리더십: ${esc(d.leadershipRoles)}<br>봉사: ${esc(d.serviceActivities||d.serviceHours)}</p></div>
+            <div class="pr-card" style="border-top-color:#2563a8"><h4>Academics + Testing / 30점</h4><p>현재 ${Math.round(academics+testing)}점 → 목표 ${Math.min(30,Math.round(academics+testing+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${(academics+testing)/30*100}%;background:#2563a8"></div></div><p>성적: ${esc(d.currentGrades||d.prevGrades)}<br>시험: SSAT ${esc(d.ssatOverall||"미입력")} / TOEFL ${esc(d.toeflScore||"미입력")}<br><b>모델 기준:</b> Reach는 SSAT 95%+, TOEFL 110+가 안정권</p></div>
+            <div class="pr-card" style="border-top-color:#0d6e56"><h4>School Culture / 20점</h4><p>현재 ${Math.round(culture)}점 → 목표 ${Math.min(20,Math.round(culture+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${culture/20*100}%;background:#0d6e56"></div></div><p>인터뷰 추정: ${Math.round(interview)}/10<br>봉사: ${esc(d.serviceActivities||d.serviceHours)}<br>Student Life 추천서: ${studentLifeReco}/5</p></div>
             <div class="pr-card" style="border-top-color:#7c3aed"><h4>Clubs & Activities / 25점</h4><p>현재 ${activityScore}점 → 목표 ${activityGoal}점</p><div class="pr-bar"><div class="pr-fill" style="width:${activityScore/25*100}%;background:#7c3aed"></div></div><p>스포츠: ${esc(d.mainSport)}<br>예술: ${esc(d.instrument||d.dramaExp||d.visualArts)}</p></div>
-            <div class="pr-card" style="border-top-color:#c2410c"><h4>Special Hook & Strategy / 35점</h4><p>현재 ${Math.round(hook+planning)}점 → 목표 ${Math.min(35,Math.round(hook+planning+8))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${Math.min(100,(hook+planning)/35*100)}%;background:#c2410c"></div></div><p>Hook: ${esc(bestHook)}<br>학교 전략: ${esc(d.schoolPriority||"Dream/Match/Safety 구분 필요")}</p></div>
+            <div class="pr-card" style="border-top-color:#c2410c"><h4>Misc. / Hook / 10점</h4><p>현재 ${Math.round(misc)}점 → 목표 ${Math.min(10,Math.round(misc+3))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${misc/10*100}%;background:#c2410c"></div></div><p>Hook: ${esc(bestHook)}<br>벤치마크: ${esc(benchmark.name)}<br>학교 전략: ${esc(d.schoolPriority||"Dream/Target/Likely 재배치 필요")}</p></div>
           </div>
           <div class="pr-grid" style="margin-top:14px">
             <div class="pr-card" style="border-top-color:#16a34a"><h4>✓ 핵심 강점</h4>${itemHtml(fallbackStrengths,"#16a34a")}</div>
@@ -348,11 +416,11 @@ Hook 아이디어: ${d.hookIdea}
 
         <div class="pr-section">
           <div class="pr-hdr"><span class="pr-num">02</span><span class="pr-title">왜 바로 탑 보딩 합격이 어려운가 — 원인 분석</span><span class="pr-sub">전략적 준비 이유</span></div>
-          <div class="pr-note"><b>핵심 진단:</b> 현재 데이터는 좋은 재료가 있지만, 탑 보딩 합격을 위해서는 미국 입학처가 검증할 수 있는 시험 점수, 추천서, 활동 지속성, 학교별 Fit 문장이 필요합니다.</div>
+          <div class="pr-note"><b>핵심 진단:</b> 이 분석은 업로드된 Inboardy 루브릭과 학생 벤치마크를 기준으로 산출했습니다. 현재 프로필은 <b>${esc(benchmark.name)}</b>에 가장 가깝고, 합격 가능성을 높이려면 시험·추천서·EC Strength·Hook을 학교별 기준에 맞춰 증빙해야 합니다.</div>
           <div class="pr-grid3" style="margin-top:12px">
-            <div class="pr-card" style="border-top-color:#dc2626"><h4>01. 시험 기준</h4><p>SSAT ${esc(d.ssatOverall||"미입력")} 기준. 탑 보딩은 90~95%+를 안정권으로 보므로 Reading/Verbal 보완 또는 첫 진단 시험이 필요합니다.</p></div>
-            <div class="pr-card" style="border-top-color:#d97706"><h4>02. 검증 가능한 EC</h4><p>${esc(d.mainSport||"주력 활동")} 경험은 강점이지만, 대회명·수상·코치 추천·영상 자료로 객관화해야 합니다.</p></div>
-            <div class="pr-card" style="border-top-color:#7c3aed"><h4>03. Hook 미세 조정</h4><p>${esc(bestHook)} 이 서사를 에세이, 인터뷰, 추천서에서 같은 문장으로 반복되도록 정리해야 합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#dc2626"><h4>01. 시험 기준</h4><p>현재 SSAT ${esc(d.ssatOverall||"미입력")} / TOEFL ${esc(d.toeflScore||"미입력")}. 상위 10개교는 SSAT 94~97%, TOEFL 110+가 안정권입니다.</p></div>
+            <div class="pr-card" style="border-top-color:#d97706"><h4>02. EC Strength</h4><p>현재 EC Strength 추정 ${ecStrength.toFixed(1)}/5. 합격자형 4~5점으로 보이려면 활동명보다 임팩트, 기간, 역할, 추천 가능자가 필요합니다.</p></div>
+            <div class="pr-card" style="border-top-color:#7c3aed"><h4>03. Hook 지표</h4><p>Hook 추정 ${hookScore.toFixed(1)}/5. "${esc(bestHook)}"를 에세이·인터뷰·추천서에서 반복되는 핵심 문장으로 만들어야 합니다.</p></div>
           </div>
         </div>
 
@@ -393,10 +461,8 @@ Hook 아이디어: ${d.hookIdea}
 
         <div class="pr-section">
           <div class="pr-hdr"><span class="pr-num">07</span><span class="pr-title">예스유학 Student Gateway — 향후 아웃컴 예측</span></div>
-          <table class="pr-table"><thead><tr><th>학교명</th><th>현재 진단</th><th>준비 후 전망</th><th>전략 포인트</th></tr></thead><tbody>
-            <tr><td>${esc(schools[0])}</td><td><span class="pr-chip red">Reach</span></td><td><span class="pr-chip amber">가능성 상승</span></td><td>SSAT 95%+와 Hook 완성 필요</td></tr>
-            <tr><td>${esc(schools[1])}</td><td><span class="pr-chip amber">Target</span></td><td><span class="pr-chip green">합격 가능</span></td><td>활동 지속성과 추천서 품질 확보</td></tr>
-            <tr><td>${esc(schools[2])}</td><td><span class="pr-chip blue">Safety/Target</span></td><td><span class="pr-chip green">합격 유력</span></td><td>학교 Fit 문장과 인터뷰 완성</td></tr>
+          <table class="pr-table"><thead><tr><th>학교명</th><th>학교 데이터</th><th>현재 진단</th><th>준비 후 전망</th><th>전략 포인트</th></tr></thead><tbody>
+            ${schoolRows.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td>Yes ${esc(s.yesRank||"—")} · Niche ${esc(s.niche||"—")}<br>합격률 ${esc(s.accept?Math.round(s.accept*10)/10+"%":"—")} · SSAT 기준 ${esc(s.ssat||"—")}%<br>${esc(s.state||"")} · 보딩 ${esc(s.boarding?s.boarding+"%":"—")}</td><td><span class="pr-chip ${s.band.includes("High Reach")?"red":s.band.includes("Reach")?"amber":s.band.includes("Target")?"blue":"green"}">${esc(s.band)}</span><br>Fit ${Math.round(s.fit)}/100</td><td><span class="pr-chip ${s.after.includes("합격 가능")?"green":s.after.includes("상승")?"amber":"red"}">${esc(s.after)}</span></td><td>${esc(s.profile)}</td></tr>`).join("")}
           </tbody></table>
           <div class="pr-note" style="margin-top:12px"><b>합격 전략 요약:</b> ${esc(actions.join(" "))}</div>
         </div>
