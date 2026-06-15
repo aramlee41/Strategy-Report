@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>박은휴 — 예스유학 시니어보딩 프렙 제안서 v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap');
+
+  :root {
+    --navy: #1a2744;
+    --blue: #2563a8;
+    --blue-light: #dbeafe;
+    --teal: #0d6e56;
+    --teal-light: #d1fae5;
+    --coral: #c2410c;
+    --coral-light: #ffedd5;
+    --amber: #92400e;
+    --amber-light: #fef3c7;
+    --red: #991b1b;
+    --red-light: #fee2e2;
+    --purple: #4c1d95;
+    --purple-light: #ede9fe;
+    --gray: #374151;
+    --gray-light: #f9fafb;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #f3f4f6;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page { max-width: 960px; margin: 0 auto; background: white; }
+
+  /* COVER */
+  .cover {
+    background: var(--navy);
+    padding: 52px 56px 44px;
+    color: white;
+  }
+  .cover-logo {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .15em;
+    color: #93c5fd;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+  }
+  .cover h1 {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+  .cover h2 {
+    font-size: 15px;
+    font-weight: 300;
+    color: #93c5fd;
+    margin-bottom: 32px;
+  }
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    border-top: 1px solid rgba(255,255,255,.15);
+    padding-top: 24px;
+  }
+  .cm-label { font-size: 10px; color: #93c5fd; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+  .cm-value { font-size: 14px; font-weight: 500; }
+
+  /* CONTENT */
+  .content { padding: 0 56px 56px; }
+
+  /* SECTION */
+  .section { margin-top: 44px; }
+  .sec-hdr {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 2px solid var(--navy);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+  }
+  .sec-num {
+    background: var(--navy);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: .05em;
+  }
+  .sec-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+  .sec-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .sub-hdr {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin: 20px 0 10px;
+    padding-left: 8px;
+    border-left: 3px solid var(--blue);
+  }
+
+  /* PILL */
+  .pill {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-weight: 500;
+    margin: 1px 2px 1px 0;
+  }
+  .pill-blue { background: var(--blue-light); color: #1e40af; }
+  .pill-teal { background: var(--teal-light); color: var(--teal); }
+  .pill-coral { background: var(--coral-light); color: var(--coral); }
+  .pill-amber { background: var(--amber-light); color: var(--amber); }
+  .pill-red { background: var(--red-light); color: var(--red); }
+  .pill-purple { background: var(--purple-light); color: var(--purple); }
+  .pill-gray { background: #f3f4f6; color: var(--gray); }
+  .pill-navy { background: var(--navy); color: white; }
+
+  /* CARDS */
+  .card-grid { display: grid; gap: 12px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .g5 { grid-template-columns: repeat(5, 1fr); }
+
+  .card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card-accent { border-top-width: 3px; }
+
+  .card-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .card-value { font-size: 22px; font-weight: 700; color: var(--text); }
+  .card-body { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .card-body b { color: var(--text); font-weight: 600; }
+
+  /* STAT ROW */
+  .stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: var(--gray-light); border-radius: 8px; padding: 12px 14px; border: 1px solid var(--border); }
+  .stat-val { font-size: 24px; font-weight: 700; color: var(--navy); }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { background: var(--navy); color: white; padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; color: var(--text); }
+  tr:nth-child(even) td { background: #fafafa; }
+  tr:hover td { background: #f0f7ff; }
+  .tbl-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .tbl-cat { background: #f0f4ff; font-weight: 700; color: var(--navy); font-size: 11px; }
+  .tbl-cat td { border-bottom: 1px solid #c7d2fe; }
+
+  /* BAR */
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .bar-lbl { font-size: 11px; min-width: 130px; color: var(--text); }
+  .bar-bg { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-val { font-size: 11px; font-weight: 700; min-width: 36px; text-align: right; }
+
+  /* SCORE BOX */
+  .score-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  /* DIAGNOSIS GRID */
+  .diag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .diag-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .diag-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .diag-item {
+    display: flex;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+  .diag-item:last-child { border-bottom: none; }
+  .diag-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+
+  /* REJECTION REASONS */
+  .reject-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .reject-card {
+    border: 1px solid #fecaca;
+    border-top: 3px solid #ef4444;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #fff5f5;
+  }
+  .reject-num { font-size: 20px; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
+  .reject-title { font-size: 11px; font-weight: 700; color: #991b1b; margin-bottom: 6px; }
+  .reject-body { font-size: 10px; color: #7f1d1d; line-height: 1.6; }
+  .reject-solution {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #fecaca;
+    font-size: 10px;
+    color: var(--teal);
+    font-weight: 600;
+  }
+
+  /* SEASON TABLE */
+  .season-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .season-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .season-hdr {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .season-body { padding: 10px 12px; }
+  .season-item {
+    font-size: 10px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .season-item:last-child { border-bottom: none; }
+  .season-item b { font-weight: 600; color: var(--navy); display: block; }
+
+  /* VACATION TABLE */
+  .vac-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .vac-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .vac-hdr { padding: 8px 12px; font-size: 11px; font-weight: 700; color: white; }
+  .vac-body { padding: 10px 12px; }
+  .vac-week { font-size: 10px; font-weight: 700; color: var(--navy); margin-top: 8px; margin-bottom: 4px; }
+  .vac-week:first-child { margin-top: 0; }
+  .vac-item { font-size: 10px; color: var(--muted); padding: 2px 0; line-height: 1.5; }
+  .vac-item b { color: var(--text); font-weight: 600; }
+
+  /* HOOK CARDS */
+  .hook-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .hook-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .hook-num { background: var(--navy); color: white; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+  .hook-title { font-size: 13px; font-weight: 700; color: var(--navy); }
+  .hook-tag { margin-left: auto; }
+  .hook-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .hook-col-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+  .hook-col-body { font-size: 10px; color: var(--muted); line-height: 1.6; }
+  .hook-col-body b { color: var(--text); font-weight: 600; }
+
+  /* GATEWAY TABLE */
+  .gateway-tbl { width: 100%; border-collapse: collapse; }
+  .gateway-tbl th { background: var(--navy); color: white; padding: 8px 10px; font-size: 10px; font-weight: 700; text-align: center; border-right: 1px solid rgba(255,255,255,.2); }
+  .gateway-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: center; font-size: 11px; }
+  .gateway-tbl td:first-child { text-align: left; font-weight: 600; }
+  .gateway-tbl tr:last-child td { border-bottom: none; }
+  .outcome-chip { display: inline-block; font-size: 10px; padding: 3px 9px; border-radius: 20px; font-weight: 700; }
+  .oc-high { background: #d1fae5; color: #065f46; }
+  .oc-mid { background: #fef3c7; color: #92400e; }
+  .oc-low { background: #fee2e2; color: #991b1b; }
+  .oc-na { background: #f3f4f6; color: #6b7280; }
+
+  /* DIAGNOSTIC TABLE */
+  .diag-school-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .diag-school-card {
+    border: 2px solid var(--navy);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .dsc-hdr {
+    background: var(--navy);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .dsc-hdr-name { font-size: 14px; font-weight: 700; }
+  .dsc-hdr-rank { font-size: 11px; color: #93c5fd; }
+  .dsc-body { padding: 14px 16px; }
+  .dsc-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 80px;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-size: 11px;
+  }
+  .dsc-row:last-child { border-bottom: none; }
+  .dsc-label { color: var(--muted); font-size: 10px; }
+  .dsc-current { font-size: 11px; }
+  .traffic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 22px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .tr-green { background: #d1fae5; color: #065f46; }
+  .tr-yellow { background: #fef3c7; color: #92400e; }
+  .tr-red { background: #fee2e2; color: #991b1b; }
+
+  /* RUBRIC PROGRESS */
+  .rubric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .rub-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .rub-title { font-size: 11px; font-weight: 700; color: var(--navy); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .rub-pts { font-size: 10px; color: var(--muted); font-weight: 400; }
+  .rub-now { font-size: 18px; font-weight: 700; margin: 4px 0 2px; }
+  .rub-bar { height: 5px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+  .rub-bar-fill { height: 100%; border-radius: 3px; }
+  .rub-items { font-size: 10px; color: var(--muted); line-height: 1.6; }
+  .rub-items b { color: var(--text); font-weight: 600; }
+
+  /* SSAT STRATEGY */
+  .ssat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .ssat-section { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .ssat-sec-name { font-size: 11px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+  .ssat-score { display: flex; justify-content: space-between; font-size: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .ssat-score:last-child { border-bottom: none; }
+
+  /* FOOTER */
+  .footer {
+    background: var(--navy);
+    color: white;
+    padding: 24px 56px;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-logo { font-weight: 700; color: #93c5fd; font-size: 13px; }
+  .footer-note { color: rgba(255,255,255,.5); }
+
+  /* SSAT TEST SCHEDULE */
+  .test-timeline { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .test-step { border-radius: 8px; padding: 10px 10px; border: 1px solid var(--border); }
+  .test-step-month { font-size: 10px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .test-step-body { font-size: 10px; color: var(--muted); line-height: 1.5; }
+  .test-step-body b { color: var(--text); font-weight: 600; display: block; }
+
+  /* TEACHER REC */
+  .rec-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .rec-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .rec-icon { font-size: 18px; margin-bottom: 6px; }
+  .rec-title { font-size: 11px; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
+  .rec-body { font-size: 10px; color: var(--muted); line-height: 1.5; }
+
+  .note-box {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #78350f;
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+
+  .highlight-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-left: 4px solid #0284c7;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #0c4a6e;
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+
+  @media print {
+    body { background: white; }
+    .page { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-logo">예스유학 · 시니어보딩 프렙 프로그램</div>
+  <h1>박은휴 학생<br>탑 시니어보딩스쿨 합격 전략 제안서</h1>
+  <h2>Indian Mountain School → Top 10 Boarding School · Grade 9 입학 목표 (2027)</h2>
+  <div class="cover-meta">
+    <div>
+      <div class="cm-label">학생명</div>
+      <div class="cm-value">박은휴</div>
+    </div>
+    <div>
+      <div class="cm-label">현재 학교</div>
+      <div class="cm-value">Dulwich College Seoul → IMS</div>
+    </div>
+    <div>
+      <div class="cm-label">목표 입학</div>
+      <div class="cm-value">2027년 9월 (Grade 9)</div>
+    </div>
+    <div>
+      <div class="cm-label">작성일</div>
+      <div class="cm-value">2025년 5월</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- SECTION 1: 현재 진단 요약 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">01</span>
+    <span class="sec-title">현재 학생 진단 — 예스유학 루브릭 분석</span>
+    <span class="sec-sub">총점 100점 기준</span>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="stat-val" style="color:#dc2626">62점</div><div class="stat-lbl">현재 추정 총점<br>(100점 기준)</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#2563a8">89점</div><div class="stat-lbl">2027 지원 목표 점수</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#d97706">+27점</div><div class="stat-lbl">2년간 향상 필요 점수</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#0d6e56">2개</div><div class="stat-lbl">핵심 스파이크<br>스키 + 수학</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#4c1d95">10개교</div><div class="stat-lbl">목표 지원 학교<br>드림→매치→세이프티</div></div>
+  </div>
+
+  <div class="rubric-grid">
+    <div class="rub-card" style="border-top:3px solid #2563a8">
+      <div class="rub-title">School Academics <span class="rub-pts">/ 20점</span></div>
+      <div class="rub-now" style="color:#2563a8">현재 15점 → 목표 18점</div>
+      <div class="rub-bar"><div class="rub-bar-fill" style="width:75%;background:#2563a8"></div></div>
+      <div class="rub-items">
+        <b>이전 성적 (5점):</b> Dulwich Graduation Distinction · Head of College Award → 4.5/5<br>
+        <b>현재 성적 (10점):</b> IMS 전과목 A 목표 → 9/10<br>
+        <b>추천서 (5점):</b> 수학·영어 교사 → 현재 3/5, 목표 5/5
+      </div>
+    </div>
+    <div class="rub-card" style="border-top:3px solid #0d6e56">
+      <div class="rub-title">School Culture <span class="rub-pts">/ 20점</span></div>
+      <div class="rub-now" style="color:#0d6e56">현재 11점 → 목표 17점</div>
+      <div class="rub-bar"><div class="rub-bar-fill" style="width:55%;background:#0d6e56"></div></div>
+      <div class="rub-items">
+        <b>인터뷰 (10점):</b> MUN 2회 · Leadership Conf → 현재 6/10, 목표 9/10<br>
+        <b>추천서-생활 (5점):</b> House Captain 기반 → 현재 3/5, 목표 5/5<br>
+        <b>봉사 (5점):</b> ⚠️ 가장 약한 영역 → 현재 2/5, <b>목표 4/5</b>
+      </div>
+    </div>
+    <div class="rub-card" style="border-top:3px solid #7c3aed">
+      <div class="rub-title">Clubs & Activities <span class="rub-pts">/ 20점</span></div>
+      <div class="rub-now" style="color:#7c3aed">현재 9점 → 목표 17점</div>
+      <div class="rub-bar"><div class="rub-bar-fill" style="width:45%;background:#7c3aed"></div></div>
+      <div class="rub-items">
+        <b>리더 (5점):</b> House Captain · Playground Prefect → 현재 3/5, 목표 5/5<br>
+        <b>임팩트 (10점):</b> Fobisia Math · MUN → 현재 5/10, 목표 8/10<br>
+        <b>기간 (5점):</b> 수영 8년 · 피아노 7년 → 현재 4/5, 목표 5/5
+      </div>
+    </div>
+    <div class="rub-card" style="border-top:3px solid #c2410c">
+      <div class="rub-title">Sports + Arts + Misc <span class="rub-pts">/ 35점</span></div>
+      <div class="rub-now" style="color:#c2410c">현재 27점 → 목표 37점</div>
+      <div class="rub-bar"><div class="rub-bar-fill" style="width:77%;background:#c2410c"></div></div>
+      <div class="rub-items">
+        <b>Sports (15점):</b> 스키 전국1위 · Track 200m 금 → 14/15 ✓<br>
+        <b>Arts (10점):</b> 피아노 콩쿠르 수상, 연극 없음 → 현재 7/10, 목표 9/10<br>
+        <b>Misc (10점):</b> Math Olympiad Champion · Bebras Gold → 현재 6/10, 목표 9/10
+      </div>
+    </div>
+  </div>
+
+  <div class="sub-hdr" style="margin-top:24px">강점 / 약점 종합</div>
+  <div class="diag-grid">
+    <div class="diag-card" style="border-top:3px solid #16a34a">
+      <div class="diag-title" style="color:#15803d">✓ 핵심 강점 (차별화 포인트)</div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>스키 전국 챔피언:</b> 모글 전국 1위 ×2, Ko-Sta STA 6급, 국제대회 출전 경력 — 탑 보딩스쿨에서 전례 없는 한국인 프로필</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>수학 올림피아드 챔피언:</b> UKMT Gold 초등 전체 1위, Math Olympiad Champion, Bebras Computational Thinking Gold — 학문적 스파이크 명확</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>피아노 10년 경력:</b> 전국 콩쿠르 우수상 ×2, 작곡 병행 — 예술 섹션 강력</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>IMS 전략적 위치:</b> Hotchkiss 1.5마일 · Alpine Ski Racing 팀 · 4:1 학생-교사 비율 — Coach Rosen/Scoville 통해 탑 보딩 스키 코치와 자연스러운 연결</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>Dulwich 우수 졸업:</b> Graduation Distinction + Head of College Award — 이전 성적 탄탄</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#16a34a"></span><span><b>다종목 3시즌 운동선수:</b> 수영 9년 · 스키 전국챔피언 · Cross Country 5000m 훈련 중 · 라크로스 준비 중 — 가을(XC)·겨울(스키)·봄(라크로스) 3시즌 완성 목표</span></div>
+    </div>
+    <div class="diag-card" style="border-top:3px solid #dc2626">
+      <div class="diag-title" style="color:#dc2626">⚠ 보완 필요 약점 (2년 내 해결)</div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>SSAT Mid Level 78% → 95%+ 달성 필요:</b> 현재 SSAT Mid Level 78%는 탑 보딩 컷라인에 미달. Andover·Exeter·Hotchkiss는 95th%ile 이상이 실질 기준. Math(예상 99%)는 강하나 Verbal·Reading 집중 보완 필수. IMS 2년이 핵심 상승 구간.</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>연극/드라마 경험 전무:</b> Choate·Andover·Hotchkiss 등 탑 보딩은 연극을 Arts 루브릭 핵심 항목으로 봅니다. 특히 Choate는 연극이 학교 아이덴티티의 일부. 현재 0점 → IMS G7 첫 학기부터 즉시 시작이 최우선.</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>봉사활동 공식 기록 부재:</b> School Culture 루브릭 봉사 2/5점 수준. 아버지 병원 봉사·IMS 서비스 프로그램·도미니카공화국 트립으로 100h+ 공식 기록 구축 필요.</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>미국 무대 경험 없음:</b> 한국 챔피언이지만 미국 입학처에서 검증 불가 — FIS 국제대회·NEPSAC 대회 출전 및 Hotchkiss 코치 리쿠르팅 레터 확보 필요.</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>영문 글쓰기 대회 경험 부재:</b> John Locke Essay Competition·HIR·Scholastic Art & Writing Awards 등 탑 보딩이 인정하는 영문 라이팅 수상 실적 없음. IMS 영어 수업 + 대회 출전으로 해결 가능.</span></div>
+      <div class="diag-item"><span class="diag-dot" style="background:#dc2626"></span><span><b>스키 코치 리쿠르팅 미개발:</b> Hotchkiss·NMH 코치와 아직 관계 없음 — IMS 입학 즉시 코치 이메일 컨택 시작이 합격의 결정적 변수.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: 왜 IMS만 합격했나 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">02</span>
+    <span class="sec-title">왜 탑 시니어보딩에 바로 합격이 어려운가 — 7가지 원인 분석</span>
+    <span class="sec-sub">IMS 선택의 전략적 이유</span>
+  </div>
+
+  <div class="highlight-box">
+    <b>IMS 선택은 실패가 아닙니다.</b> Indian Mountain School은 1922년 "탑 보딩스쿨 입시 준비"를 목적으로 설립된 전문 피더스쿨입니다. Hotchkiss와 1.5마일 거리에 있으며, 최근 졸업생들이 Hotchkiss·Choate·Lawrenceville 등 탑 보딩에 진학했습니다. IMS 2년은 박은휴 학생이 탑 시니어보딩에 합격하기 위해 반드시 필요한 준비 기간입니다.
+  </div>
+
+  <div class="reject-grid" style="margin-top:14px">
+    <div class="reject-card">
+      <div class="reject-num">01</div>
+      <div class="reject-title">SSAT Mid 78% → 95%+ 달성 필요</div>
+      <div class="reject-body">현재 SSAT Mid Level 78%는 탑 보딩 실질 컷라인에 미달합니다. Hotchkiss·Andover·Exeter는 합격자 중간값이 95th%ile 이상이며, Berkshire·Holderness도 90th%ile을 요구합니다. Math는 99%ile 가능하나 Verbal·Reading이 전체 점수를 끌어내리는 구조입니다.</div>
+      <div class="reject-solution">→ IMS G7: Verbal 2,000단어 + Reading 주 2권 / G8 가을: 3회 응시 95%+ 완성</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">02</div>
+      <div class="reject-title">봉사활동 공식 기록 부재</div>
+      <div class="reject-body">탑 보딩은 "Life Through Service" 가치를 핵심으로 봅니다. 현재 Pet Club 수준이나, 아버지 병원 봉사(의료기관 공식 기록)·IMS 주최 서비스 프로그램·도미니카공화국 트립을 통해 100h+ 기록 구축이 충분히 가능합니다.</div>
+      <div class="reject-solution">→ 아버지 병원 주 3회 + IMS 지역봉사 + 도미니카공화국 트립 = 연간 80h+ 목표</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">03</div>
+      <div class="reject-title">미국 무대 경험 부재</div>
+      <div class="reject-body">한국 전국 챔피언이지만 미국 입학처는 이를 독립적으로 검증할 수 없습니다. NEPSAC 대회 출전 실적, 미국 교사 추천서, FIS 국제 랭킹이 없으면 "검증되지 않은 해외 수상"으로 처리됩니다.</div>
+      <div class="reject-solution">→ IMS Alpine Racing 팀 + Tri-State Racing 실적 + Coach Rosen 리쿠르팅 레터</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">04</div>
+      <div class="reject-title">코치 리쿠르팅 경로 없음</div>
+      <div class="reject-body">미국 보딩스쿨에서 스포츠 리쿠르팅은 코치가 입학처에 직접 어필하는 방식입니다. 스키 코치와 사전 관계 없이는 이 경로 자체가 존재하지 않습니다. IMS를 통해 Hotchkiss 코치와 자연스럽게 연결됩니다.</div>
+      <div class="reject-solution">→ IMS 입학 즉시 Coach Rosen에게 이메일 + 지후 어머님 연결 활용</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">05</div>
+      <div class="reject-title">영문 에세이 미완성</div>
+      <div class="reject-body">Andover·Exeter의 Common App 에세이는 고도의 영어 라이팅 실력을 요구합니다. 현재 Dulwich 국제학교 출신이지만, 탑 보딩 수준의 영문 에세이 작성 경험이 없습니다. IMS 2년이 핵심 훈련 기간입니다.</div>
+      <div class="reject-solution">→ IMS English 수업 + 주 1편 에세이 라이팅 훈련</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">06</div>
+      <div class="reject-title">아카데믹 후크 미완성</div>
+      <div class="reject-body">스키 챔피언 + 수학 올림피아드라는 훌륭한 재료가 있지만, 두 가지를 연결하는 학문적 프로젝트(연구·논문)가 없습니다. 탑 보딩은 "탐구하는 학생"을 원하며, 활동 나열이 아닌 깊이를 봅니다.</div>
+      <div class="reject-solution">→ 모글 궤적 수학 연구 + KAIST 멘토 + 과학경진대회 수상</div>
+    </div>
+    <div class="reject-card">
+      <div class="reject-num">07</div>
+      <div class="reject-title">연극·글쓰기 대회 실적 없음</div>
+      <div class="reject-body">Choate는 연극이 학교 DNA의 핵심이며, Andover·Exeter도 연극을 Arts 루브릭에서 중요하게 평가합니다. 동시에 John Locke·HIR·Scholastic 등 영문 글쓰기 수상 실적이 없으면 라이팅 실력을 객관적으로 증명하기 어렵습니다.</div>
+      <div class="reject-solution">→ G7 첫 학기 IMS 연극 오디션 + Scholastic Writing 출품 / G8: John Locke·HIR 제출</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: 아카데믹 플랜 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">03</span>
+    <span class="sec-title">아카데믹 플랜 — 내신 · SSAT · 추천서 (시민권자 · TOEFL 불필요)</span>
+  </div>
+
+  <div class="sub-hdr">3-1. IMS 학과목 & 내신 A+ 전략 (Grade 7–8)</div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>과목</th><th>G7 목표</th><th>G8 목표</th><th>박은휴 강점</th><th>전략</th></tr></thead>
+      <tbody>
+        <tr class="tbl-cat"><td colspan="5">핵심 과목 (Core)</td></tr>
+        <tr><td>English Language Arts</td><td>A (90+)</td><td>A+ (95+)</td><td>Dulwich 영어 수업 기반</td><td>주 1편 에세이 라이팅, 독서 주 2권 목표</td></tr>
+        <tr><td>Mathematics</td><td>A+ (99+)</td><td>A+ (99+)</td><td>UKMT Gold, Olympiad Champion — 압도적 강점</td><td>MathCounts 클럽 참여 + AMC 8 (G7 1월) → AMC 10 (G8)</td></tr>
+        <tr><td>Science</td><td>A (90+)</td><td>A+ (95+)</td><td>Bebras Computational Thinking Gold</td><td>수학 연구 프로젝트와 연계 (물리·역학)</td></tr>
+        <tr><td>History / Social Studies</td><td>A (90+)</td><td>A+ (95+)</td><td>MUN 경험, 비판적 사고 훈련</td><td>MUN 활동과 연계, 독서 병행</td></tr>
+        <tr><td>Foreign Language (Spanish/French)</td><td>A (90+)</td><td>A (90+)</td><td>한국어+영어 이중언어 기반</td><td>추가 언어 조기 마스터 전략</td></tr>
+        <tr class="tbl-cat"><td colspan="5">예술·체육 (Arts & PE)</td></tr>
+        <tr><td>Music</td><td>A+ (피아노 솔로)</td><td>A+ (작곡 발표)</td><td>피아노 7년, 전국 콩쿠르 수상</td><td>IMS 음악 메인 연주자 확보</td></tr>
+        <tr><td>Visual Arts</td><td>A (90+)</td><td>A (90+)</td><td>건담·레고 정밀 조립 — 공간 인식</td><td>메이커스페이스 활용, 3D 모델링 연계</td></tr>
+        <tr><td>Drama / Theater</td><td>B+ → A</td><td>A (90+)</td><td>⚠ 경험 없음 — 즉시 시작 필요</td><td>G7 첫 학기 연극 오디션 도전</td></tr>
+        <tr><td>Physical Education</td><td>A+</td><td>A+</td><td>다종목 운동선수 — 자연스럽게 최고점</td><td>스키·수영·축구 멀티 스포츠 어필</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note-box" style="margin-top:10px">
+    <b>GPA 목표:</b> IMS G7 전과목 A/A+ 유지 (GPA 3.9 이상) → G8 전과목 A+ (GPA 4.0) 달성. 4:1 학생-교사 비율의 IMS에서 교사가 학생을 완전히 파악하므로, 내신 성적이 추천서 품질과 직결됩니다.
+  </div>
+
+  <div class="sub-hdr">3-2. SSAT 95%+ 전략 & 시험 일정</div>
+
+  <div class="note-box" style="margin-bottom:12px;border-left-color:#dc2626;background:#fff5f5">
+    <b>현재 SSAT 현황:</b> Mid Level 78% (Overall) 보유. 탑 10 보딩스쿨 기준 <b>Hotchkiss·Andover·Exeter는 실질 컷 95th%ile</b>, Berkshire·Holderness 등 스키 강점 학교도 90th%ile 이상 필요. <b>+17%p 향상</b>이 목표. Math는 Olympiad 배경으로 99th%ile 가능, Verbal·Reading에 집중 투자 필요.
+  </div>
+
+  <div class="ssat-grid">
+    <div class="ssat-section" style="border-top:3px solid #16a34a">
+      <div class="ssat-sec-name" style="color:#16a34a">수학 (Math) — 압도적 강점</div>
+      <div class="ssat-score"><span>현재 (Mid Level)</span><span class="pill pill-teal">≈ 95th%ile</span></div>
+      <div class="ssat-score"><span>Upper Level 목표</span><span class="pill pill-teal">99th%ile</span></div>
+      <div class="ssat-score"><span>전략</span><span style="font-size:10px;color:#6b7280">Math Olympiad 배경 → 자연 최고점</span></div>
+      <div class="ssat-score"><span>준비</span><span style="font-size:10px;color:#6b7280">AMC 10 문제풀이 주 20개 유지</span></div>
+    </div>
+    <div class="ssat-section" style="border-top:3px solid #d97706">
+      <div class="ssat-sec-name" style="color:#d97706">Reading — Mid 78% → 95%+</div>
+      <div class="ssat-score"><span>현재 (Mid Level)</span><span class="pill pill-amber">≈ 75th%ile</span></div>
+      <div class="ssat-score"><span>Upper Level 목표</span><span class="pill pill-teal">92th%ile</span></div>
+      <div class="ssat-score"><span>전략</span><span style="font-size:10px;color:#6b7280">IMS 영어 수업 + 주 2권 영어 독서</span></div>
+      <div class="ssat-score"><span>준비</span><span style="font-size:10px;color:#6b7280">지문 분석 훈련 주 3회 · 12개월</span></div>
+    </div>
+    <div class="ssat-section" style="border-top:3px solid #dc2626">
+      <div class="ssat-sec-name" style="color:#dc2626">Verbal — 최대 집중 투자</div>
+      <div class="ssat-score"><span>현재 (Mid Level)</span><span class="pill pill-red">≈ 70th%ile</span></div>
+      <div class="ssat-score"><span>Upper Level 목표</span><span class="pill pill-teal">92th%ile</span></div>
+      <div class="ssat-score"><span>전략</span><span style="font-size:10px;color:#6b7280">Vocabulary 일 20단어 + Analogies</span></div>
+      <div class="ssat-score"><span>준비</span><span style="font-size:10px;color:#6b7280">G7 9월 즉시 시작 → 2,000단어 목표</span></div>
+    </div>
+  </div>
+
+  <div class="sub-hdr" style="margin-top:16px">SSAT 시험 일정 (Grade 7-8)</div>
+  <div class="test-timeline">
+    <div class="test-step" style="border-top:3px solid #6b7280;background:#f9fafb">
+      <div class="test-step-month">G7 여름 (2026)</div>
+      <div class="test-step-body"><b>SSAT 집중 캠프</b>Verbal 1,000단어<br>Reading 기초 완성<br>Mock Test 1회차</div>
+    </div>
+    <div class="test-step" style="border-top:3px solid #2563a8">
+      <div class="test-step-month">G8 9월 2026</div>
+      <div class="test-step-body"><b>SSAT 1차 응시</b>목표 85th%ile<br>실전 감각 파악<br>취약점 재확인</div>
+    </div>
+    <div class="test-step" style="border-top:3px solid #7c3aed">
+      <div class="test-step-month">G8 10월 2026</div>
+      <div class="test-step-body"><b>SSAT 2차 응시</b>목표 90th%ile<br>캠퍼스 방문과 병행<br>Verbal 집중 보완</div>
+    </div>
+    <div class="test-step" style="border-top:3px solid #0d6e56">
+      <div class="test-step-month">G8 11월 2026</div>
+      <div class="test-step-body"><b>★ SSAT 3차 응시</b>목표 95th%ile+<br>지원서 제출용<br>최고 점수 제출</div>
+    </div>
+    <div class="test-step" style="border-top:3px solid #7c3aed">
+      <div class="test-step-month">G8 1월 2027</div>
+      <div class="test-step-body"><b>★ AMC 8 응시</b>IMS 교내 응시 가능<br>G8: AMC 10 준비<br>시민권자: TOEFL 불필요</div>
+    </div>
+    <div class="test-step" style="border-top:3px solid #dc2626">
+      <div class="test-step-month">마감 1/10/2027</div>
+      <div class="test-step-body"><b>★ 전 학교 제출</b>TABS 공통 마감<br>SSAT 완비<br>에세이 제출 완료</div>
+    </div>
+  </div>
+
+  <div class="sub-hdr" style="margin-top:16px">3-3. 추천서 전략 — Current Teacher 기준 (지원 학년 선생님)</div>
+  <div class="note-box" style="margin-bottom:12px;border-left-color:#92400e;background:#fffbeb">
+    <b>⚠️ 핵심 원칙:</b> 탑 보딩스쿨은 지원 시점의 <b>Current Teacher</b> 추천서를 요구합니다. G7과 G8 수학 선생님이 다를 수 있으므로, <b>학업 추천서는 G8 선생님</b>께 받아야 합니다. G7 선생님과도 좋은 관계를 유지하되, 최종 추천서 작성자는 G8 기준으로 확정합니다.
+  </div>
+  <div class="rec-grid">
+    <div class="rec-card">
+      <div class="rec-icon">📐</div>
+      <div class="rec-title">G8 수학 선생님</div>
+      <div class="rec-body"><b style="color:#991b1b">★ 가장 중요</b><br>지원 학년 Current Teacher<br>G7 수학 교사도 별도 관계 구축<br>(G8에서 교체 가능성 대비)</div>
+    </div>
+    <div class="rec-card">
+      <div class="rec-icon">📚</div>
+      <div class="rec-title">G8 영어 선생님</div>
+      <div class="rec-body">지원 학년 Current Teacher<br>에세이 라이팅 성장 증언<br>학문적 탐구력 어필</div>
+    </div>
+    <div class="rec-card">
+      <div class="rec-icon">⛷️</div>
+      <div class="rec-title">Coach Rosen / Scoville</div>
+      <div class="rec-body">IMS 스키 코치<br>지후 어머님이 이미 아는 사이<br>모글→알파인 전환 실력 증언<br><b>리쿠르팅 핵심 레터</b></div>
+    </div>
+    <div class="rec-card">
+      <div class="rec-icon">🏫</div>
+      <div class="rec-title">기숙사 담당 선생</div>
+      <div class="rec-body">IMS 기숙사 Dorm Advisor<br>생활·성품·리더십 전반<br>Student Life 추천서</div>
+    </div>
+    <div class="rec-card">
+      <div class="rec-icon">🔬</div>
+      <div class="rec-title">KAIST 교수 멘토</div>
+      <div class="rec-body">수학 연구 지도교수<br>학문적 잠재력 증언<br><b>가장 차별화된 추천서</b><br>G7 여름 확보 목표</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: IMS EC 플랜 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">04</span>
+    <span class="sec-title">IMS EC 플랜 — 시즌별 활동 전략</span>
+  </div>
+
+  <div class="season-grid">
+    <div class="season-card">
+      <div class="season-hdr" style="background:#c2410c">
+        <span>🍂 가을 시즌 (9–11월)</span>
+        <span style="font-size:10px">G7·G8 공통</span>
+      </div>
+      <div class="season-body">
+        <div class="season-item"><b>★ 스포츠: Cross Country (현실적 목표)</b>
+          현재 기록: 5km 약 32:30 · 6km 약 35:00 (현재 JV 수준)<br>
+          바시티 기준: <b>25분 이하</b> (26~29분은 경계선)<br>
+          G7: 기록 단축 집중 → G8: 바시티 도전<br>
+          Awards 목표: MVP · MIP · Sportsmanship · Coaches Award</div>
+        <div class="season-item"><b>★ 연극: IMS 가을 공연</b>G7 즉시 오디션 도전 (역할 크기 불문)<br>G8: 주요 역할 목표 — Choate·Andover 연극 중시<br>피아노 + 연극 = 종합 예술 서사 완성</div>
+        <div class="season-item"><b>학업: MathCounts 클럽</b>IMS 기존 MathCounts 클럽 참여 (주 1-2회)<br>Option A: 기존 클럽 조인 → 지역 대회 준비<br>Option B: Peer Tutoring 클럽 별도 창설<br>AMC 8: G7 1월 교내 응시</div>
+        <div class="season-item"><b>리더십: Student Council + ISA</b>G7: 입후보 → G8: 임원 선출<br>International Student Ambassador (ISA) 역할<br>신입 국제학생 Tour Guide 적극 지원</div>
+        <div class="season-item"><b>봉사: IMS 지역 서비스</b>IMS 주최 Lakeville 지역봉사<br>한국 귀국 전 봉사 기록 정리</div>
+        <div class="season-item"><b>글쓰기: John Locke Essay</b>G8 가을 John Locke Essay 제출<br>HIR·Scholastic Writing 출품 준비</div>
+      </div>
+    </div>
+    <div class="season-card">
+      <div class="season-hdr" style="background:#1e40af">
+        <span>❄️ 겨울 시즌 (1–3월)</span>
+        <span style="font-size:10px">최고 우선순위</span>
+      </div>
+      <div class="season-body">
+        <div class="season-item"><b>★★ IMS Alpine Ski — Slalom + Giant Slalom</b>
+          ※ IMS에 Freestyle 팀 없음 → Alpine Racing 팀<br>
+          코치: <b>Dave Rosen / Avery Scoville</b><br>
+          🔑 지후 어머님이 이미 아는 사이 → 최대 활용!<br>
+          Catamount 훈련 + USSS 기반<br>
+          Tri-State Ski Racing Division (MA·CT·NY) 주말 레이싱</div>
+        <div class="season-item"><b>★ Dry Land Training 보조 역할</b>Coach Rosen에게 assistant 역할 제안<br>모글 → 알파인 전환 실력 어필<br>주말 레이싱 참가 (격주, 선택사항)<br>G8 Team Captain은 현실적으로 어려움</div>
+        <div class="season-item"><b>피아노: IMS 12월 겨울 연주회</b>Private music lesson 신청 필수<br>솔로 공연 + 작곡 작품 발표<br>Music 추천서 소재</div>
+        <div class="season-item"><b>연극: IMS 겨울 공연</b>가을 공연 출연 후 겨울도 지속<br>피아노+연극 크로스오버 서사 구축</div>
+        <div class="season-item"><b>학업: AMC 8 (1월)</b>IMS 교내 응시 가능 (G7: 1월 2027)<br>G8: AMC 10 준비 시작<br>※ UKMT: IMS가 시험 센터 아님 → 현실적으로 어려움</div>
+        <div class="season-item"><b>EC Hook: 모글 수학 연구</b>Intersession 기간 발표<br>KAIST 멘토 화상 미팅</div>
+      </div>
+    </div>
+    <div class="season-card">
+      <div class="season-hdr" style="background:#0d6e56">
+        <span>🌸 봄 시즌 (3–6월)</span>
+        <span style="font-size:10px">마무리 & 지원 준비</span>
+      </div>
+      <div class="season-body">
+        <div class="season-item"><b>★★ 봄 뮤지컬 (최우선!)</b>
+          <b>3월 초</b> 오디션 참가 → <b>5월</b> 공연<br>
+          필수 참석: theater x-block + theater club<br>
+          월요일 sports-block 리허설 참석 필요<br>
+          G8: 주연급 역할 목표</div>
+        <div class="season-item"><b>★ 라크로스 (전략적 신규)</b>G7 봄: IMS 팀 합류 (초보 환영)<br>탑 보딩 여자 주요 스포츠<br>G8: 바시티 → 리더십 역할</div>
+        <div class="season-item"><b>봉사: Earth Day 프로젝트 리더</b>
+          IMS 현재 운영: Sustainability Director 주도 Earth Day Week<br>
+          <b>은휴 제안 활동:</b><br>
+          · Recycling Station 개선 + Lunch Waste Tracking<br>
+          · Peer Education: Lower Campus 대상 Eco Lessons<br>
+          · Campus Garden / Composting Initiative<br>
+          · Earth Day Newsletter + Sustainability Videos 제작</div>
+        <div class="season-item"><b>글쓰기: Scholastic Writing Awards</b>G7: Personal Essay 첫 출품<br>G8: Silver/Gold Key 목표<br>HIR Essay Competition 출품</div>
+        <div class="season-item"><b>스포츠: Swimming (보조)</b>9년 경력 유지 · Hotchkiss 시설 사용<br>IMS-Hotchkiss 연결 경험으로 활용</div>
+        <div class="season-item"><b>G8: 지원서 에세이 착수</b>Common App 초안 + Why Hotchkiss<br>SSAT SuperScore 확인 후 전략 조정</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box" style="margin-top:12px">
+    <b>IMS Intersession 활용:</b> IMS는 학기 중 특별 몰입형 수업(Intersession)을 운영합니다. "스키 슬로프의 수학" 또는 "AI와 스포츠 분석" 주제로 Intersession 발표를 신청하여 EC Hook을 공식 교육 활동으로 승격시키는 전략을 추천합니다.
+  </div>
+  <div class="note-box" style="margin-top:8px;border-left-color:#7c3aed;background:#faf5ff">
+    <b>⭐ 연극(Drama)은 탑 보딩의 숨겨진 핵심 지표입니다.</b> Choate Rosemary Hall은 Ives Hall 극장을 보유한 연극 명문으로, 입학사정관이 예술적 전인성을 매우 중요하게 평가합니다. Andover·Hotchkiss·Exeter 모두 연극 활동이 School Culture 추천서와 인터뷰에서 자주 언급됩니다. 피아노 연주자가 무대 연기까지 한다면 "음악 + 공연 예술" 서사가 완성되어 Arts 루브릭 점수를 극대화할 수 있습니다. <b>G7 첫 학기 가을 오디션이 최우선 과제입니다.</b>
+  </div>
+</div>
+
+<!-- SECTION 5: 방학 일정 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">05</span>
+    <span class="sec-title">방학 일정 & 세부 액션 플랜</span>
+  </div>
+
+  <div class="vac-grid">
+    <div class="vac-card">
+      <div class="vac-hdr" style="background:#92400e">추수감사절 방학<br><span style="font-weight:300;font-size:10px">11/20–11/30 (G7) · G8 미정</span></div>
+      <div class="vac-body">
+        <div class="vac-week">● G7 (2025.11)</div>
+        <div class="vac-item"><b>미국 체류 권장</b></div>
+        <div class="vac-item"><b>한세희 SSAT 특강 수강 추천</b></div>
+        <div class="vac-item">AMC 8 대비 문제풀이</div>
+        <div class="vac-item">에세이 라이팅 연습 1편</div>
+        <div class="vac-week" style="margin-top:10px">● G8 (2026.11 · 날짜 미정)</div>
+        <div class="vac-item"><b>지원서 에세이 최종 검토</b></div>
+        <div class="vac-item">SSAT 11월 응시 직후 분석</div>
+        <div class="vac-item">추천서 확인 및 독려</div>
+        <div class="vac-item">캠퍼스 방문 스케줄 정리</div>
+      </div>
+    </div>
+    <div class="vac-card">
+      <div class="vac-hdr" style="background:#1e3a8a">겨울방학<br><span style="font-weight:300;font-size:10px">12/18/2026–1/4/2027 (G7)</span></div>
+      <div class="vac-body">
+        <div class="vac-week">● G7 한국 귀국</div>
+        <div class="vac-item"><b>★ 전국 스키 대회 출전</b></div>
+        <div class="vac-item">모글 챔피언 타이틀 방어</div>
+        <div class="vac-item">KSA 코치 미팅 + 데이터 수집</div>
+        <div class="vac-item">피아노 콩쿠르 출전</div>
+        <div class="vac-item">SSAT Vocab 집중 (300단어)</div>
+        <div class="vac-item">수학 연구 KAIST 미팅</div>
+        <div class="vac-item"><b>★ 아버지 병원 봉사 (주 3회)</b></div>
+        <div class="vac-item">의료기관 봉사 → 공식 기록 발급</div>
+        <div class="vac-item">1월 복귀 후 AMC 8 응시 준비</div>
+        <div class="vac-week" style="margin-top:6px">● G8 추가 (2026.12)</div>
+        <div class="vac-item"><b>★★ 지원서 최종 제출 (1/10)</b></div>
+        <div class="vac-item">전국 스키 대회 출전</div>
+        <div class="vac-item">FIS 주니어 출전 준비</div>
+        <div class="vac-item">아버지 병원 봉사 집중</div>
+      </div>
+    </div>
+    <div class="vac-card">
+      <div class="vac-hdr" style="background:#0d6e56">봄방학<br><span style="font-weight:300;font-size:10px">3/14–3/28 (14일) G7·G8</span></div>
+      <div class="vac-body">
+        <div class="vac-week">● G7 봄방학 (2026.3)</div>
+        <div class="vac-item"><b>미국 캠퍼스 방문 시즌</b></div>
+        <div class="vac-item">Hotchkiss 투어 + 코치 면담</div>
+        <div class="vac-item">NMH / Berkshire 방문</div>
+        <div class="vac-item">SSAT 집중 Mock 시험</div>
+        <div class="vac-item">스키 드라이랜드 훈련</div>
+        <div class="vac-item"><b>아버지 병원 봉사 (매일)</b></div>
+        <div class="vac-item">봉사 시간 공식 기록 확보</div>
+        <div class="vac-week" style="margin-top:10px">● G8 봄방학 (2027.3)</div>
+        <div class="vac-item"><b>★★★ 합격 발표 대응</b></div>
+        <div class="vac-item">합격교 재방문 (3/13~)</div>
+        <div class="vac-item">스키팀 코치 최종 면담</div>
+        <div class="vac-item">등록 결정 (4/10 마감)</div>
+      </div>
+    </div>
+    <div class="vac-card">
+      <div class="vac-hdr" style="background:#4c1d95">여름방학<br><span style="font-weight:300;font-size:10px">6/5–8/25 (10주) G7 여름</span></div>
+      <div class="vac-body">
+        <div class="vac-week">● 6월 초 (한국 귀국)</div>
+        <div class="vac-item"><b>피아노 콩쿠르 출전</b></div>
+        <div class="vac-item">수원대 전국 콩쿠르 (8월)</div>
+        <div class="vac-item">작곡 3번째 곡 착수</div>
+        <div class="vac-week" style="margin-top:6px">● 7월 (연구 집중)</div>
+        <div class="vac-item"><b>★ SSAT 집중 캠프 (3주)</b></div>
+        <div class="vac-item">목표 85th%ile 준비</div>
+        <div class="vac-item">KAIST 멘토 주 2회 미팅</div>
+        <div class="vac-item">Hook A 논문 초안 작성</div>
+        <div class="vac-item">Hook B 앱 개발 시작</div>
+        <div class="vac-week" style="margin-top:6px">● 8월 (미국 방문)</div>
+        <div class="vac-item"><b>★ 미국 캠퍼스 방문</b></div>
+        <div class="vac-item">Coach Rosen 이메일 발송 (입학 즉시!)</div>
+        <div class="vac-item">NMH / St. Paul's 투어</div>
+        <div class="vac-item"><b>아버지 병원 봉사 (주 3회)</b></div>
+        <div class="vac-item">의료봉사 공식 시간 기록</div>
+        <div class="vac-item">동물보호소 봉사 30h 병행</div>
+        <div class="vac-item">스키 하이라이트 영상 편집</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 6: EC HOOK -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">06</span>
+    <span class="sec-title">Hook & Special Interest — 3대 스파이크 기획</span>
+  </div>
+
+  <div class="hook-card" style="border-left:4px solid #c2410c">
+    <div class="hook-hdr">
+      <span class="hook-num">HOOK 1</span>
+      <span class="hook-title">스키 × 수학 — "슬로프 위의 수학자" (최우선 스파이크)</span>
+      <span class="hook-tag"><span class="pill pill-navy">★ 독보적 아이덴티티</span></span>
+    </div>
+    <div class="hook-grid">
+      <div>
+        <div class="hook-col-title">스키 스파이크</div>
+        <div class="hook-col-body">
+          <b>현재:</b> 모글 전국 챔피언 ×2, Ko-Sta STA 6<br>
+          <b>G7 목표:</b> IMS Alpine Racing 팀 합류 (Slalom + GS)<br>
+          Coach Rosen/Scoville 관계 구축 (지후 어머님 연결!)<br>
+          Dry land training assistant 역할로 코치와 신뢰 구축<br>
+          Tri-State Ski Racing Division 실적 쌓기<br>
+          <b>G8 목표:</b> FIS 주니어 출전, 코치 리쿠르팅 레터 확보<br>
+          <b>어필 포인트:</b> 모글 챔피언의 운동 능력 → 알파인으로 전향 가능성 어필
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">수학 스파이크</div>
+        <div class="hook-col-body">
+          <b>현재:</b> UKMT Gold 초등 전체 1위, Olympiad Champion<br>
+          <b>G7 목표:</b> AMC 8 (1월, IMS 교내 응시) · MathCounts 클럽<br>
+          ※ UKMT: IMS 시험 센터 아님 → 현실적으로 어려움<br>
+          <b>G8 목표:</b> AMC 10 준비 시작<br>
+          <b>연구:</b> 모글 궤적 최적화 (변분법) 논문 → KAIST 교수 멘토 → 전국 과학경진대회 출품
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">융합 내러티브 & 대회</div>
+        <div class="hook-col-body">
+          <b>에세이 핵심 문장:</b> "I don't just ski moguls — I solve them."<br>
+          <b>G7 대회:</b> 전국학생과학발명품경진대회, 삼성휴먼테크 주니어<br>
+          <b>G8 대회:</b> Google Science Fair, ISEF 지역 예선<br>
+          <b>추천서:</b> KAIST 교수 + KSA 코치 → 학문+스포츠 동시 검증
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hook-card" style="border-left:4px solid #7c3aed">
+    <div class="hook-hdr">
+      <span class="hook-num" style="background:#7c3aed">HOOK 2</span>
+      <span class="hook-title">피아노 × 연극 × 작곡 — "무대 위의 예술가" (종합 예술 스파이크)</span>
+      <span class="hook-tag"><span class="pill pill-purple">Arts Portfolio</span></span>
+    </div>
+    <div class="hook-grid">
+      <div>
+        <div class="hook-col-title">피아노 — 10년 경력 완성</div>
+        <div class="hook-col-body">
+          <b>현재:</b> 7년 경력, 전국 콩쿠르 우수상 ×2<br>
+          <b>G7:</b> IMS 겨울·봄 연주회 솔로, 수원대 금상 목표<br>
+          <b>G8:</b> 국제 콩쿠르 첫 출전, 졸업 연주회 메인<br>
+          <b>지원 시점:</b> 10년 경력, 국내외 수상 4개+
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">★ 연극 — 즉시 시작 최우선</div>
+        <div class="hook-col-body">
+          <b>Choate·Andover·Hotchkiss</b> 모두 연극 중시<br>
+          <b>G7 가을:</b> IMS 첫 오디션 도전 (소역할 OK)<br>
+          <b>G7 겨울·봄:</b> 정기 공연 지속 출연<br>
+          <b>G8:</b> 주요 역할 + 뮤지컬 피아노 연계<br>
+          피아노 연주 + 연극 공연 = 탑 보딩이 원하는 예술가
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">작곡 포트폴리오</div>
+        <div class="hook-col-body">
+          <b>현재:</b> 2024~ 작곡 레슨 중<br>
+          <b>G7:</b> 오리지널 곡 2곡 완성·발표<br>
+          <b>G8:</b> 5곡+ 포트폴리오, Scholastic 출품<br>
+          <b>융합:</b> 연극 BGM 작곡 → 피아노+연극+작곡 삼중 융합으로 탑 보딩 Arts 섹션 만점 목표
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hook-card" style="border-left:4px solid #0d6e56">
+    <div class="hook-hdr">
+      <span class="hook-num" style="background:#0d6e56">HOOK 3</span>
+      <span class="hook-title">다종목 운동선수 — 크로스컨트리·스키·라크로스·수영 (3시즌 완성)</span>
+      <span class="hook-tag"><span class="pill pill-teal">3-Season Athlete</span></span>
+    </div>
+    <div class="hook-grid">
+      <div>
+        <div class="hook-col-title">가을: Cross Country (기록 향상 중)</div>
+        <div class="hook-col-body">
+          <b>현재 기록:</b> 5km 약 32:30 (JV 수준)<br>
+          <b>바시티 기준:</b> 25분 이하 목표<br>
+          G7: 기록 단축 집중 훈련<br>
+          G8: 바시티 도전 · NEPSAC 대회<br>
+          Awards: MVP · MIP · Sportsmanship 목표<br>
+          <b>서사:</b> "XC 지구력 = 스키 집중력의 증거"
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">겨울: Alpine Ski Racing (메인 스파이크)</div>
+        <div class="hook-col-body">
+          <b>IMS Alpine Racing 팀</b> (Slalom + GS)<br>
+          Coach Dave Rosen / Avery Scoville<br>
+          🔑 지후 어머님 연결 = 최대 전략 자산<br>
+          Catamount 훈련 + Tri-State Racing<br>
+          Dry land training assistant 역할<br>
+          <b>→ 탑 보딩 스키팀 합류 핵심 경로</b>
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">봄: 라크로스 (전략적 신규)</div>
+        <div class="hook-col-body">
+          <b>탑 보딩 여자 주요 스포츠</b><br>
+          G7 봄: IMS 팀 합류 (초보도 환영)<br>
+          G8: 바시티 → 리더십 역할<br>
+          수영 9년 경력과 병행<br>
+          <b>3시즌 완성 = 전인적 운동선수</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hook-card" style="border-left:4px solid #2563a8">
+    <div class="hook-hdr">
+      <span class="hook-num" style="background:#2563a8">HOOK 4</span>
+      <span class="hook-title">영문 글쓰기 — John Locke · HIR · Scholastic Writing Awards</span>
+      <span class="hook-tag"><span class="pill pill-blue">Writing Portfolio</span></span>
+    </div>
+    <div class="hook-grid">
+      <div>
+        <div class="hook-col-title">John Locke Essay Competition</div>
+        <div class="hook-col-body">
+          <b>주최:</b> John Locke Institute (Oxford 기반)<br>
+          <b>대상:</b> 18세 이하 전 세계 학생<br>
+          <b>주제:</b> 철학·경제·역사·심리학 등 학술 에세이<br>
+          <b>G7:</b> 준비·연습 / <b>G8:</b> 정식 제출<br>
+          수상 시 탑 보딩 에세이의 강력한 증거
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">HIR (Harvard International Review)</div>
+        <div class="hook-col-body">
+          <b>HIR Essay Competition:</b> 국제 관계·정책 에세이<br>
+          <b>또는 Harvard-Radcliffe</b> 청소년 라이팅<br>
+          <b>G7:</b> 국제 이슈 독서·리서치 시작<br>
+          <b>G8:</b> 에세이 제출<br>
+          MUN 경험과 연계 → 설득력 있는 에세이
+        </div>
+      </div>
+      <div>
+        <div class="hook-col-title">Scholastic Art & Writing Awards</div>
+        <div class="hook-col-body">
+          <b>미국 최권위 청소년 글쓰기 대회</b><br>
+          Fiction·Personal Essay·Poetry 등 다양<br>
+          <b>G7 봄:</b> 첫 출품 (Personal Essay)<br>
+          <b>G8:</b> Silver·Gold Key 목표<br>
+          수상 시 Choate·Andover 에세이 첨부 가능
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding:8px 10px;background:#f0f9ff;border-radius:6px;font-size:10px;color:#0c4a6e">
+      <b>글쓰기 전략:</b> IMS 영어 수업에서 주 1편 에세이 → G7 봄 Scholastic 첫 출품 → G7 여름 John Locke 준비 → G8 가을 John Locke + HIR 동시 제출. 수상 실적이 에세이 라이팅 실력을 객관적으로 증명하는 가장 강력한 방법입니다.
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 7: GATEWAY 아웃컴 예측 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">07</span>
+    <span class="sec-title">예스유학 Student Gateway — 향후 아웃컴 예측</span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table class="gateway-tbl">
+      <thead>
+        <tr>
+          <th style="text-align:left;width:18%">학교명</th>
+          <th>Niche 등급</th>
+          <th>스키 Fit</th>
+          <th>IMS 파이프라인</th>
+          <th>현재 예측 (2025)</th>
+          <th>G7 후 예측 (2026)</th>
+          <th>G8 지원 예측 (2027)</th>
+          <th>전략 포인트</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fff7ed">
+          <td><b>Hotchkiss School</b></td>
+          <td><span class="pill pill-navy">A+</span></td>
+          <td><span class="pill pill-coral">★★★★★</span></td>
+          <td><span class="pill pill-teal">직통</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 상승</span></td>
+          <td><span class="outcome-chip oc-high">합격 유력</span></td>
+          <td>코치 리쿠르팅 확보 시 1순위 합격 가능</td>
+        </tr>
+        <tr>
+          <td><b>NMH (Northfield Mt Hermon)</b></td>
+          <td><span class="pill pill-teal">A</span></td>
+          <td><span class="pill pill-coral">★★★★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 상승</span></td>
+          <td><span class="outcome-chip oc-high">합격 가능</span></td>
+          <td>뉴잉글랜드 스키 최강 → 코치 컨택 시급</td>
+        </tr>
+        <tr style="background:#fff7ed">
+          <td><b>St. Paul's School</b></td>
+          <td><span class="pill pill-navy">A+</span></td>
+          <td><span class="pill pill-blue">★★★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 상승</span></td>
+          <td><span class="outcome-chip oc-mid">합격 가능</span></td>
+          <td>NH 스키 지역 + A+ 학업 조합</td>
+        </tr>
+        <tr>
+          <td><b>Berkshire School</b></td>
+          <td><span class="pill pill-teal">A</span></td>
+          <td><span class="pill pill-blue">★★★★</span></td>
+          <td><span class="pill pill-teal">IMS 매트리큘</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 있음</span></td>
+          <td><span class="outcome-chip oc-high">합격 가능</span></td>
+          <td><span class="outcome-chip oc-high">합격 유력</span></td>
+          <td>IMS 졸업생 수용 + 스키 강세 지역</td>
+        </tr>
+        <tr style="background:#fff7ed">
+          <td><b>Holderness School</b></td>
+          <td><span class="pill pill-teal">A</span></td>
+          <td><span class="pill pill-coral">★★★★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 있음</span></td>
+          <td><span class="outcome-chip oc-high">합격 가능</span></td>
+          <td><span class="outcome-chip oc-high">합격 유력</span></td>
+          <td>NH 스키 명가 → 스키 리쿠르팅 최적</td>
+        </tr>
+        <tr>
+          <td><b>Deerfield Academy</b></td>
+          <td><span class="pill pill-navy">A+</span></td>
+          <td><span class="pill pill-blue">★★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 상승</span></td>
+          <td><span class="outcome-chip oc-mid">합격 가능</span></td>
+          <td>MA 명문 + 버크셔 스키 지역 인접</td>
+        </tr>
+        <tr style="background:#fff7ed">
+          <td><b>Middlesex School</b></td>
+          <td><span class="pill pill-navy">A+</span></td>
+          <td><span class="pill pill-blue">★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 상승</span></td>
+          <td><span class="outcome-chip oc-mid">합격 가능</span></td>
+          <td>소규모 명문 → 수학 스파이크 유효</td>
+        </tr>
+        <tr>
+          <td><b>Phillips Academy (Andover)</b></td>
+          <td><span class="pill pill-navy">A+ #1</span></td>
+          <td><span class="pill pill-blue">★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 불가</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 있음</span></td>
+          <td>SSAT 95%+ · 수학 연구 논문 필수 조건</td>
+        </tr>
+        <tr style="background:#fff7ed">
+          <td><b>Phillips Exeter Academy</b></td>
+          <td><span class="pill pill-navy">A+ #2</span></td>
+          <td><span class="pill pill-blue">★★</span></td>
+          <td><span class="pill pill-gray">간접</span></td>
+          <td><span class="outcome-chip oc-low">합격 불가</span></td>
+          <td><span class="outcome-chip oc-low">합격 어려움</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 있음</span></td>
+          <td>Harkness 탐구력 + 수학 연구 에세이 필수</td>
+        </tr>
+        <tr>
+          <td><b>Loomis Chaffee</b></td>
+          <td><span class="pill pill-navy">A+</span></td>
+          <td><span class="pill pill-blue">★★</span></td>
+          <td><span class="pill pill-teal">IMS 매트리큘</span></td>
+          <td><span class="outcome-chip oc-mid">가능성 있음</span></td>
+          <td><span class="outcome-chip oc-high">합격 가능</span></td>
+          <td><span class="outcome-chip oc-high">합격 유력</span></td>
+          <td>IMS 파이프라인 + CT 위치 (Hotchkiss 지역)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note-box" style="margin-top:10px">
+    <b>합격 전략 요약:</b> Hotchkiss(코치 리쿠르팅) + Berkshire·Holderness·Loomis Chaffee(IMS 파이프라인 + 스키) = 합격 확률 높음. Andover·Exeter는 SSAT 95%+ + 수학 연구 논문 완성이 전제조건. 10개교 지원 시 3~5개 합격 목표.
+  </div>
+</div>
+
+<!-- SECTION 8: Andover/Exeter 진단표 -->
+<div class="section">
+  <div class="sec-hdr">
+    <span class="sec-num">08</span>
+    <span class="sec-title">앤도버 · 엑시터 진단표 — 합격 기준 vs 현재 수준</span>
+  </div>
+
+  <div class="diag-school-grid">
+    <div class="diag-school-card">
+      <div class="dsc-hdr">
+        <div>
+          <div class="dsc-hdr-name">Phillips Academy (Andover)</div>
+          <div class="dsc-hdr-rank">Niche #1 · 합격률 12% · Andover, MA</div>
+        </div>
+      </div>
+      <div class="dsc-body">
+        <div class="dsc-row" style="font-weight:700;background:#f0f4ff;font-size:10px"><span>평가 항목</span><span>앤도버 기준</span><span>현재 박은휴</span></div>
+        <div class="dsc-row"><span class="dsc-label">SSAT</span><span class="dsc-current">95th%ile 이상 (사실상 기본)</span><span><span class="traffic tr-red">미응시</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">TOEFL</span><span class="dsc-current">110+ iBT (국제학생 기준)</span><span><span class="traffic tr-green">시민권자 면제</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">GPA/내신</span><span class="dsc-current">최상위 10% (전과목 A/A+)</span><span><span class="traffic tr-green">Distinction</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">학문 깊이</span><span class="dsc-current">연구·프로젝트·수상 실적</span><span><span class="traffic tr-yellow">개발 중</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">스포츠</span><span class="dsc-current">팀 스포츠 리더십 우대</span><span><span class="traffic tr-yellow">스키 강점</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">봉사</span><span class="dsc-current">공식 100h+ 기록 필수</span><span><span class="traffic tr-red">20h 미만</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">에세이</span><span class="dsc-current">독창적 영문 에세이 (A+ 수준)</span><span><span class="traffic tr-red">미준비</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">인터뷰</span><span class="dsc-current">유창한 영어 + 지적 호기심</span><span><span class="traffic tr-yellow">보통 수준</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">추천서</span><span class="dsc-current">교사 2명 + 교장 + 특기 추천</span><span><span class="traffic tr-yellow">관계 구축 중</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">국제 다양성</span><span class="dsc-current">희소성 있는 국가/배경</span><span><span class="traffic tr-green">한국 스키 강점</span></span></div>
+        <div class="dsc-row" style="background:#fff7ed"><span class="dsc-label"><b>종합 진단</b></span><span class="dsc-current" colspan="2" style="color:#c2410c;font-weight:600">2027 지원 시 SSAT 95%+ + 수학 연구 논문 완성이 전제조건. 스키 코치 리쿠르팅 없으면 합격 극히 어려움. 리치 학교로 분류 권장.</span></div>
+      </div>
+    </div>
+
+    <div class="diag-school-card">
+      <div class="dsc-hdr">
+        <div>
+          <div class="dsc-hdr-name">Phillips Exeter Academy</div>
+          <div class="dsc-hdr-rank">Niche #2 · 합격률 15% · Exeter, NH</div>
+        </div>
+      </div>
+      <div class="dsc-body">
+        <div class="dsc-row" style="font-weight:700;background:#f0f4ff;font-size:10px"><span>평가 항목</span><span>엑시터 기준</span><span>현재 박은휴</span></div>
+        <div class="dsc-row"><span class="dsc-label">SSAT</span><span class="dsc-current">95th%ile 이상 필수</span><span><span class="traffic tr-red">미응시</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">TOEFL</span><span class="dsc-current">110+ iBT 필수</span><span><span class="traffic tr-green">시민권자 면제</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">GPA/내신</span><span class="dsc-current">최상위권 필수</span><span><span class="traffic tr-green">Distinction</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">Harkness 적합성</span><span class="dsc-current">적극적 토론·탐구 능력</span><span><span class="traffic tr-yellow">MUN 경험 있음</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">학문 탐구</span><span class="dsc-current">독립 연구·자기주도 학습</span><span><span class="traffic tr-yellow">연구 착수 예정</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">스포츠</span><span class="dsc-current">스키팀 존재, 리쿠르팅 약</span><span><span class="traffic tr-yellow">코치 컨택 필요</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">봉사</span><span class="dsc-current">커뮤니티 기여 중시</span><span><span class="traffic tr-red">20h 미만</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">에세이</span><span class="dsc-current">"왜 엑시터인가" 설득력 필수</span><span><span class="traffic tr-red">미준비</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">수학 레벨</span><span class="dsc-current">상위 수학반 진입 능력</span><span><span class="traffic tr-green">Olympiad Champion</span></span></div>
+        <div class="dsc-row"><span class="dsc-label">특기/Hook</span><span class="dsc-current">탐구하는 학생 스토리</span><span><span class="traffic tr-yellow">개발 중</span></span></div>
+        <div class="dsc-row" style="background:#fff7ed"><span class="dsc-label"><b>종합 진단</b></span><span class="dsc-current" colspan="2" style="color:#c2410c;font-weight:600">엑시터는 "Harkness 탐구형 학생"을 원합니다. 수학 연구 논문 + "스키를 수학으로 풀다"는 에세이가 완성되면 합격 가능성 있음. SSAT 95%+가 절대 필수. 리치로 분류 후 G8 여름 에세이 집중 준비 권장.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sub-hdr" style="margin-top:20px">앤도버·엑시터 합격을 위한 나머지 2년 체크리스트</div>
+  <div class="card-grid g3" style="gap:10px">
+    <div class="card card-accent" style="border-top-color:#dc2626">
+      <div class="card-title" style="color:#dc2626">지금 당장 (2025.9)</div>
+      <div class="card-body">
+        ✓ IMS 입학 · 수학 선생님 관계 시작<br>
+        ✓ Hotchkiss 스키 코치 이메일 발송<br>
+        ✓ SSAT Verbal 어휘 학습 시작 (일 20단어)<br>
+        ✓ Math Club 창설 + KAIST 교수 이메일<br>
+        ✓ 봉사 월 2회 정착
+      </div>
+    </div>
+    <div class="card card-accent" style="border-top-color:#d97706">
+      <div class="card-title" style="color:#d97706">G7 완료 시 (2026.6)</div>
+      <div class="card-body">
+        ✓ IMS 전과목 A 성적표<br>
+        ✓ NEPSAC 스키 경기 실적<br>
+        ✓ AMC 8 Honor Roll 달성<br>
+        ✓ 봉사 50h+ 기록<br>
+        ✓ 모글 수학 연구 초안 + KAIST 멘토 확보<br>
+        ✓ 미국 캠퍼스 방문 (Hotchkiss·NMH)
+      </div>
+    </div>
+    <div class="card card-accent" style="border-top-color:#0d6e56">
+      <div class="card-title" style="color:#0d6e56">G8 지원 시 (2027.1)</div>
+      <div class="card-body">
+        ✓ SSAT 95th%ile+ 달성<br>
+        ✓ 시민권자 — TOEFL 불필요<br>
+        ✓ 모글 수학 연구 논문 + 대회 수상<br>
+        ✓ Coach Rosen 리쿠르팅 레터<br>
+        ✓ 봉사 100h+ (병원·IMS·도미니카)<br>
+        ✓ 연극 공연 경력 3회+<br>
+        ✓ John Locke·HIR·Scholastic 출품<br>
+        ✓ XC + 스키 + 라크로스 3시즌 완성
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- FOOTER -->
+<div class="footer">
+  <div>
+    <div class="footer-logo">예스유학 · YES Study Abroad</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:3px">시니어보딩 프렙 프로그램 · 박은휴 학생 전용 제안서</div>
+  </div>
+  <div class="footer-note">2025년 5월 작성 · Indian Mountain School → Top 10 Boarding · Grade 9 입학 목표 2027</div>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>

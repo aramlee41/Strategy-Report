@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>예스유학 — 학생 제안서 입력 폼</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background: #f3f4f6; }
+  input, textarea, select, button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const NAVY="#1a2744", BLUE="#2563a8", TEAL="#0d6e56", CORAL="#c2410c", AMBER="#92400e", PURPLE="#4c1d95";
+const SECTIONS=[
+  {id:1,title:"학생 기본 정보",icon:"👤",color:NAVY},
+  {id:2,title:"학업 & 시험 성적",icon:"📚",color:BLUE},
+  {id:3,title:"스포츠 활동",icon:"⛷️",color:CORAL},
+  {id:4,title:"예술 활동",icon:"🎹",color:PURPLE},
+  {id:5,title:"리더십 & 봉사",icon:"🤝",color:TEAL},
+  {id:6,title:"Hook & 특별 관심사",icon:"🎯",color:AMBER},
+  {id:7,title:"목표 학교",icon:"🏫",color:"#0369a1"},
+  {id:8,title:"방학 & 기타",icon:"🗓️",color:"#374151"},
+  {id:9,title:"검토 & AI 분석",icon:"✨",color:"#065f46"},
+];
+
+const init={
+  nameKo:"",nameEn:"",gender:"",birthdate:"",currentSchool:"",currentGrade:"",
+  appType:"",targetGrade:"",targetYear:"",nationality:"",familyBackground:"",
+  prevGrades:"",currentGrades:"",ssatOverall:"",ssatMath:"",ssatReading:"",ssatVerbal:"",
+  toeflScore:"",englishLevel:"",academicAwards:"",specialSubject:"",researchProject:"",academicPrograms:"",
+  mainSport:"",mainSportYears:"",mainSportLevel:"",mainSportAwards:"",
+  fallSport:"",winterSport:"",springSport:"",
+  allSportAwards:"",sportCertificates:"",trainingHours:"",coachInfo:"",
+  instrument:"",musicYears:"",musicLevel:"",musicAwards:"",
+  dramaExp:"",dramaDetails:"",visualArts:"",otherArts:"",
+  leadershipRoles:"",serviceActivities:"",serviceHours:"",clubs:"",leadershipAwards:"",
+  mainHook:"",hookIdea:"",hobbies:"",writingExp:"",
+  dreamSchools:"",matchSchools:"",safetySchools:"",locationPref:"",budget:"",
+  prevApps:"",schoolPriority:"",
+  summerActivity:"",winterActivity:"",academicCamps:"",recLetterCandidates:"",
+  studentPersonality:"",parentRequests:"",
+};
+
+function Field({label,required,hint,children}){
+  return(
+    <div style={{marginBottom:16}}>
+      <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+        {required?<span style={{color:"#dc2626",marginRight:3}}>●</span>:<span style={{color:TEAL,marginRight:3}}>○</span>}
+        {label}
+      </label>
+      {hint&&<div style={{fontSize:10,color:"#6b7280",marginBottom:5,lineHeight:1.5}}>{hint}</div>}
+      {children}
+    </div>
+  );
+}
+
+const iStyle={width:"100%",padding:"9px 12px",border:"1px solid #d1d5db",borderRadius:8,fontSize:13,outline:"none",background:"white",fontFamily:"inherit"};
+function Inp({value,onChange,placeholder,type="text"}){
+  return <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+    style={iStyle} onFocus={e=>e.target.style.borderColor=BLUE} onBlur={e=>e.target.style.borderColor="#d1d5db"}/>;
+}
+function Txt({value,onChange,placeholder,rows=3}){
+  return <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
+    style={{...iStyle,resize:"vertical",lineHeight:1.6}}
+    onFocus={e=>e.target.style.borderColor=BLUE} onBlur={e=>e.target.style.borderColor="#d1d5db"}/>;
+}
+function Sel({value,onChange,options}){
+  return <select value={value} onChange={e=>onChange(e.target.value)} style={{...iStyle,cursor:"pointer"}}>
+    <option value="">선택해주세요</option>
+    {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>;
+}
+function Radio({value,onChange,options}){
+  return <div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:2}}>
+    {options.map(o=>(
+      <label key={o.v} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13}}>
+        <input type="radio" value={o.v} checked={value===o.v} onChange={()=>onChange(o.v)} style={{accentColor:NAVY,width:15,height:15}}/>
+        {o.l}
+      </label>
+    ))}
+  </div>;
+}
+function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>{children}</div>;}
+function G3({children}){return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>{children}</div>;}
+
+// ─── API KEY SETUP SCREEN ───────────────────────────────
+function SetupScreen({onDone}){
+  const [key,setKey]=useState("");
+  const [show,setShow]=useState(false);
+  const [err,setErr]=useState("");
+
+  const save=()=>{
+    if(!key.trim().startsWith("sk-ant-")){
+      setErr("올바른 Anthropic API 키를 입력해주세요. (sk-ant-... 로 시작)");
+      return;
+    }
+    sessionStorage.setItem("yes_apikey",key.trim());
+    onDone(key.trim());
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"white",borderRadius:16,padding:"36px 40px",maxWidth:500,width:"100%",boxShadow:"0 4px 24px rgba(0,0,0,0.10)"}}>
+        <div style={{fontSize:11,fontWeight:700,color:NAVY,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:6}}>예스유학 · YES Study Abroad</div>
+        <div style={{fontSize:22,fontWeight:700,color:"#111827",marginBottom:4}}>학생 제안서 시스템</div>
+        <div style={{fontSize:13,color:"#6b7280",marginBottom:28,lineHeight:1.6}}>AI 분석 기능을 사용하려면 Anthropic API 키가 필요합니다.<br/>최초 1회 입력 후 브라우저 세션 동안 유지됩니다.</div>
+
+        <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:12,color:"#0c4a6e",lineHeight:1.7}}>
+          <b>API 키 발급 방법:</b><br/>
+          1. <a href="https://console.anthropic.com" target="_blank" style={{color:BLUE}}>console.anthropic.com</a> 접속<br/>
+          2. 로그인 → API Keys → Create Key<br/>
+          3. 생성된 키 복사 (sk-ant-... 형식)
+        </div>
+
+        <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+          Anthropic API Key
+        </label>
+        <div style={{position:"relative",marginBottom:8}}>
+          <input
+            type={show?"text":"password"}
+            value={key}
+            onChange={e=>setKey(e.target.value)}
+            placeholder="sk-ant-api03-..."
+            style={{...iStyle,paddingRight:70,fontFamily:"monospace"}}
+            onKeyDown={e=>e.key==="Enter"&&save()}
+          />
+          <button onClick={()=>setShow(s=>!s)}
+            style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#6b7280",padding:"4px 8px"}}>
+            {show?"숨기기":"보이기"}
+          </button>
+        </div>
+        {err&&<div style={{color:"#dc2626",fontSize:11,marginBottom:8}}>{err}</div>}
+
+        <button onClick={save}
+          style={{width:"100%",padding:"13px",background:NAVY,color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer",marginTop:8}}>
+          시작하기 →
+        </button>
+
+        <div style={{marginTop:16,padding:"10px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,fontSize:11,color:"#6b7280",lineHeight:1.6}}>
+          💡 API 키 없이도 폼 작성 후 데이터 복사는 가능합니다.<br/>
+          <button onClick={()=>onDone("")}
+            style={{background:"none",border:"none",color:BLUE,cursor:"pointer",fontSize:11,fontWeight:600,padding:0,marginTop:4,display:"block"}}>
+            API 키 없이 계속하기 →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ───────────────────────────────────────────
+function App(){
+  const [apiKey,setApiKey]=useState(null);
+  const [step,setStep]=useState(1);
+  const [d,setD]=useState(init);
+  const [ai,setAi]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [copied,setCopied]=useState(false);
+
+  useEffect(()=>{
+    const saved=sessionStorage.getItem("yes_apikey");
+    if(saved!==null) setApiKey(saved);
+  },[]);
+
+  const s=(k)=>(v)=>setD(p=>({...p,[k]:v}));
+  const sec=SECTIONS[step-1];
+
+  const txt=()=>`예스유학 학생 정보
+
+[기본 정보]
+이름: ${d.nameKo} (${d.nameEn}) | 성별: ${d.gender} | 생년: ${d.birthdate}
+현재: ${d.currentSchool} / ${d.currentGrade}
+지원: ${d.appType} | 목표: ${d.targetYear}년 ${d.targetGrade} 입학
+국적: ${d.nationality} | 가족: ${d.familyBackground}
+
+[학업 & 시험]
+이전 성적: ${d.prevGrades}
+현재 성적: ${d.currentGrades}
+SSAT: 전체 ${d.ssatOverall}% | Math ${d.ssatMath}% | Reading ${d.ssatReading}% | Verbal ${d.ssatVerbal}%
+TOEFL: ${d.toeflScore} | 영어: ${d.englishLevel}
+학업수상: ${d.academicAwards}
+특기과목: ${d.specialSubject} | 연구: ${d.researchProject}
+특별프로그램: ${d.academicPrograms}
+
+[스포츠]
+주력: ${d.mainSport} / ${d.mainSportYears}년 / ${d.mainSportLevel}
+주력수상: ${d.mainSportAwards}
+가을: ${d.fallSport} | 겨울: ${d.winterSport} | 봄: ${d.springSport}
+전체수상: ${d.allSportAwards}
+자격증: ${d.sportCertificates} | 훈련: ${d.trainingHours} | 코치: ${d.coachInfo}
+
+[예술]
+음악: ${d.instrument} / ${d.musicYears}년 / ${d.musicLevel}
+음악수상: ${d.musicAwards}
+연극: ${d.dramaExp} - ${d.dramaDetails}
+시각예술: ${d.visualArts} | 기타: ${d.otherArts}
+
+[리더십 & 봉사]
+리더십: ${d.leadershipRoles}
+봉사: ${d.serviceActivities} (${d.serviceHours})
+클럽: ${d.clubs}
+수상: ${d.leadershipAwards}
+
+[Hook & 관심사]
+메인 Hook: ${d.mainHook}
+Hook 아이디어: ${d.hookIdea}
+취미: ${d.hobbies} | 글쓰기: ${d.writingExp}
+
+[목표 학교]
+드림: ${d.dreamSchools}
+매치: ${d.matchSchools}
+세이프티: ${d.safetySchools}
+지역: ${d.locationPref} | 예산: ${d.budget}
+이력: ${d.prevApps} | 우선순위: ${d.schoolPriority}
+
+[방학 & 기타]
+여름: ${d.summerActivity}
+겨울: ${d.winterActivity}
+캠프: ${d.academicCamps}
+추천서후보: ${d.recLetterCandidates}
+학생성격: ${d.studentPersonality}
+요청사항: ${d.parentRequests}`;
+
+  const analyze=async()=>{
+    if(!apiKey){
+      setAi("⚠️ API 키가 설정되지 않았습니다. 페이지를 새로고침해서 API 키를 입력해주세요.");
+      return;
+    }
+    setLoading(true);
+    try{
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-api-key": apiKey,
+          "anthropic-version":"2023-06-01",
+          "anthropic-dangerous-direct-browser-access":"true"
+        },
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1200,
+          messages:[{role:"user",content:`당신은 미국 탑 보딩스쿨 입시 전문 컨설턴트입니다. 아래 학생 데이터를 분석해 한국어로 답해주세요:
+
+1. 📊 예스유학 루브릭 점수 추정 (100점 기준, 카테고리별 점수 포함)
+2. ✅ 핵심 강점 TOP 3 (구체적으로)
+3. ⚠️ 보완 필요 약점 TOP 3 (해결책 포함)
+4. 🎯 추천 메인 Hook 1개 (한 문장 임팩트 있게)
+5. 🏫 Fit이 가장 높은 추천 학교 3개 (각 이유 포함)
+6. 📋 지금 당장 시작할 액션 3가지
+
+${txt()}`}]
+        })
+      });
+      const j=await r.json();
+      if(j.error) setAi("❌ API 오류: "+j.error.message);
+      else setAi(j.content?.[0]?.text||"분석 결과를 받지 못했습니다.");
+    }catch(e){
+      setAi("❌ 네트워크 오류. 인터넷 연결 또는 API 키를 확인해주세요.");
+    }
+    setLoading(false);
+  };
+
+  const copy=()=>{
+    const full=txt()+(ai?"\n\n[AI 분석 결과]\n"+ai:"");
+    navigator.clipboard.writeText(full).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
+  };
+
+  const changeApiKey=()=>{
+    sessionStorage.removeItem("yes_apikey");
+    setApiKey(null);
+    setAi("");
+  };
+
+  // Show setup if no apiKey decided yet
+  if(apiKey===null) return <SetupScreen onDone={(k)=>setApiKey(k)}/>;
+
+  const BtnStyle=(color,disabled)=>({
+    width:"100%",padding:"13px",background:disabled?"#9ca3af":color,
+    color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:700,
+    cursor:disabled?"not-allowed":"pointer",marginBottom:10
+  });
+
+  return(
+    <div style={{fontFamily:"'Apple SD Gothic Neo','Malgun Gothic',sans-serif",background:"#f3f4f6",minHeight:"100vh",padding:"20px 12px"}}>
+
+      {/* HEADER */}
+      <div style={{maxWidth:720,margin:"0 auto 14px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"white",padding:"12px 20px",borderRadius:12,boxShadow:"0 1px 8px rgba(0,0,0,0.08)"}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:NAVY,letterSpacing:"0.12em",textTransform:"uppercase"}}>예스유학 · YES Study Abroad</div>
+          <div style={{fontSize:15,fontWeight:700,color:"#111827",marginTop:2}}>학생 제안서 입력 폼</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          {apiKey&&(
+            <button onClick={changeApiKey} style={{fontSize:10,color:"#6b7280",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>
+              🔑 API 키 변경
+            </button>
+          )}
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:18,fontWeight:700,color:step<9?sec.color:"#065f46"}}>{step<9?`${step}/8`:"✅"}</div>
+            <div style={{fontSize:10,color:"#6b7280"}}>섹션</div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROGRESS */}
+      {step<9&&(
+        <div style={{maxWidth:720,margin:"0 auto 12px"}}>
+          <div style={{background:"#e5e7eb",borderRadius:999,height:7,overflow:"hidden"}}>
+            <div style={{background:sec.color,height:"100%",width:`${Math.round(((step-1)/8)*100)}%`,transition:"width 0.4s",borderRadius:999}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+            {SECTIONS.slice(0,8).map(ss=>(
+              <div key={ss.id} onClick={()=>setStep(ss.id)} title={ss.title}
+                style={{width:28,height:28,borderRadius:"50%",background:step>ss.id?"#d1fae5":step===ss.id?ss.color:"#e5e7eb",
+                  border:`2px solid ${step>=ss.id?ss.color:"#d1d5db"}`,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:11,color:step>ss.id?TEAL:step===ss.id?"white":"#9ca3af",
+                  fontWeight:700,cursor:"pointer",transition:"all 0.3s",flexShrink:0}}>
+                {step>ss.id?"✓":ss.id}
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+            {SECTIONS.slice(0,8).map(ss=>(
+              <div key={ss.id} style={{fontSize:9,color:step>=ss.id?"#374151":"#9ca3af",textAlign:"center",width:28}}>{ss.icon}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CARD */}
+      <div style={{maxWidth:720,margin:"0 auto",background:"white",borderRadius:14,boxShadow:"0 2px 20px rgba(0,0,0,0.09)",overflow:"hidden"}}>
+        {step<9&&(
+          <div style={{background:sec.color,color:"white",padding:"14px 22px",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:22}}>{sec.icon}</span>
+            <div>
+              <div style={{fontSize:10,opacity:0.7,letterSpacing:"0.1em",textTransform:"uppercase"}}>섹션 {sec.id} / 8</div>
+              <div style={{fontSize:17,fontWeight:700}}>{sec.title}</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{padding:"22px 26px"}}>
+
+          {step===1&&<div>
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:18,lineHeight:1.6,background:"#f9fafb",padding:"10px 14px",borderRadius:8}}>
+              ● 필수 항목 · ○ 선택 항목 · 빠짐없이 입력할수록 제안서 품질이 높아집니다
+            </div>
+            <G2>
+              <Field label="학생 이름 (한글)" required hint="예: 박은휴"><Inp value={d.nameKo} onChange={s("nameKo")} placeholder="홍길동"/></Field>
+              <Field label="학생 이름 (영문)" required hint="여권 기준"><Inp value={d.nameEn} onChange={s("nameEn")} placeholder="HONG GILDONG"/></Field>
+            </G2>
+            <G2>
+              <Field label="성별" required><Radio value={d.gender} onChange={s("gender")} options={[{v:"여",l:"여학생"},{v:"남",l:"남학생"}]}/></Field>
+              <Field label="생년월일" required hint="YYYY.MM.DD"><Inp value={d.birthdate} onChange={s("birthdate")} placeholder="2013.05.15"/></Field>
+            </G2>
+            <G2>
+              <Field label="현재 학교명" required><Inp value={d.currentSchool} onChange={s("currentSchool")} placeholder="Dulwich College Seoul"/></Field>
+              <Field label="현재 학년 (미국 기준)" required>
+                <Sel value={d.currentGrade} onChange={s("currentGrade")} options={[
+                  {v:"Grade 5",l:"Grade 5 (초5)"},{v:"Grade 6",l:"Grade 6 (초6)"},
+                  {v:"Grade 7",l:"Grade 7 (중1)"},{v:"Grade 8",l:"Grade 8 (중2)"},
+                  {v:"Grade 9",l:"Grade 9 (중3)"},{v:"Grade 10",l:"Grade 10 (고1)"}]}/>
+              </Field>
+            </G2>
+            <G2>
+              <Field label="지원 유형" required>
+                <Radio value={d.appType} onChange={s("appType")} options={[{v:"주니어보딩",l:"주니어 보딩"},{v:"시니어보딩",l:"시니어 보딩"},{v:"데이스쿨",l:"데이스쿨"}]}/>
+              </Field>
+              <Field label="목표 입학 연도" required>
+                <Radio value={d.targetYear} onChange={s("targetYear")} options={[{v:"2026",l:"2026"},{v:"2027",l:"2027"},{v:"2028",l:"2028"},{v:"2029",l:"2029"}]}/>
+              </Field>
+            </G2>
+            <G2>
+              <Field label="목표 입학 학년" required>
+                <Sel value={d.targetGrade} onChange={s("targetGrade")} options={[{v:"Grade 7",l:"Grade 7"},{v:"Grade 8",l:"Grade 8"},{v:"Grade 9",l:"Grade 9"},{v:"Grade 10",l:"Grade 10"},{v:"Grade 11",l:"Grade 11"}]}/>
+              </Field>
+              <Field label="국적 / 시민권"><Inp value={d.nationality} onChange={s("nationality")} placeholder="한국 국적 / 미국 시민권 등"/></Field>
+            </G2>
+            <Field label="가족 배경 (선택)" hint="Legacy 여부, 부모 직업 간략히">
+              <Inp value={d.familyBackground} onChange={s("familyBackground")} placeholder="예: 아버지 의사, Legacy 없음"/>
+            </Field>
+          </div>}
+
+          {step===2&&<div>
+            <Field label="이전 학교 성적 요약" required hint="등급·GPA·수상·졸업 구분">
+              <Txt value={d.prevGrades} onChange={s("prevGrades")} placeholder="예: Dulwich Year 5-6 전과목 A/A+ · Graduation Distinction · Head of College Award"/>
+            </Field>
+            <Field label="현재 학교 성적" required>
+              <Txt value={d.currentGrades} onChange={s("currentGrades")} placeholder="예: Year 6 전과목 A · 수학·과학 최우수 · 영어 우수"/>
+            </Field>
+            <div style={{background:"#fff7ed",border:"1px solid #fcd34d",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:AMBER,marginBottom:12}}>📝 SSAT 점수 (없으면 "미응시" 입력)</div>
+              <G2>
+                <Field label="Overall %ile" required><Inp value={d.ssatOverall} onChange={s("ssatOverall")} placeholder="예: 78 또는 미응시"/></Field>
+                <Field label="Math %ile"><Inp value={d.ssatMath} onChange={s("ssatMath")} placeholder="예: 99"/></Field>
+                <Field label="Reading %ile"><Inp value={d.ssatReading} onChange={s("ssatReading")} placeholder="예: 75"/></Field>
+                <Field label="Verbal %ile"><Inp value={d.ssatVerbal} onChange={s("ssatVerbal")} placeholder="예: 70"/></Field>
+              </G2>
+            </div>
+            <G2>
+              <Field label="TOEFL 점수" hint="시민권자는 불필요. 있으면 입력">
+                <Inp value={d.toeflScore} onChange={s("toeflScore")} placeholder="예: 108 / 시민권자 — 면제"/>
+              </Field>
+              <Field label="영어 수준 설명"><Inp value={d.englishLevel} onChange={s("englishLevel")} placeholder="예: 국제학교 10년 재학"/></Field>
+            </G2>
+            <Field label="학업 수상 / 경시대회 실적 전체" required hint="대회명 · 수상등급 · 연도">
+              <Txt value={d.academicAwards} onChange={s("academicAwards")} rows={4} placeholder={"예:\nUKMT Gold (초등 전체 1위, 2025)\nMath Olympiad Champion (2025)\nBebras Gold (2024)"}/>
+            </Field>
+            <G2>
+              <Field label="가장 자신 있는 과목 & 이유"><Inp value={d.specialSubject} onChange={s("specialSubject")} placeholder="예: 수학 — Olympiad 챔피언 수준"/></Field>
+              <Field label="독립 연구 / 프로젝트"><Inp value={d.researchProject} onChange={s("researchProject")} placeholder="예: 스키 모글 궤적 수학 연구 진행 중"/></Field>
+            </G2>
+            <Field label="특별 학업 프로그램"><Inp value={d.academicPrograms} onChange={s("academicPrograms")} placeholder="예: Stanford i-Tech 코딩 캠프 (2023)"/></Field>
+          </div>}
+
+          {step===3&&<div>
+            <div style={{background:"#fff5f5",border:"1px solid #fecaca",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:CORAL,marginBottom:12}}>⭐ 주력 스포츠 (메인 스파이크)</div>
+              <G2>
+                <Field label="스포츠 종목" required><Inp value={d.mainSport} onChange={s("mainSport")} placeholder="예: 스키 (모글) / 테니스 / 골프"/></Field>
+                <Field label="경력 연수" required><Inp value={d.mainSportYears} onChange={s("mainSportYears")} placeholder="예: 5년 (2021~현재)"/></Field>
+              </G2>
+              <Field label="수준 / 팀 내 역할" required>
+                <Inp value={d.mainSportLevel} onChange={s("mainSportLevel")} placeholder="예: 국가대표급 / 전국 챔피언 / 주전 / 팀 캡틴"/>
+              </Field>
+              <Field label="주요 수상 실적" required hint="대회명 · 순위 · 연도 상세히">
+                <Txt value={d.mainSportAwards} onChange={s("mainSportAwards")} rows={3} placeholder={"예:\n경희대 한마음 전국스키대회 모글 1위 (2025.03)\nKo-Sta Junior Technical 3위 (2025.02)"}/>
+              </Field>
+            </div>
+            <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:10}}>시즌별 보조 스포츠</div>
+            <G3>
+              <Field label="🍂 가을 스포츠" hint="9–11월"><Inp value={d.fallSport} onChange={s("fallSport")} placeholder="예: Cross Country"/></Field>
+              <Field label="❄️ 겨울 스포츠" hint="1–3월"><Inp value={d.winterSport} onChange={s("winterSport")} placeholder="예: 스키 / 수영"/></Field>
+              <Field label="🌸 봄 스포츠" hint="3–6월"><Inp value={d.springSport} onChange={s("springSport")} placeholder="예: 라크로스 / 육상"/></Field>
+            </G3>
+            <Field label="전체 스포츠 수상 목록">
+              <Txt value={d.allSportAwards} onChange={s("allSportAwards")} rows={2} placeholder="예: Fobisia 수영 참가 (2024) · 육상 200m 금메달"/>
+            </Field>
+            <G2>
+              <Field label="자격증 / 공인 등급"><Inp value={d.sportCertificates} onChange={s("sportCertificates")} placeholder="예: Ko-Sta STA 6급"/></Field>
+              <Field label="훈련 강도 (주당 시간)"><Inp value={d.trainingHours} onChange={s("trainingHours")} placeholder="예: 스키 시즌 주 36h · XC 주 2회 5km"/></Field>
+            </G2>
+            <Field label="주요 코치 정보">
+              <Inp value={d.coachInfo} onChange={s("coachInfo")} placeholder="예: KSA 국가대표팀 코치 OOO · IMS Coach Rosen"/>
+            </Field>
+          </div>}
+
+          {step===4&&<div>
+            <div style={{background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:PURPLE,marginBottom:12}}>🎹 음악</div>
+              <G2>
+                <Field label="악기 / 보컬" required><Inp value={d.instrument} onChange={s("instrument")} placeholder="예: 피아노 / 바이올린"/></Field>
+                <Field label="경력 연수" required><Inp value={d.musicYears} onChange={s("musicYears")} placeholder="예: 7년 (2018~현재)"/></Field>
+              </G2>
+              <Field label="수준" required>
+                <Radio value={d.musicLevel} onChange={s("musicLevel")} options={[{v:"초급",l:"초급"},{v:"중급",l:"중급"},{v:"고급",l:"고급"},{v:"전문가급",l:"전문가급"}]}/>
+              </Field>
+              <Field label="수상 / 콩쿠르 실적">
+                <Txt value={d.musicAwards} onChange={s("musicAwards")} rows={2} placeholder="예: 전국학생음악콩쿠르 우수상 (2022, 2023)"/>
+              </Field>
+            </div>
+            <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:CORAL,marginBottom:8}}>🎭 연극 / 드라마 — 탑 보딩 핵심 평가!</div>
+              <Field label="연극 경험 여부" required>
+                <Radio value={d.dramaExp} onChange={s("dramaExp")} options={[{v:"없음",l:"없음 (시작 예정)"},{v:"있음",l:"있음"},{v:"준비중",l:"준비 중"}]}/>
+              </Field>
+              {d.dramaExp==="있음"&&<Field label="연극 상세">
+                <Txt value={d.dramaDetails} onChange={s("dramaDetails")} rows={2} placeholder="예: 학교 뮤지컬 2회 출연 · 조연 1회"/>
+              </Field>}
+            </div>
+            <G2>
+              <Field label="시각 예술 (미술·디자인·사진)"><Inp value={d.visualArts} onChange={s("visualArts")} placeholder="예: 건담 정밀 조립 · 레고"/></Field>
+              <Field label="기타 예술 활동"><Inp value={d.otherArts} onChange={s("otherArts")} placeholder="예: 댄스 / 영상 편집"/></Field>
+            </G2>
+          </div>}
+
+          {step===5&&<div>
+            <Field label="리더십 직함 전체 목록" required hint="공식 직함 · 소속 · 기간">
+              <Txt value={d.leadershipRoles} onChange={s("leadershipRoles")} rows={3} placeholder={"예:\nHouse Captain (Alleyn팀 여학생 대표, 2024-25)\nStudent Council ISA (2025~)"}/>
+            </Field>
+            <Field label="봉사활동 목록" required hint="활동내용 · 기관명 · 누적시간 · 공식기록여부">
+              <Txt value={d.serviceActivities} onChange={s("serviceActivities")} rows={4} placeholder={"예:\n아버지 병원 봉사 (주 3회, 공식 기록 가능)\nLakeville 동물보호소 봉사 (월 2회)"}/>
+            </Field>
+            <Field label="봉사 총 누적 시간" required>
+              <Radio value={d.serviceHours} onChange={s("serviceHours")} options={[{v:"0-20h",l:"0–20h"},{v:"20-50h",l:"20–50h"},{v:"50-100h",l:"50–100h"},{v:"100h+",l:"100h 이상"}]}/>
+            </Field>
+            <Field label="클럽 / 동아리 활동" required>
+              <Txt value={d.clubs} onChange={s("clubs")} rows={3} placeholder={"예:\nMathCounts 클럽 (참여, 2025~)\nMUN 2회 참가 (Certificate)"}/>
+            </Field>
+            <Field label="리더십 관련 수상 / 인정">
+              <Inp value={d.leadershipAwards} onChange={s("leadershipAwards")} placeholder="예: Leadership Conference 참가 (5일, 2025.01)"/>
+            </Field>
+          </div>}
+
+          {step===6&&<div>
+            <Field label="메인 Hook (가장 독보적인 것)" required>
+              <Txt value={d.mainHook} onChange={s("mainHook")} rows={3} placeholder={"예: 한국 모글 스키 전국 챔피언 + 수학 올림피아드 챔피언\n→ '슬로프 위의 수학자' 내러티브"}/>
+            </Field>
+            <Field label="Hook 연결 프로젝트 아이디어">
+              <Txt value={d.hookIdea} onChange={s("hookIdea")} rows={2} placeholder="예: 모글 궤적 최적화 수학 연구 / AI 스키 코치 앱 개발"/>
+            </Field>
+            <Field label="특별 취미 / 개성">
+              <Inp value={d.hobbies} onChange={s("hobbies")} placeholder="예: 건담 조립 · 레고 · 요리"/>
+            </Field>
+            <Field label="글쓰기 대회 경험" hint="John Locke · HIR · Scholastic Writing 등">
+              <Inp value={d.writingExp} onChange={s("writingExp")} placeholder="예: 미경험 (IMS 후 출품 예정) / Scholastic Silver Key (2024)"/>
+            </Field>
+          </div>}
+
+          {step===7&&<div>
+            <Field label="드림 학교 리스트" required>
+              <Txt value={d.dreamSchools} onChange={s("dreamSchools")} rows={2} placeholder="예: Hotchkiss · Andover · Exeter · NMH"/>
+            </Field>
+            <Field label="매치 학교 리스트">
+              <Txt value={d.matchSchools} onChange={s("matchSchools")} rows={2} placeholder="예: Berkshire School · Holderness · Deerfield"/>
+            </Field>
+            <Field label="세이프티 학교 리스트">
+              <Txt value={d.safetySchools} onChange={s("safetySchools")} rows={2} placeholder="예: Kimball Union · New Hampton · Proctor Academy"/>
+            </Field>
+            <G2>
+              <Field label="선호 지역"><Inp value={d.locationPref} onChange={s("locationPref")} placeholder="예: 미국 동부 뉴잉글랜드 선호"/></Field>
+              <Field label="연간 예산 (학비)"><Inp value={d.budget} onChange={s("budget")} placeholder="예: $70,000 이하 / 장학금 희망"/></Field>
+            </G2>
+            <Field label="과거 지원 이력">
+              <Inp value={d.prevApps} onChange={s("prevApps")} placeholder="예: IMS 합격 (2025)"/>
+            </Field>
+            <Field label="학교 선택 시 최우선 요소">
+              <Inp value={d.schoolPriority} onChange={s("schoolPriority")} placeholder="예: 스키 프로그램 강한 학교 + 수학 심화 + 소규모 커뮤니티"/>
+            </Field>
+          </div>}
+
+          {step===8&&<div>
+            <Field label="여름방학 현재 활동" required>
+              <Txt value={d.summerActivity} onChange={s("summerActivity")} rows={2} placeholder="예: 스키 오프시즌 훈련 + 피아노 콩쿠르 준비 + 한국 체류"/>
+            </Field>
+            <Field label="겨울방학 현재 활동" required>
+              <Txt value={d.winterActivity} onChange={s("winterActivity")} rows={2} placeholder="예: 한국 귀국 · 스키 전국대회 출전 · 피아노 콩쿠르 · 병원 봉사"/>
+            </Field>
+            <Field label="학업 캠프 / 프리보딩 경험">
+              <Inp value={d.academicCamps} onChange={s("academicCamps")} placeholder="예: Stanford i-Tech Coding Camp (2023)"/>
+            </Field>
+            <Field label="추천서 후보 교사 / 멘토 목록" hint="이름·소속·과목 (최소 5명 목표)">
+              <Txt value={d.recLetterCandidates} onChange={s("recLetterCandidates")} rows={4} placeholder={"1. G8 수학 교사 OOO (최우선 · Current Teacher)\n2. G8 영어 교사\n3. 스키 코치 OOO\n4. 피아노 선생님 OOO\n5. KAIST 교수 OOO (연구 멘토)"}/>
+            </Field>
+            <Field label="학생 성격 & 강점 (학부모 관점)">
+              <Txt value={d.studentPersonality} onChange={s("studentPersonality")} rows={2} placeholder="예: 집중력 뛰어남 · 경쟁심 강함 · 새로운 환경 적응 빠름"/>
+            </Field>
+            <Field label="특별 요청 사항 / 고민">
+              <Txt value={d.parentRequests} onChange={s("parentRequests")} rows={2} placeholder="예: SSAT 빠른 상승 전략 · 스키를 후크로 활용 방법"/>
+            </Field>
+          </div>}
+
+          {step===9&&<div>
+            <div style={{textAlign:"center",padding:"10px 0 20px"}}>
+              <div style={{fontSize:48,marginBottom:8}}>✅</div>
+              <div style={{fontSize:20,fontWeight:700,color:"#065f46"}}>입력 완료!</div>
+              <div style={{fontSize:13,color:"#6b7280",marginTop:4}}>AI 분석을 받거나 데이터를 복사해서 담당자에게 전달하세요</div>
+            </div>
+
+            <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+              <div style={{fontSize:12,fontWeight:700,color:NAVY,marginBottom:10}}>📋 입력 정보 요약</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,color:"#374151"}}>
+                <div><span style={{color:"#6b7280"}}>학생:</span> <b>{d.nameKo||"—"}</b> ({d.gender||"—"})</div>
+                <div><span style={{color:"#6b7280"}}>현재:</span> {d.currentSchool||"—"} {d.currentGrade||""}</div>
+                <div><span style={{color:"#6b7280"}}>지원:</span> {d.appType||"—"} · {d.targetYear||"—"}년</div>
+                <div><span style={{color:"#6b7280"}}>SSAT:</span> {d.ssatOverall?d.ssatOverall+"%ile":"미응시"}</div>
+                <div><span style={{color:"#6b7280"}}>주력 스포츠:</span> {d.mainSport||"—"}</div>
+                <div><span style={{color:"#6b7280"}}>음악:</span> {d.instrument||"—"} {d.musicYears?"("+d.musicYears+")":""}</div>
+                <div><span style={{color:"#6b7280"}}>연극:</span> {d.dramaExp||"—"}</div>
+                <div><span style={{color:"#6b7280"}}>봉사:</span> {d.serviceHours||"—"}</div>
+                <div style={{gridColumn:"1/-1"}}><span style={{color:"#6b7280"}}>드림 학교:</span> {d.dreamSchools||"—"}</div>
+                <div style={{gridColumn:"1/-1"}}><span style={{color:"#6b7280"}}>Hook:</span> {(d.mainHook||"—").slice(0,70)}{d.mainHook.length>70?"...":""}</div>
+              </div>
+            </div>
+
+            {!apiKey&&(
+              <div style={{background:"#fff7ed",border:"1px solid #fcd34d",borderLeft:"4px solid #f59e0b",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#78350f"}}>
+                ⚠️ API 키가 없어 AI 분석을 사용할 수 없습니다.
+                <button onClick={()=>{sessionStorage.removeItem("yes_apikey");setApiKey(null);}}
+                  style={{marginLeft:8,color:BLUE,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontSize:12}}>
+                  API 키 입력하기
+                </button>
+              </div>
+            )}
+
+            <button onClick={analyze} disabled={loading||!apiKey}
+              style={BtnStyle(!apiKey?"#9ca3af":NAVY,loading||!apiKey)}>
+              {loading?"⏳  AI 분석 중... (약 10~20초)":"✨  AI 학생 분석 시작 — 루브릭 점수 + 전략 추천"}
+            </button>
+
+            {ai&&<div>
+              <div style={{background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,padding:"16px 18px",marginBottom:12,whiteSpace:"pre-wrap",fontSize:13,lineHeight:1.9,color:"#14532d"}}>
+                {ai}
+              </div>
+              <button onClick={analyze} style={{width:"100%",padding:"10px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,fontSize:12,cursor:"pointer",marginBottom:10}}>
+                🔄 AI 분석 다시 생성
+              </button>
+            </div>}
+
+            <button onClick={copy}
+              style={BtnStyle(copied?TEAL:BLUE,false)}>
+              {copied?"✅  복사 완료! 담당자에게 붙여넣기 하세요":"📋  전체 데이터 복사 (담당 컨설턴트 전송용)"}
+            </button>
+
+            <div style={{marginTop:10,padding:"10px 14px",background:"#fffbeb",border:"1px solid #fde68a",borderLeft:"4px solid #f59e0b",borderRadius:8,fontSize:12,color:"#78350f",lineHeight:1.7}}>
+              <b>📌 다음 단계:</b> "전체 데이터 복사" 후 예스유학 담당 컨설턴트에게 카카오톡 또는 이메일로 붙여넣기 하여 전송해 주세요.
+            </div>
+          </div>}
+
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:26,paddingTop:16,borderTop:"1px solid #f3f4f6"}}>
+            {step>1
+              ?<button onClick={()=>setStep(p=>p-1)} style={{padding:"11px 22px",background:"#f9fafb",color:"#374151",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:500}}>← 이전</button>
+              :<div/>}
+            {step<8
+              ?<button onClick={()=>setStep(p=>p+1)} style={{padding:"11px 26px",background:sec.color,color:"white",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:700}}>다음 →</button>
+              :step===8
+              ?<button onClick={()=>setStep(9)} style={{padding:"11px 26px",background:"#065f46",color:"white",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:700}}>✅ 완료 & AI 분석</button>
+              :null}
+          </div>
+        </div>
+      </div>
+      <div style={{maxWidth:720,margin:"12px auto 0",textAlign:"center",fontSize:10,color:"#9ca3af",paddingBottom:20}}>
+        예스유학 · YES Study Abroad · 학생 정보는 제안서 제작에만 사용됩니다
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>

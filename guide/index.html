@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>예스유학 — 학생 제안서 입력 필드 가이드</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap');
+
+  :root {
+    --navy: #1a2744;
+    --blue: #2563a8;
+    --blue-light: #dbeafe;
+    --teal: #0d6e56;
+    --teal-light: #d1fae5;
+    --coral: #c2410c;
+    --coral-light: #ffedd5;
+    --amber: #92400e;
+    --amber-light: #fef3c7;
+    --purple: #4c1d95;
+    --purple-light: #ede9fe;
+    --red: #991b1b;
+    --red-light: #fee2e2;
+    --green: #166534;
+    --green-light: #dcfce7;
+    --border: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+    --bg: #f9fafb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: #f3f4f6; color: var(--text); font-size: 13px; line-height: 1.6; }
+  .page { max-width: 980px; margin: 0 auto; background: white; }
+
+  /* COVER */
+  .cover { background: var(--navy); padding: 44px 56px 36px; color: white; }
+  .cover-logo { font-size: 11px; font-weight: 500; letter-spacing: .15em; color: #93c5fd; margin-bottom: 28px; text-transform: uppercase; }
+  .cover h1 { font-family: 'Noto Serif KR', serif; font-size: 26px; font-weight: 700; line-height: 1.3; margin-bottom: 6px; }
+  .cover h2 { font-size: 14px; font-weight: 300; color: #93c5fd; margin-bottom: 24px; }
+  .cover-desc { font-size: 12px; color: rgba(255,255,255,.75); line-height: 1.7; max-width: 600px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.15); }
+
+  .content { padding: 0 56px 56px; }
+
+  /* HOW IT WORKS */
+  .flow { display: grid; grid-template-columns: repeat(4,1fr); gap: 0; margin: 32px 0 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .flow-step { padding: 16px 18px; border-right: 1px solid var(--border); }
+  .flow-step:last-child { border-right: none; }
+  .flow-num { font-size: 22px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .flow-title { font-size: 12px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+  .flow-body { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  .sl { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; margin: 32px 0 12px; padding-left: 10px; border-left: 3px solid var(--navy); }
+
+  /* FIELD SECTION */
+  .field-section { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+  .fs-hdr { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+  .fs-num { background: var(--navy); color: white; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+  .fs-title { font-size: 14px; font-weight: 700; color: var(--navy); }
+  .fs-tag { margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .tag-must { background: var(--red-light); color: var(--red); }
+  .tag-imp { background: var(--amber-light); color: var(--amber); }
+  .tag-opt { background: var(--teal-light); color: var(--teal); }
+  .fs-desc { font-size: 11px; color: var(--muted); padding: 0 18px 10px; border-bottom: 1px solid var(--border); line-height: 1.6; }
+  .fs-desc b { color: var(--text); }
+
+  /* FIELD ROWS */
+  .field-grid { display: grid; grid-template-columns: repeat(2,1fr); }
+  .field-item { padding: 10px 18px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .field-item:nth-child(even) { border-right: none; }
+  .field-item:nth-last-child(-n+2) { border-bottom: none; }
+  .field-item.full { grid-column: 1 / -1; border-right: none; }
+  .field-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+  .req-dot { width: 6px; height: 6px; border-radius: 50%; background: #dc2626; flex-shrink: 0; }
+  .opt-dot { width: 6px; height: 6px; border-radius: 50%; background: #0d6e56; flex-shrink: 0; }
+  .field-desc { font-size: 11px; color: var(--text); margin-bottom: 3px; font-weight: 500; }
+  .field-example { font-size: 10px; color: var(--muted); line-height: 1.5; }
+  .field-example i { color: var(--blue); font-style: normal; }
+  .field-input { margin-top: 5px; background: var(--bg); border: 1px dashed var(--border); border-radius: 6px; padding: 6px 10px; font-size: 10px; color: var(--muted); font-style: italic; }
+
+  /* SECTION MAP */
+  .map-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 16px; }
+  .map-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .map-hdr { padding: 8px 12px; font-size: 11px; font-weight: 700; color: white; }
+  .map-body { padding: 10px 12px; }
+  .map-item { font-size: 10px; color: var(--muted); padding: 3px 0; border-bottom: 1px solid var(--border); line-height: 1.5; }
+  .map-item:last-child { border-bottom: none; }
+  .map-item b { color: var(--text); font-weight: 600; }
+
+  /* RUBRIC MAP */
+  .rubric-map { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--navy); color: white; padding: 8px 12px; font-size: 10px; font-weight: 600; text-align: left; }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 11px; vertical-align: top; line-height: 1.5; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .pill { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 10px; margin: 1px 1px 0 0; font-weight: 500; }
+  .pb { background: var(--blue-light); color: #1e40af; }
+  .pt { background: var(--teal-light); color: var(--teal); }
+  .pc { background: var(--coral-light); color: var(--coral); }
+  .pa { background: var(--amber-light); color: var(--amber); }
+  .pp { background: var(--purple-light); color: var(--purple); }
+  .pr { background: var(--red-light); color: var(--red); }
+  .pg { background: #f3f4f6; color: #374151; }
+
+  /* SAMPLE */
+  .sample-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin-top: 12px; }
+  .sample-title { font-size: 12px; font-weight: 700; color: #0c4a6e; margin-bottom: 10px; }
+  .sample-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .sample-col-title { font-size: 10px; font-weight: 700; color: #0369a1; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .sample-item { font-size: 11px; color: #0c4a6e; padding: 2px 0; line-height: 1.6; }
+
+  /* QUICK CHECKLIST */
+  .checklist { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-top: 12px; }
+  .cl-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .cl-title { font-size: 11px; font-weight: 700; color: var(--navy); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .cl-item { font-size: 10px; color: var(--muted); padding: 3px 0; display: flex; gap: 6px; align-items: baseline; line-height: 1.5; }
+  .cl-item b { color: var(--text); font-weight: 600; }
+  .cl-box { width: 12px; height: 12px; border: 1.5px solid #d1d5db; border-radius: 3px; flex-shrink: 0; margin-top: 1px; }
+
+  .note-box { background: var(--amber-light); border: 1px solid #fcd34d; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #78350f; margin-top: 12px; line-height: 1.7; }
+  .highlight-box { background: var(--teal-light); border: 1px solid #6ee7b7; border-left: 4px solid #10b981; border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #064e3b; margin-top: 12px; line-height: 1.7; }
+
+  .footer { background: var(--navy); color: white; padding: 20px 56px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { font-weight: 700; color: #93c5fd; font-size: 13px; }
+  .footer-note { color: rgba(255,255,255,.5); }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-logo">예스유학 · YES Study Abroad · 제안서 시스템</div>
+  <h1>학생 제안서 입력 필드 가이드</h1>
+  <h2>이 양식을 채워주시면 박은휴 학생 수준의 맞춤 제안서를 제작해 드립니다</h2>
+  <div class="cover-desc">
+    이 가이드는 예스유학 어드미션 팀이 학부모 제안서를 의뢰할 때 필요한 정보 목록입니다.<br>
+    <b>필수 항목(●)만 입력해도 기본 제안서 제작이 가능하며</b>, 선택 항목까지 채울수록 분석의 정확도와 전략의 구체성이 높아집니다.<br>
+    총 8개 섹션 · 필수 40개 항목 · 선택 25개 항목
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- HOW IT WORKS -->
+  <div class="sl" style="margin-top:32px">제안서 제작 프로세스</div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-title">정보 입력</div>
+      <div class="flow-body">이 가이드의 필드를 채워서 예스유학 담당자에게 전달</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-title">루브릭 분석</div>
+      <div class="flow-body">입력 정보를 100점 루브릭에 자동 매핑하여 현재 점수 산출</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-title">전략 설계</div>
+      <div class="flow-body">학교별 Fit 분석 · EC 로드맵 · 방학 일정 · Hook 기획</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-title">제안서 완성</div>
+      <div class="flow-body">학부모님 보고용 HTML 제안서 완성 (인쇄 가능)</div>
+    </div>
+  </div>
+
+  <!-- SECTION 1 -->
+  <div class="sl">섹션 1 — 학생 기본 정보</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 01</span>
+      <span class="fs-title">학생 기본 정보 (Student Profile)</span>
+      <span class="fs-tag tag-must">전체 필수</span>
+    </div>
+    <div class="fs-desc">제안서 커버 및 모든 분석의 기초가 되는 정보입니다. 빠짐없이 입력해 주세요.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>학생 이름 (한글 + 영문)</div>
+        <div class="field-desc">한글명 및 여권 영문명</div>
+        <div class="field-example">예: 박은휴 / PARK EUNHYU</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>성별</div>
+        <div class="field-desc">남 / 여</div>
+        <div class="field-example">예: 여 (여학교 지원 여부에 영향)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>생년월일</div>
+        <div class="field-desc">YYYY.MM.DD 형식</div>
+        <div class="field-example">예: 2013.05.15 (지원 시점 학년 계산용)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>현재 학교 & 학년</div>
+        <div class="field-desc">재학 중인 학교명 + 현재 학년(미국 기준)</div>
+        <div class="field-example">예: Dulwich College Seoul · Year 6 (Grade 6)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>지원 유형</div>
+        <div class="field-desc">주니어보딩 / 시니어보딩 / 데이스쿨</div>
+        <div class="field-example">예: 시니어보딩 (Grade 9 입학 목표)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>목표 입학 연도 & 학년</div>
+        <div class="field-desc">언제, 몇 학년으로 입학할 것인지</div>
+        <div class="field-example">예: 2027년 9월 / Grade 9 입학</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>국적 / 시민권</div>
+        <div class="field-desc">한국 국적 / 복수국적 / 영주권 여부</div>
+        <div class="field-example">예: 한국 (인터내셔널 학생 카테고리)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>가족 배경 (간략히)</div>
+        <div class="field-desc">Legacy(해당 학교 졸업 가족) 여부, 부모 직업</div>
+        <div class="field-example">예: 아버지 의사, Legacy 없음</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="sl">섹션 2 — 학업 성취 (Academic)</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 02</span>
+      <span class="fs-title">학업 성취 & 시험 점수</span>
+      <span class="fs-tag tag-must">필수 + 선택 혼합</span>
+    </div>
+    <div class="fs-desc">루브릭 <b>School Academics (20점)</b>과 <b>Standardized Testing</b>에 직접 반영됩니다. 현재 점수가 없어도 예상 수준을 기입해 주세요.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>최근 성적표 요약 (이전 학교)</div>
+        <div class="field-desc">직전 학교 성적 등급 / GPA / 석차</div>
+        <div class="field-example">예: Dulwich Year 5-6 · 전과목 A/A+ · Graduation Distinction · Head of College Award</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>현재 학교 성적 (재학 중)</div>
+        <div class="field-desc">현재 학기 성적 / 예상 GPA</div>
+        <div class="field-example">예: 현재 Year 6 · 수학·과학 최우수, 영어 우수</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>SSAT 점수 (있을 경우)</div>
+        <div class="field-desc">Overall %ile · Math · Reading · Verbal 섹션별<br>없으면 "미응시" 또는 예상 수준 기입</div>
+        <div class="field-example">예: Mid Level 78% Overall (Math 강, Verbal 약) / 또는: 미응시 (수학 올림피아드 수준)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>TOEFL / IELTS 점수</div>
+        <div class="field-desc">있을 경우 점수, 없으면 영어 수준 기술</div>
+        <div class="field-example">예: 미응시 (Dulwich 국제학교 재학 · 영어 수업 10년)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>학업 수상 / 경시대회 실적</div>
+        <div class="field-desc">수학·과학·영어·코딩 등 모든 학업 수상 목록<br>대회명 / 수상등급 / 연도</div>
+        <div class="field-example">예: UKMT Gold (초등 전체 1위, 2025) · Math Olympiad Champion (2025) · Bebras Gold (2024) · AMC 8 ___점</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>가장 자신 있는 과목 & 이유</div>
+        <div class="field-desc">학생의 학문적 특기 과목</div>
+        <div class="field-example">예: 수학 — 올림피아드 챔피언 수준, 변분법 독학 중</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>독립 연구 / 프로젝트 (있을 경우)</div>
+        <div class="field-desc">학교 밖에서 진행 중인 연구·프로젝트·발명</div>
+        <div class="field-example">예: 모글 궤적 최적화 수학 연구 (KAIST 교수 멘토링 예정)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>학업 관련 특기사항</div>
+        <div class="field-desc">영재원, 특수 프로그램, 대학 과목 선이수 등</div>
+        <div class="field-example">예: Stanford i-Tech 코딩 캠프 (2023) · 한국과학영재학교 프로그램</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3 -->
+  <div class="sl">섹션 3 — 스포츠 활동</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 03</span>
+      <span class="fs-title">스포츠 활동 (Sports)</span>
+      <span class="fs-tag tag-must">필수 — 루브릭 15점</span>
+    </div>
+    <div class="fs-desc">루브릭 <b>Sports (15점)</b>에 반영. 스포츠는 탑 보딩 합격의 핵심 변수입니다. <b>모든 스포츠를 시즌(가을/겨울/봄)별로</b> 기입해 주세요. 수상 실적은 상세히.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>주력 스포츠 (메인 스파이크)</div>
+        <div class="field-desc">가장 뛰어난 스포츠 1-2개 상세 기입<br>종목 / 경력 연수 / 수준 / 주요 수상</div>
+        <div class="field-example">예: 스키(모글) · 5년 · 전국 챔피언 · 전국 1위×2 · Ko-Sta STA 6 · FIS 출전 예정</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>보조 스포츠 (시즌별)</div>
+        <div class="field-desc">가을 / 겨울 / 봄 시즌별 활동 스포츠<br>팀 내 역할, 대회 참가 여부</div>
+        <div class="field-example">예: 가을-Cross Country(5000m 훈련 중) · 겨울-수영(8년) · 봄-라크로스(준비 중)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>스포츠 수상 실적 전체 목록</div>
+        <div class="field-desc">대회명 / 순위 / 연도 / 주최기관<br>국내·국제 대회 모두 포함</div>
+        <div class="field-example">예: 경희대 한마음 전국스키대회 모글 1위(2025) · 제주스키협회장배 모글 1위(2025) · Fobisia 수영 참가 · 육상 200m 금메달</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>스포츠 자격증 / 등급</div>
+        <div class="field-desc">공식 인정 등급 / 코치 자격 / 기타</div>
+        <div class="field-example">예: Ko-Sta STA 6급 · KSA 기술검정 4급 · 수영 몇급</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>스포츠 훈련 강도 (주당 시간)</div>
+        <div class="field-desc">현재 훈련 스케줄</div>
+        <div class="field-example">예: 스키 시즌 중 주 36시간 · XC 매주 월/일 5000m</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>스포츠 코치 정보</div>
+        <div class="field-desc">주요 코치 이름·소속 (추천서 후보)</div>
+        <div class="field-example">예: KSA 국가대표팀 코치 OOO · Dulwich 스키 담당 OOO</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4 -->
+  <div class="sl">섹션 4 — 예술 활동</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 04</span>
+      <span class="fs-title">예술 활동 (Arts — 음악·연극·미술)</span>
+      <span class="fs-tag tag-imp">중요 — 루브릭 10점</span>
+    </div>
+    <div class="fs-desc">루브릭 <b>Arts (10점)</b>: 음악(5점) + 연극(5점) + 아트(5점). 특히 <b>연극은 탑 보딩(Choate·Andover 등)에서 핵심 평가 항목</b>입니다. 세 영역 모두 기입해 주세요.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>음악 — 악기 / 보컬</div>
+        <div class="field-desc">악기명 / 경력 연수 / 수준 / 레슨 여부<br>콩쿠르·대회 수상 전체 목록</div>
+        <div class="field-example">예: 피아노 7년 · 전국 콩쿠르 우수상×2 · 수원대 전국음악콩쿠르 참가 · 작곡 레슨 2024~</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>연극 / 드라마</div>
+        <div class="field-desc">경험 여부 / 공연 참가 이력 / 역할<br>없으면 "없음"으로 기입 (전략에 반영)</div>
+        <div class="field-example">예: 없음 (IMS 입학 후 즉시 시작 예정)<br>또는: 학교 연극 2회 출연 · 주연 1회</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>시각 예술 (미술·디자인·사진)</div>
+        <div class="field-desc">활동 내용 / 수상 / 포트폴리오 여부</div>
+        <div class="field-example">예: 건담 정밀 조립 · 레고 · 디지털 아트 입문</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>기타 예술 (댄스·사진·영화 등)</div>
+        <div class="field-desc">모든 예술 관련 활동 포함</div>
+        <div class="field-example">예: 없음 / 유튜브 영상 편집 취미</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="sl">섹션 5 — 리더십 & 봉사활동</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 05</span>
+      <span class="fs-title">리더십 & 봉사활동 (Leadership & Service)</span>
+      <span class="fs-tag tag-must">필수 — 루브릭 20점</span>
+    </div>
+    <div class="fs-desc">루브릭 <b>School Culture (20점)</b>의 봉사(5점) + <b>Clubs & Activities (20점)</b>의 리더(5점)에 반영. 봉사는 <b>공식 시간 기록이 있는 것만</b> 유효합니다.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>리더십 직함 전체 목록</div>
+        <div class="field-desc">공식 직함 / 소속 / 기간<br>학교 내·외 모두 포함</div>
+        <div class="field-example">예: House Captain (Alleyn팀 여학생 대표, 2024-25) · Playground Prefect (2023) · Transition Troop (2023)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>봉사활동 목록</div>
+        <div class="field-desc">활동 내용 / 기관명 / 누적 시간 / 기간<br>공식 기록 여부 표시</div>
+        <div class="field-example">예: 아버지 병원 봉사(주 3회, 기록 가능) · Pet Project(동물보호소) · IMS 도미니카공화국 트립 예정</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>클럽 / 동아리 활동</div>
+        <div class="field-desc">클럽명 / 역할 / 기간 / 주요 성과</div>
+        <div class="field-example">예: Math Club (창설 예정) · MUN 2회 참가(Certificate) · Pet Club (Dulwich)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>리더십 관련 수상 / 인정</div>
+        <div class="field-desc">리더십 상, 임명 배경, 특별 인정</div>
+        <div class="field-example">예: Leadership Conference 참가 (House Captain 자격, 2025.01 · 5일)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 6 -->
+  <div class="sl">섹션 6 — 특기 / Hook / 특별 관심사</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 06</span>
+      <span class="fs-title">특기 · Hook · 특별 관심사 (Hook & Special Interest)</span>
+      <span class="fs-tag tag-must">필수 — 합격의 핵심</span>
+    </div>
+    <div class="fs-desc">루브릭 <b>Misc (10점)</b>의 Hook/Specialty에 반영. 입학사정관이 "이 학생은 꼭 뽑아야 해"라고 기억하게 만드는 <b>단 하나의 이야기</b>입니다. 가장 독보적인 것 1-2개를 상세히.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>메인 Hook (가장 독보적인 것)</div>
+        <div class="field-desc">전국 수준 이상, 객관적으로 증명 가능한 것<br>수상·자격·기록으로 뒷받침되어야 함</div>
+        <div class="field-example">예: 한국 모글 스키 전국 챔피언 (전국 1위×2, 국가대표급) + 수학 올림피아드 챔피언<br>→ "슬로프 위의 수학자" 내러티브</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>Hook 연결 아이디어 (있을 경우)</div>
+        <div class="field-desc">두 가지 특기를 연결하는 프로젝트·연구 아이디어</div>
+        <div class="field-example">예: 모글 궤적 최적화 수학 연구 (스키+수학 융합) · AI 스키 코치 앱 개발</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>특별 취미 / 개성</div>
+        <div class="field-desc">일상적 취미, 수집, 독특한 관심사</div>
+        <div class="field-example">예: 건담 조립 (정밀 공학 관심) · 레고 (구조·설계) · 요리</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>글쓰기 능력 / 대회 경험</div>
+        <div class="field-desc">영문 에세이 실력, 출품한 대회, 수상 여부</div>
+        <div class="field-example">예: 영문 에세이 미경험 (IMS 후 John Locke·HIR·Scholastic 출품 예정)<br>또는: Scholastic Silver Key (2024)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 7 -->
+  <div class="sl">섹션 7 — 목표 학교 & 지원 전략</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 07</span>
+      <span class="fs-title">목표 학교 & 지원 현황</span>
+      <span class="fs-tag tag-imp">중요</span>
+    </div>
+    <div class="fs-desc">학부모님의 선호 학교와 현실적 목표 학교를 구분해서 기입해 주세요. 없으면 "미정"으로 표시하면 전략적 추천을 드립니다.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>희망 학교 리스트 (학부모 선호)</div>
+        <div class="field-desc">학부모님이 원하는 학교명</div>
+        <div class="field-example">예: Andover · Hotchkiss · Exeter · Choate (상위 4개교 선호)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>선호 지역 / 기숙 여부</div>
+        <div class="field-desc">미국 동부/서부/중부 등 지역 선호 · Full Boarding 필수 여부</div>
+        <div class="field-example">예: 미국 동부 뉴잉글랜드 선호 · Full Boarding 필수</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>예산 범위 (연간 학비)</div>
+        <div class="field-desc">학비 예산 및 장학금 필요 여부</div>
+        <div class="field-example">예: 연 $70,000 이하 선호 · 장학금 가능하면 지원 희망</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>과거 지원 이력</div>
+        <div class="field-desc">이전에 지원한 학교·결과·인터뷰 경험</div>
+        <div class="field-example">예: IMS 합격 (2025) · Berkshire 지원 검토 중</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item full">
+        <div class="field-label"><span class="opt-dot"></span>학교 선택 시 가장 중요한 요소</div>
+        <div class="field-desc">학업 수준 / 스포츠 / 예술 / 커뮤니티 / 대학 진학률 / 지리적 위치 등</div>
+        <div class="field-example">예: 스키 프로그램 강한 학교 우선 · 수학 심화 과정 · 소규모 커뮤니티 선호</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 8 -->
+  <div class="sl">섹션 8 — 방학 현황 & 기타 정보</div>
+  <div class="field-section">
+    <div class="fs-hdr">
+      <span class="fs-num">SECTION 08</span>
+      <span class="fs-title">방학 활동 & 추가 정보</span>
+      <span class="fs-tag tag-opt">선택 — 전략 고도화</span>
+    </div>
+    <div class="fs-desc">방학 활동은 정규학기만큼 중요합니다. 현재 방학에 무엇을 하는지 파악해야 정확한 일정 설계가 가능합니다.</div>
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>여름방학 현재 활동</div>
+        <div class="field-desc">여름방학 동안 하는 활동 (캠프·여행·훈련·학습)</div>
+        <div class="field-example">예: 스키 오프시즌 훈련 + 피아노 콩쿠르 준비 + 한국 체류</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="req-dot"></span>겨울방학 현재 활동</div>
+        <div class="field-desc">겨울방학 동안 하는 주요 활동</div>
+        <div class="field-example">예: 한국 귀국 · 스키 전국대회 출전 · 피아노 콩쿠르</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>학업 캠프 / 프리보딩 경험</div>
+        <div class="field-desc">참가한 여름 캠프, 프리보딩, 대학 프로그램</div>
+        <div class="field-example">예: Stanford i-Tech Coding Camp (2023.07 · 주 30시간)</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>추천서 후보 교사 / 멘토</div>
+        <div class="field-desc">추천서를 받을 수 있는 교사·코치·교수 목록</div>
+        <div class="field-example">예: Dulwich 수학 교사 OOO · 스키 코치 OOO · 피아노 선생님 OOO</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>학생 성격 / 강점 (학부모 관점)</div>
+        <div class="field-desc">자녀의 성격·강점·약점을 자유롭게 기술</div>
+        <div class="field-example">예: 집중력 뛰어남, 경쟁심 강함, 새로운 환경 적응 빠름, 영어 발표 아직 소극적</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label"><span class="opt-dot"></span>현재 고민 / 요청 사항</div>
+        <div class="field-desc">제안서에서 특별히 다뤄주길 원하는 내용</div>
+        <div class="field-example">예: SSAT 빠른 상승 방법 · 스키를 후크로 어떻게 활용할지 · 봉사활동 어떻게 채울지</div>
+        <div class="field-input">입력: ___________________________</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RUBRIC MAPPING -->
+  <div class="sl">입력 필드 → 루브릭 매핑 테이블</div>
+  <div class="rubric-map">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:20%">루브릭 항목</th>
+          <th style="width:8%">배점</th>
+          <th style="width:30%">사용하는 입력 필드</th>
+          <th style="width:22%">핵심 판단 기준</th>
+          <th style="width:20%">없으면 어떻게?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><b>성적표 (이전)</b></td><td>5점</td><td>섹션2: 이전 학교 성적표 요약</td><td>등급·수상·졸업 구분</td><td>현재 학교 성적으로 대체</td></tr>
+        <tr><td><b>성적표 (현재)</b></td><td>10점</td><td>섹션2: 현재 학교 성적</td><td>GPA·석차·과목 수준</td><td>예상 수준으로 분석</td></tr>
+        <tr><td><b>추천서 (학업)</b></td><td>5점</td><td>섹션8: 추천서 후보 교사</td><td>관계 깊이·과목 연관성</td><td>구축 전략 제안</td></tr>
+        <tr><td><b>SSAT</b></td><td>별도</td><td>섹션2: SSAT 점수 (섹션별)</td><td>Overall %ile · 취약 섹션</td><td>예상 수준 + 향상 전략</td></tr>
+        <tr><td><b>TOEFL</b></td><td>별도</td><td>섹션2: TOEFL 점수</td><td>Total · Speaking 특히 중요</td><td>영어 환경 설명으로 대체</td></tr>
+        <tr><td><b>인터뷰</b></td><td>10점</td><td>섹션6: Hook + 섹션8: 성격</td><td>스토리 완성도·영어 유창성</td><td>인터뷰 훈련 계획 제안</td></tr>
+        <tr><td><b>추천서 (생활)</b></td><td>5점</td><td>섹션5: 리더십 + 섹션8: 추천후보</td><td>코치·담임의 관계 깊이</td><td>IMS 활동으로 구축 계획</td></tr>
+        <tr><td><b>봉사활동</b></td><td>5점</td><td>섹션5: 봉사활동 목록·시간</td><td>공식 기록 시간·임팩트·지속성</td><td>현재 0점 → 계획 설계</td></tr>
+        <tr><td><b>클럽 리더십</b></td><td>5점</td><td>섹션5: 리더십 직함 목록</td><td>공식 직함 수·기간</td><td>IMS에서 확보 전략</td></tr>
+        <tr><td><b>클럽 임팩트</b></td><td>10점</td><td>섹션5: 클럽+수상+프로젝트</td><td>측정 가능한 성과·대회 수상</td><td>Hook 프로젝트로 보완</td></tr>
+        <tr><td><b>클럽 기간</b></td><td>5점</td><td>섹션3-5: 경력 연수 모두</td><td>최장기 활동 연수</td><td>기존 경력 강조</td></tr>
+        <tr><td><b>음악 (Arts)</b></td><td>5점</td><td>섹션4: 악기·경력·수상</td><td>수상 여부·경력 연수·수준</td><td>강점이면 최고점 가능</td></tr>
+        <tr><td><b>연극 (Arts)</b></td><td>5점</td><td>섹션4: 연극/드라마</td><td>공연 참가 횟수·역할 크기</td><td>IMS 즉시 시작 전략</td></tr>
+        <tr><td><b>아트 (Arts)</b></td><td>5점</td><td>섹션4: 시각예술</td><td>포트폴리오·수상</td><td>취미 연계 전략</td></tr>
+        <tr><td><b>스포츠 임팩트</b></td><td>10점</td><td>섹션3: 수상실적·대회 수준</td><td>전국/국제 수준·팀 리더십</td><td>핵심 스파이크 분석</td></tr>
+        <tr><td><b>스포츠 포텐셜</b></td><td>5점</td><td>섹션3: 등급·훈련 강도·코치</td><td>보딩스쿨 팀 합류 가능성</td><td>코치 리쿠르팅 전략</td></tr>
+        <tr><td><b>Awards (Misc)</b></td><td>-</td><td>섹션2: 학업수상 + 섹션3: 스포츠수상</td><td>수상 수·수준·국제성</td><td>대회 출전 계획</td></tr>
+        <tr><td><b>Hook/Specialty</b></td><td>-</td><td>섹션6: 메인 Hook · 연결 아이디어</td><td>독창성·입증 가능성·서사력</td><td>아이디어 도출 컨설팅</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION MAP -->
+  <div class="sl">입력 정보 → 제안서 섹션 연결 구조</div>
+  <div class="map-grid">
+    <div class="map-card">
+      <div class="map-hdr" style="background:#1a2744">📋 제안서 섹션 01</div>
+      <div class="map-body">
+        <div class="map-item"><b>현재 진단 & 루브릭 점수</b></div>
+        <div class="map-item">사용 필드: <b>섹션 1-8 전체</b></div>
+        <div class="map-item">출력: 루브릭 100점 현재 점수 · 목표 점수 · 강점/약점 6개씩</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#991b1b">❌ 제안서 섹션 02</div>
+      <div class="map-body">
+        <div class="map-item"><b>탑 보딩 불합격 원인 7가지</b></div>
+        <div class="map-item">사용 필드: <b>섹션 2 (SSAT) + 섹션 5 (봉사)</b></div>
+        <div class="map-item">출력: 현재 갭 분석 + 각 원인별 해결 방안</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#2563a8">📚 제안서 섹션 03</div>
+      <div class="map-body">
+        <div class="map-item"><b>아카데믹 플랜</b></div>
+        <div class="map-item">사용 필드: <b>섹션 2 (학업+SSAT+추천서)</b></div>
+        <div class="map-item">출력: IMS 과목별 전략 · SSAT 시험 일정 · 추천서 5명</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#c2410c">🍂 제안서 섹션 04</div>
+      <div class="map-body">
+        <div class="map-item"><b>IMS EC 시즌별 플랜</b></div>
+        <div class="map-item">사용 필드: <b>섹션 3+4+5+6</b></div>
+        <div class="map-item">출력: 가을/겨울/봄 시즌 활동 상세 일정</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#4c1d95">🏖️ 제안서 섹션 05</div>
+      <div class="map-body">
+        <div class="map-item"><b>방학 일정 액션 플랜</b></div>
+        <div class="map-item">사용 필드: <b>섹션 8 (방학 현황)</b></div>
+        <div class="map-item">출력: 추수감사/겨울/봄/여름 방학 세부 액션</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#0d6e56">🎯 제안서 섹션 06</div>
+      <div class="map-body">
+        <div class="map-item"><b>Hook & Special Interest</b></div>
+        <div class="map-item">사용 필드: <b>섹션 6 + 섹션 3</b></div>
+        <div class="map-item">출력: Hook 3-4개 기획 + 대회 경로 + 내러티브 문장</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#92400e">📊 제안서 섹션 07</div>
+      <div class="map-body">
+        <div class="map-item"><b>Gateway 아웃컴 예측</b></div>
+        <div class="map-item">사용 필드: <b>섹션 7 (목표 학교)</b></div>
+        <div class="map-item">출력: 10개교 현재→2년 후 합격 가능성 예측</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#1e40af">🎓 제안서 섹션 08</div>
+      <div class="map-body">
+        <div class="map-item"><b>Andover / Exeter 진단표</b></div>
+        <div class="map-item">사용 필드: <b>섹션 2+3+4+5+6 전체</b></div>
+        <div class="map-item">출력: 학교별 10개 항목 현재 vs 기준 비교표</div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div class="map-hdr" style="background:#374151">📅 (보너스) 2년 캘린더</div>
+      <div class="map-body">
+        <div class="map-item"><b>월별 종합 마스터 플랜</b></div>
+        <div class="map-item">사용 필드: <b>전체 섹션 종합</b></div>
+        <div class="map-item">출력: G7-G8 24개월 월별 학업·스포츠·예술·시험 일정</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK CHECKLIST -->
+  <div class="sl">빠른 입력 체크리스트 — 담당 컨설턴트용</div>
+  <div class="checklist">
+    <div class="cl-card">
+      <div class="cl-title"><span>🔴 반드시 있어야 하는 정보 (미제공 시 제안서 제작 불가)</span></div>
+      <div class="cl-item"><span class="cl-box"></span><b>학생 이름·생년월일·현재 학교·학년</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>지원 유형·목표 입학 연도</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>이전 학교 성적·수상 내역</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>SSAT 점수 또는 예상 수준</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>주력 스포츠 + 수상 실적 전체</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>음악 악기·경력·수상</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>리더십 직함 목록</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>봉사활동 내용·시간</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>메인 Hook (가장 독보적인 특기)</b></div>
+      <div class="cl-item"><span class="cl-box"></span><b>희망 학교 리스트</b></div>
+    </div>
+    <div class="cl-card">
+      <div class="cl-title"><span>🟡 있으면 제안서 품질이 크게 향상되는 정보</span></div>
+      <div class="cl-item"><span class="cl-box"></span>SSAT 섹션별 점수 (Math/Reading/Verbal)</div>
+      <div class="cl-item"><span class="cl-box"></span>TOEFL 점수 또는 영어 수준 상세</div>
+      <div class="cl-item"><span class="cl-box"></span>스포츠 코치 이름·소속</div>
+      <div class="cl-item"><span class="cl-box"></span>연극/드라마 경험 여부</div>
+      <div class="cl-item"><span class="cl-box"></span>방학 활동 현황 (여름·겨울)</div>
+      <div class="cl-item"><span class="cl-box"></span>학업 관련 수상 대회명·수준</div>
+      <div class="cl-item"><span class="cl-box"></span>추천서 후보 교사 목록</div>
+      <div class="cl-item"><span class="cl-box"></span>Hook 연결 아이디어 (있으면)</div>
+      <div class="cl-item"><span class="cl-box"></span>글쓰기 대회 경험</div>
+      <div class="cl-item"><span class="cl-box"></span>학부모님의 특별 요청사항</div>
+    </div>
+  </div>
+
+  <!-- SAMPLE FILLED -->
+  <div class="sl">실제 입력 예시 — 박은휴 학생 기준</div>
+  <div class="sample-box">
+    <div class="sample-title">✅ 이렇게 입력해 주시면 됩니다 (박은휴 학생 입력 예시)</div>
+    <div class="sample-grid">
+      <div>
+        <div class="sample-col-title">기본 정보</div>
+        <div class="sample-item">이름: 박은휴 / PARK EUNHYU</div>
+        <div class="sample-item">성별: 여 · 생년: 2013년</div>
+        <div class="sample-item">현재: Dulwich College Seoul · Year 6</div>
+        <div class="sample-item">지원: 시니어보딩 · Grade 9 · 2027년 입학</div>
+        <div class="sample-item">SSAT: Mid Level 78% Overall</div>
+        <div class="sample-item">TOEFL: 미응시 (Dulwich 국제학교 10년)</div>
+        <div class="sample-col-title" style="margin-top:10px">학업 수상</div>
+        <div class="sample-item">UKMT Gold (초등 전체 1위, 2025)</div>
+        <div class="sample-item">Math Olympiad Champion (2025)</div>
+        <div class="sample-item">UK Bebras Gold (2024)</div>
+        <div class="sample-item">Graduation Distinction + Head of College</div>
+      </div>
+      <div>
+        <div class="sample-col-title">스포츠</div>
+        <div class="sample-item">스키(모글): 5년, 전국 1위×2, Ko-Sta STA6</div>
+        <div class="sample-item">XC: 현재 매주 월/일 5000m 훈련 중</div>
+        <div class="sample-item">라크로스: 봄 시작 준비 중</div>
+        <div class="sample-item">수영: 9년, Fobisia 대표</div>
+        <div class="sample-col-title" style="margin-top:10px">예술·리더십·봉사</div>
+        <div class="sample-item">피아노: 7년, 전국 콩쿠르 우수상×2, 작곡 중</div>
+        <div class="sample-item">연극: 없음 (IMS 즉시 시작 예정)</div>
+        <div class="sample-item">House Captain (Alleyn팀 여학생 대표)</div>
+        <div class="sample-item">봉사: 아버지 병원 주 3회, Pet Project</div>
+        <div class="sample-item">Hook: 스키챔피언 + 수학올림피아드 융합</div>
+        <div class="sample-item">희망교: Hotchkiss·Andover·Exeter·NMH</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top:16px">
+    <b>📌 제안서 제작 소요 시간:</b> 위 필수 항목이 모두 입력되면 <b>박은휴 학생 수준의 전체 제안서(8섹션·PDF 인쇄 가능)</b>를 제작해 드립니다. 정보가 상세할수록 전략의 구체성이 높아지며, 최소 정보로도 기본 제안서 제작이 가능합니다.
+  </div>
+
+  <div class="note-box" style="margin-top:10px">
+    <b>💡 자주 빠트리는 항목:</b> ① SSAT 섹션별 점수 (Overall만 알려주시는 경우 많음) ② 스포츠 수상의 연도·주최기관 ③ 봉사 공식 시간 기록 여부 ④ 연극 경험 (없는 경우 "없음"이라도 기입) ⑤ 학부모님의 특별 요청사항 — 이 5가지를 꼭 확인해 주세요.
+  </div>
+
+</div><!-- /content -->
+
+<div class="footer">
+  <div>
+    <div class="footer-logo">예스유학 · YES Study Abroad</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">학생 제안서 입력 필드 가이드 v1.0</div>
+  </div>
+  <div class="footer-note">총 8섹션 · 필수 40항목 · 선택 25항목 · 입력 완료 시 맞춤 제안서 제작</div>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>
