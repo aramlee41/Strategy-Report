@@ -18,7 +18,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f3f4f6;min-height:100vh}
 .hs-l{font-size:10px;color:#93c5fd;margin-top:2px}
 .content{max-width:920px;margin:0 auto;padding:36px 20px}
 .sec-title{font-size:11px;font-weight:700;color:#6b7280;letter-spacing:.08em;text-transform:uppercase;margin:0 0 14px;padding-left:10px;border-left:3px solid #1a2744}
-.tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:36px}
+.tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:36px}
+@media(max-width:900px){.tool-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:680px){.tool-grid{grid-template-columns:1fr}}
 .tool-card{background:white;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);transition:transform .15s,box-shadow .15s;text-decoration:none;display:block;color:inherit}
 .tool-card:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.14)}
@@ -104,6 +105,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f3f4f6;min-height:100vh}
         <div class="tc-tags">
           <span class="tc-tag" style="background:#ede9fe;color:#4c1d95">컨설턴트용</span>
           <span class="tc-tag" style="background:#f3f4f6;color:#374151">참고 문서</span>
+        </div>
+        <span class="tc-arrow">→</span>
+      </div>
+    </a>
+
+    <a href="platform/index.html" class="tool-card">
+      <div class="tc-top" style="background:linear-gradient(135deg,#17213a,#0f766e)">
+        <div class="tc-icon">▦</div>
+        <div class="tc-num" style="color:#99f6e4">Platform</div>
+        <div class="tc-title" style="color:white">Prep LMS</div>
+        <div class="tc-desc" style="color:#ccfbf1">담당직원 로그인 · 학생 관리 · 일정 · EC · 보고서 제작<br>어드민 대시보드 포함</div>
+      </div>
+      <div class="tc-bottom">
+        <div class="tc-tags">
+          <span class="tc-tag" style="background:#ccfbf1;color:#115e59">LMS</span>
+          <span class="tc-tag" style="background:#dbeafe;color:#1e40af">Admin</span>
         </div>
         <span class="tc-arrow">→</span>
       </div>
