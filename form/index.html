@@ -158,17 +158,12 @@ function SetupScreen({onDone}){
 
 // ─── MAIN APP ───────────────────────────────────────────
 function App(){
-  const [apiKey,setApiKey]=useState(null);
+  const [apiKey,setApiKey]=useState("");
   const [step,setStep]=useState(1);
   const [d,setD]=useState(init);
   const [ai,setAi]=useState("");
   const [loading,setLoading]=useState(false);
   const [copied,setCopied]=useState(false);
-
-  useEffect(()=>{
-    const saved=sessionStorage.getItem("yes_apikey");
-    if(saved!==null) setApiKey(saved);
-  },[]);
 
   const s=(k)=>(v)=>setD(p=>({...p,[k]:v}));
   const sec=SECTIONS[step-1];
@@ -229,43 +224,86 @@ Hook 아이디어: ${d.hookIdea}
 학생성격: ${d.studentPersonality}
 요청사항: ${d.parentRequests}`;
 
-  const analyze=async()=>{
-    if(!apiKey){
-      setAi("⚠️ API 키가 설정되지 않았습니다. 페이지를 새로고침해서 API 키를 입력해주세요.");
-      return;
-    }
+  const localAnalysis=()=>{
+    const filled=(keys)=>keys.reduce((n,k)=>n+(String(d[k]||"").trim()?1:0),0);
+    const has=(...keys)=>keys.some(k=>String(d[k]||"").trim());
+    const num=(v)=>parseInt(String(v||"").replace(/[^0-9]/g,""),10)||0;
+    const cap=(value,max)=>Math.min(max,value);
+    const ssat=num(d.ssatOverall), math=num(d.ssatMath), toefl=num(d.toeflScore);
+
+    const academic=cap(12 + filled(["prevGrades","currentGrades","academicAwards","specialSubject","researchProject","academicPrograms"])*2 + (ssat>=90?5:ssat>=80?4:ssat>=70?3:ssat?2:0) + (toefl>=105?3:toefl>=95?2:0), 25);
+    const sport=cap(6 + filled(["mainSport","mainSportYears","mainSportLevel","mainSportAwards","allSportAwards","sportCertificates","trainingHours","coachInfo"])*2, 20);
+    const arts=cap(4 + filled(["instrument","musicYears","musicLevel","musicAwards","dramaExp","dramaDetails","visualArts","otherArts"])*1.5, 15);
+    const leadership=cap(4 + filled(["leadershipRoles","serviceActivities","serviceHours","clubs","leadershipAwards"])*2, 15);
+    const hook=cap(5 + filled(["mainHook","hookIdea","hobbies","writingExp","studentPersonality"])*2, 15);
+    const planning=cap(3 + filled(["dreamSchools","matchSchools","safetySchools","summerActivity","winterActivity","academicCamps","recLetterCandidates","schoolPriority"])*1.25, 10);
+    const total=Math.round(academic+sport+arts+leadership+hook+planning);
+
+    const strengths=[
+      has("mainSport","mainSportAwards") && `스포츠 스파이크가 분명합니다. ${d.mainSport||"주력 스포츠"} 활동과 수상/훈련 기록은 보딩스쿨이 좋아하는 지속성 있는 EC 축으로 정리할 수 있습니다.`,
+      has("academicAwards","specialSubject","researchProject") && `학업 강점이 보입니다. ${d.specialSubject||"강점 과목"}과 수상/연구 경험을 연결하면 단순 성적보다 설득력 있는 학업 서사가 됩니다.`,
+      has("instrument","musicAwards","dramaExp") && `예술 활동이 보조 스파이크로 작동할 수 있습니다. 음악/공연 경험은 캠퍼스 기여도와 균형감을 보여주는 요소입니다.`,
+      has("leadershipRoles","serviceActivities","serviceHours") && `리더십과 봉사 기록이 있습니다. 역할, 시간, 성과를 숫자로 정리하면 추천서와 인터뷰에서 강한 근거가 됩니다.`,
+      has("summerActivity","winterActivity","academicCamps") && `방학 활동 계획이 있어 실행 로드맵을 만들기 좋습니다. 계절별 목표를 입시 포트폴리오와 연결할 수 있습니다.`
+    ].filter(Boolean).slice(0,3);
+
+    const weaknesses=[
+      !ssat && "SSAT/표준시험 정보가 부족합니다. 목표 학교군이 높다면 1차 진단 시험을 보고 Math, Reading, Verbal별 보완 계획을 세워야 합니다.",
+      ssat && ssat<85 && "SSAT 전체 백분위가 탑 보딩 안정권에는 아직 부족할 수 있습니다. Math 강점은 유지하고 Reading/Verbal을 8~12주 단위로 끌어올리는 계획이 필요합니다.",
+      !has("mainHook","hookIdea") && "메인 Hook이 아직 선명하지 않습니다. 스포츠, 학업, 예술 중 하나를 대표 서사로 정하고 한 문장으로 압축해야 합니다.",
+      !has("recLetterCandidates") && "추천서 후보 정보가 부족합니다. 현재 교사, 코치, 멘토를 최소 5명까지 정리하고 각 추천서가 증명할 포인트를 나누는 것이 좋습니다.",
+      !has("dreamSchools","matchSchools","safetySchools") && "학교 리스트가 아직 완성되지 않았습니다. Dream, Match, Safety를 나누어 지원 리스크를 낮춰야 합니다."
+    ].filter(Boolean).slice(0,3);
+
+    const bestHook=d.mainHook || d.hookIdea || [
+      d.mainSport && `${d.mainSport}를 중심으로 학업적 호기심과 성실한 훈련 태도를 함께 보여주는 학생`,
+      d.specialSubject && `${d.specialSubject} 강점을 실제 프로젝트와 캠퍼스 기여로 확장할 수 있는 학생`,
+      "성실한 학업 태도와 다양한 활동 경험을 바탕으로 보딩 커뮤니티에 기여할 수 있는 학생"
+    ].filter(Boolean)[0];
+
+    const schools=(d.dreamSchools||d.matchSchools||d.safetySchools||"Choate Rosemary Hall, Loomis Chaffee, St. Mark's School")
+      .split(/[,·\n]/).map(s=>s.trim()).filter(Boolean).slice(0,3);
+    while(schools.length<3) schools.push(["Loomis Chaffee","St. Mark's School","Tabor Academy"][schools.length]);
+
+    const actions=[
+      "입력된 활동을 연도, 역할, 수상, 주당 시간 기준으로 다시 정리해서 이력서형 activity list를 만드세요.",
+      ssat>=85 ? "현재 시험 강점을 유지하면서 인터뷰 답변과 에세이 소재를 Hook 중심으로 정리하세요." : "SSAT 진단 시험을 기준으로 Reading/Verbal 보완 루틴을 즉시 시작하세요.",
+      "추천서 후보에게 전달할 학생 강점 요약 1페이지를 만들고, 학교별 Fit 문장을 준비하세요."
+    ];
+
+    return `📊 예스유학 루브릭 점수 추정: ${total}/100
+
+- 학업/시험: ${Math.round(academic)}/25
+- 스포츠/EC 스파이크: ${Math.round(sport)}/20
+- 예술/표현 활동: ${Math.round(arts)}/15
+- 리더십/봉사: ${Math.round(leadership)}/15
+- Hook 선명도: ${Math.round(hook)}/15
+- 지원 전략 준비도: ${Math.round(planning)}/10
+
+✅ 핵심 강점 TOP 3
+${strengths.length?strengths.map((x,i)=>`${i+1}. ${x}`).join("\n"):"1. 아직 입력 데이터가 부족합니다. 학업, 활동, 목표학교 정보를 더 채우면 강점 분석이 구체화됩니다."}
+
+⚠️ 보완 필요 약점 TOP 3
+${weaknesses.length?weaknesses.map((x,i)=>`${i+1}. ${x}`).join("\n"):"1. 큰 공백은 보이지 않습니다. 다만 각 활동의 성과, 기간, 역할을 더 구체화하면 제안서 완성도가 올라갑니다."}
+
+🎯 추천 메인 Hook
+${bestHook}
+
+🏫 Fit 추천 학교 3개
+1. ${schools[0]} - 현재 입력된 강점과 목표 학교군을 기준으로 Dream/Reach 포지션에서 검토할 수 있습니다.
+2. ${schools[1]} - 학업과 활동 균형을 보여줄 수 있는 Match 후보로 정리하기 좋습니다.
+3. ${schools[2]} - 지원 안정성을 확보하는 Safety/Target 후보로 함께 비교해볼 수 있습니다.
+
+📋 지금 당장 시작할 액션 3가지
+${actions.map((x,i)=>`${i+1}. ${x}`).join("\n")}`;
+  };
+
+  const analyze=()=>{
     setLoading(true);
-    try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "x-api-key": apiKey,
-          "anthropic-version":"2023-06-01",
-          "anthropic-dangerous-direct-browser-access":"true"
-        },
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1200,
-          messages:[{role:"user",content:`당신은 미국 탑 보딩스쿨 입시 전문 컨설턴트입니다. 아래 학생 데이터를 분석해 한국어로 답해주세요:
-
-1. 📊 예스유학 루브릭 점수 추정 (100점 기준, 카테고리별 점수 포함)
-2. ✅ 핵심 강점 TOP 3 (구체적으로)
-3. ⚠️ 보완 필요 약점 TOP 3 (해결책 포함)
-4. 🎯 추천 메인 Hook 1개 (한 문장 임팩트 있게)
-5. 🏫 Fit이 가장 높은 추천 학교 3개 (각 이유 포함)
-6. 📋 지금 당장 시작할 액션 3가지
-
-${txt()}`}]
-        })
-      });
-      const j=await r.json();
-      if(j.error) setAi("❌ API 오류: "+j.error.message);
-      else setAi(j.content?.[0]?.text||"분석 결과를 받지 못했습니다.");
-    }catch(e){
-      setAi("❌ 네트워크 오류. 인터넷 연결 또는 API 키를 확인해주세요.");
-    }
-    setLoading(false);
+    setTimeout(()=>{
+      setAi(localAnalysis());
+      setLoading(false);
+    },350);
   };
 
   const copy=()=>{
@@ -278,9 +316,6 @@ ${txt()}`}]
     setApiKey(null);
     setAi("");
   };
-
-  // Show setup if no apiKey decided yet
-  if(apiKey===null) return <SetupScreen onDone={(k)=>setApiKey(k)}/>;
 
   const BtnStyle=(color,disabled)=>({
     width:"100%",padding:"13px",background:disabled?"#9ca3af":color,
@@ -298,11 +333,6 @@ ${txt()}`}]
           <div style={{fontSize:15,fontWeight:700,color:"#111827",marginTop:2}}>학생 제안서 입력 폼</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          {apiKey&&(
-            <button onClick={changeApiKey} style={{fontSize:10,color:"#6b7280",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>
-              🔑 API 키 변경
-            </button>
-          )}
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:18,fontWeight:700,color:step<9?sec.color:"#065f46"}}>{step<9?`${step}/8`:"✅"}</div>
             <div style={{fontSize:10,color:"#6b7280"}}>섹션</div>
@@ -563,7 +593,7 @@ ${txt()}`}]
             <div style={{textAlign:"center",padding:"10px 0 20px"}}>
               <div style={{fontSize:48,marginBottom:8}}>✅</div>
               <div style={{fontSize:20,fontWeight:700,color:"#065f46"}}>입력 완료!</div>
-              <div style={{fontSize:13,color:"#6b7280",marginTop:4}}>AI 분석을 받거나 데이터를 복사해서 담당자에게 전달하세요</div>
+              <div style={{fontSize:13,color:"#6b7280",marginTop:4}}>입력된 데이터를 기준으로 바로 분석하거나 전체 데이터를 복사하세요</div>
             </div>
 
             <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
@@ -582,19 +612,9 @@ ${txt()}`}]
               </div>
             </div>
 
-            {!apiKey&&(
-              <div style={{background:"#fff7ed",border:"1px solid #fcd34d",borderLeft:"4px solid #f59e0b",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"#78350f"}}>
-                ⚠️ API 키가 없어 AI 분석을 사용할 수 없습니다.
-                <button onClick={()=>{sessionStorage.removeItem("yes_apikey");setApiKey(null);}}
-                  style={{marginLeft:8,color:BLUE,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontSize:12}}>
-                  API 키 입력하기
-                </button>
-              </div>
-            )}
-
-            <button onClick={analyze} disabled={loading||!apiKey}
-              style={BtnStyle(!apiKey?"#9ca3af":NAVY,loading||!apiKey)}>
-              {loading?"⏳  AI 분석 중... (약 10~20초)":"✨  AI 학생 분석 시작 — 루브릭 점수 + 전략 추천"}
+            <button onClick={analyze} disabled={loading}
+              style={BtnStyle(NAVY,loading)}>
+              {loading?"⏳  분석 생성 중...":"✨  학생 분석 생성 — 루브릭 점수 + 전략 추천"}
             </button>
 
             {ai&&<div>
@@ -602,7 +622,7 @@ ${txt()}`}]
                 {ai}
               </div>
               <button onClick={analyze} style={{width:"100%",padding:"10px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:8,fontSize:12,cursor:"pointer",marginBottom:10}}>
-                🔄 AI 분석 다시 생성
+                🔄 분석 다시 생성
               </button>
             </div>}
 
