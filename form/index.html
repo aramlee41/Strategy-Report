@@ -164,6 +164,9 @@ function App(){
   const [ai,setAi]=useState("");
   const [loading,setLoading]=useState(false);
   const [copied,setCopied]=useState(false);
+  const [startMode,setStartMode]=useState("start");
+  const [importText,setImportText]=useState("");
+  const [importErr,setImportErr]=useState("");
 
   const s=(k)=>(v)=>setD(p=>({...p,[k]:v}));
   const sec=SECTIONS[step-1];
@@ -224,7 +227,8 @@ Hook 아이디어: ${d.hookIdea}
 학생성격: ${d.studentPersonality}
 요청사항: ${d.parentRequests}`;
 
-  const localAnalysis=()=>{
+  const localAnalysis=(source=d)=>{
+    const d=source;
     const filled=(keys)=>keys.reduce((n,k)=>n+(String(d[k]||"").trim()?1:0),0);
     const has=(...keys)=>keys.some(k=>String(d[k]||"").trim());
     const num=(v)=>parseInt(String(v||"").replace(/[^0-9]/g,""),10)||0;
@@ -272,8 +276,10 @@ Hook 아이디어: ${d.hookIdea}
     ];
     const student=d.nameKo||"입력 학생";
     const target=`${d.targetYear||"목표 연도"}년 ${d.targetGrade||"목표 학년"} 입학`;
-    const goalScore=Math.min(92,total+24);
+    const goalScore=Math.max(total,Math.min(92,total+24));
     const gap=Math.max(0,goalScore-total);
+    const activityScore=Math.min(25,Math.round(sport+arts));
+    const activityGoal=Math.min(25,activityScore+5);
     const spikeCount=[d.mainSport,d.specialSubject,d.instrument,d.mainHook].filter(Boolean).length||1;
     const schoolCount=schools.length+(d.dreamSchools||d.matchSchools||d.safetySchools?3:0);
     const esc=(v)=>String(v||"—").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -331,7 +337,7 @@ Hook 아이디어: ${d.hookIdea}
           <div class="pr-grid">
             <div class="pr-card" style="border-top-color:#2563a8"><h4>School Academics / 25점</h4><p>현재 ${Math.round(academic)}점 → 목표 ${Math.min(25,Math.round(academic+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${academic/25*100}%;background:#2563a8"></div></div><p>성적: ${esc(d.currentGrades||d.prevGrades)}<br>시험: SSAT ${esc(d.ssatOverall||"미입력")} / TOEFL ${esc(d.toeflScore||"미입력")}</p></div>
             <div class="pr-card" style="border-top-color:#0d6e56"><h4>School Culture / 15점</h4><p>현재 ${Math.round(leadership)}점 → 목표 ${Math.min(15,Math.round(leadership+4))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${leadership/15*100}%;background:#0d6e56"></div></div><p>리더십: ${esc(d.leadershipRoles)}<br>봉사: ${esc(d.serviceActivities||d.serviceHours)}</p></div>
-            <div class="pr-card" style="border-top-color:#7c3aed"><h4>Clubs & Activities / 25점</h4><p>현재 ${Math.round(sport+arts)}점 → 목표 ${Math.min(25,Math.round(sport+arts+5))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${Math.min(100,(sport+arts)/25*100)}%;background:#7c3aed"></div></div><p>스포츠: ${esc(d.mainSport)}<br>예술: ${esc(d.instrument||d.dramaExp||d.visualArts)}</p></div>
+            <div class="pr-card" style="border-top-color:#7c3aed"><h4>Clubs & Activities / 25점</h4><p>현재 ${activityScore}점 → 목표 ${activityGoal}점</p><div class="pr-bar"><div class="pr-fill" style="width:${activityScore/25*100}%;background:#7c3aed"></div></div><p>스포츠: ${esc(d.mainSport)}<br>예술: ${esc(d.instrument||d.dramaExp||d.visualArts)}</p></div>
             <div class="pr-card" style="border-top-color:#c2410c"><h4>Special Hook & Strategy / 35점</h4><p>현재 ${Math.round(hook+planning)}점 → 목표 ${Math.min(35,Math.round(hook+planning+8))}점</p><div class="pr-bar"><div class="pr-fill" style="width:${Math.min(100,(hook+planning)/35*100)}%;background:#c2410c"></div></div><p>Hook: ${esc(bestHook)}<br>학교 전략: ${esc(d.schoolPriority||"Dream/Match/Safety 구분 필요")}</p></div>
           </div>
           <div class="pr-grid" style="margin-top:14px">
@@ -406,6 +412,95 @@ Hook 아이디어: ${d.hookIdea}
     },350);
   };
 
+  const pick=(text,regex)=>{
+    const m=text.match(regex);
+    return m ? m[1].trim().replace(/^—$/,"") : "";
+  };
+
+  const parseCopiedData=(text)=>{
+    const next={...init};
+    const basicMatch=text.match(/이름:\s*([^(\n|]+?)(?:\s*\(([^)]*)\))?\s*\|\s*성별:\s*([^|]*)\|\s*생년:\s*([^\n]*)/);
+    if(basicMatch){
+      next.nameKo=basicMatch[1].trim();
+      next.nameEn=(basicMatch[2]||"").trim();
+      next.gender=(basicMatch[3]||"").trim();
+      next.birthdate=(basicMatch[4]||"").trim();
+    }
+    const currentMatch=text.match(/현재:\s*([^/\n]*)\/\s*([^\n]*)/);
+    if(currentMatch){ next.currentSchool=currentMatch[1].trim(); next.currentGrade=currentMatch[2].trim(); }
+    const targetMatch=text.match(/지원:\s*([^|]*)\|\s*목표:\s*([^년\n]*)년\s*([^\n]*)\s*입학/);
+    if(targetMatch){ next.appType=targetMatch[1].trim(); next.targetYear=targetMatch[2].trim(); next.targetGrade=targetMatch[3].trim(); }
+    const nationalityMatch=text.match(/국적:\s*([^|]*)\|\s*가족:\s*([^\n]*)/);
+    if(nationalityMatch){ next.nationality=nationalityMatch[1].trim(); next.familyBackground=nationalityMatch[2].trim(); }
+    next.prevGrades=pick(text,/이전 성적:\s*([\s\S]*?)\n현재 성적:/);
+    next.currentGrades=pick(text,/현재 성적:\s*([\s\S]*?)\nSSAT:/);
+    const ssatMatch=text.match(/SSAT:\s*전체\s*([^%|\n]*)%?\s*\|\s*Math\s*([^%|\n]*)%?\s*\|\s*Reading\s*([^%|\n]*)%?\s*\|\s*Verbal\s*([^%|\n]*)%?/);
+    if(ssatMatch){ next.ssatOverall=ssatMatch[1].trim(); next.ssatMath=ssatMatch[2].trim(); next.ssatReading=ssatMatch[3].trim(); next.ssatVerbal=ssatMatch[4].trim(); }
+    const toeflMatch=text.match(/TOEFL:\s*([^|]*)\|\s*영어:\s*([^\n]*)/);
+    if(toeflMatch){ next.toeflScore=toeflMatch[1].trim(); next.englishLevel=toeflMatch[2].trim(); }
+    next.academicAwards=pick(text,/학업수상:\s*([\s\S]*?)\n특기과목:/);
+    const subjectMatch=text.match(/특기과목:\s*([^|]*)\|\s*연구:\s*([^\n]*)/);
+    if(subjectMatch){ next.specialSubject=subjectMatch[1].trim(); next.researchProject=subjectMatch[2].trim(); }
+    next.academicPrograms=pick(text,/특별프로그램:\s*([\s\S]*?)\n\n\[스포츠\]/);
+    const sportMatch=text.match(/주력:\s*([^/\n]*)\/\s*([^/\n]*)년\s*\/\s*([^\n]*)/);
+    if(sportMatch){ next.mainSport=sportMatch[1].trim(); next.mainSportYears=sportMatch[2].trim(); next.mainSportLevel=sportMatch[3].trim(); }
+    next.mainSportAwards=pick(text,/주력수상:\s*([\s\S]*?)\n가을:/);
+    const seasonMatch=text.match(/가을:\s*([^|]*)\|\s*겨울:\s*([^|]*)\|\s*봄:\s*([^\n]*)/);
+    if(seasonMatch){ next.fallSport=seasonMatch[1].trim(); next.winterSport=seasonMatch[2].trim(); next.springSport=seasonMatch[3].trim(); }
+    next.allSportAwards=pick(text,/전체수상:\s*([\s\S]*?)\n자격증:/);
+    const sportEtcMatch=text.match(/자격증:\s*([^|]*)\|\s*훈련:\s*([^|]*)\|\s*코치:\s*([^\n]*)/);
+    if(sportEtcMatch){ next.sportCertificates=sportEtcMatch[1].trim(); next.trainingHours=sportEtcMatch[2].trim(); next.coachInfo=sportEtcMatch[3].trim(); }
+    const musicMatch=text.match(/음악:\s*([^/\n]*)\/\s*([^/\n]*)년\s*\/\s*([^\n]*)/);
+    if(musicMatch){ next.instrument=musicMatch[1].trim(); next.musicYears=musicMatch[2].trim(); next.musicLevel=musicMatch[3].trim(); }
+    next.musicAwards=pick(text,/음악수상:\s*([\s\S]*?)\n연극:/);
+    const dramaMatch=text.match(/연극:\s*([^-|\n]*)\s*-\s*([^\n]*)/);
+    if(dramaMatch){ next.dramaExp=dramaMatch[1].trim(); next.dramaDetails=dramaMatch[2].trim(); }
+    const artsMatch=text.match(/시각예술:\s*([^|]*)\|\s*기타:\s*([^\n]*)/);
+    if(artsMatch){ next.visualArts=artsMatch[1].trim(); next.otherArts=artsMatch[2].trim(); }
+    next.leadershipRoles=pick(text,/리더십:\s*([\s\S]*?)\n봉사:/);
+    const serviceMatch=text.match(/봉사:\s*([\s\S]*?)\s*\(([^)]*)\)\n클럽:/);
+    if(serviceMatch){ next.serviceActivities=serviceMatch[1].trim(); next.serviceHours=serviceMatch[2].trim(); }
+    next.clubs=pick(text,/클럽:\s*([\s\S]*?)\n수상:/);
+    next.leadershipAwards=pick(text,/수상:\s*([\s\S]*?)\n\n\[Hook & 관심사\]/);
+    next.mainHook=pick(text,/메인 Hook:\s*([\s\S]*?)\nHook 아이디어:/);
+    next.hookIdea=pick(text,/Hook 아이디어:\s*([\s\S]*?)\n취미:/);
+    const hobbyMatch=text.match(/취미:\s*([^|]*)\|\s*글쓰기:\s*([^\n]*)/);
+    if(hobbyMatch){ next.hobbies=hobbyMatch[1].trim(); next.writingExp=hobbyMatch[2].trim(); }
+    next.dreamSchools=pick(text,/드림:\s*([\s\S]*?)\n매치:/);
+    next.matchSchools=pick(text,/매치:\s*([\s\S]*?)\n세이프티:/);
+    next.safetySchools=pick(text,/세이프티:\s*([\s\S]*?)\n지역:/);
+    const regionMatch=text.match(/지역:\s*([^|]*)\|\s*예산:\s*([^\n]*)/);
+    if(regionMatch){ next.locationPref=regionMatch[1].trim(); next.budget=regionMatch[2].trim(); }
+    const historyMatch=text.match(/이력:\s*([^|]*)\|\s*우선순위:\s*([^\n]*)/);
+    if(historyMatch){ next.prevApps=historyMatch[1].trim(); next.schoolPriority=historyMatch[2].trim(); }
+    next.summerActivity=pick(text,/여름:\s*([\s\S]*?)\n겨울:/);
+    next.winterActivity=pick(text,/겨울:\s*([\s\S]*?)\n캠프:/);
+    next.academicCamps=pick(text,/캠프:\s*([\s\S]*?)\n추천서후보:/);
+    next.recLetterCandidates=pick(text,/추천서후보:\s*([\s\S]*?)\n학생성격:/);
+    next.studentPersonality=pick(text,/학생성격:\s*([\s\S]*?)\n요청사항:/);
+    next.parentRequests=pick(text,/요청사항:\s*([\s\S]*)/);
+    Object.keys(next).forEach(k=>{ if(next[k]==="—" || next[k]==="미입력") next[k]=""; });
+    return next;
+  };
+
+  const importAndGenerate=()=>{
+    const raw=importText.trim();
+    if(!raw){
+      setImportErr("복사한 학생 데이터를 붙여넣어 주세요.");
+      return;
+    }
+    if(!raw.includes("예스유학 학생 정보") && !raw.includes("[기본 정보]")){
+      setImportErr("Tool 1에서 복사한 학생 데이터 형식인지 확인해 주세요.");
+      return;
+    }
+    const next=parseCopiedData(raw);
+    setD(next);
+    setStep(9);
+    setAi(localAnalysis(next));
+    setStartMode("form");
+    setImportErr("");
+  };
+
   const copy=()=>{
     const cleanAi=ai?ai.replace(/<style[\s\S]*?<\/style>/g,"").replace(/<br\s*\/?>/g,"\n").replace(/<\/(div|p|h1|h2|h3|h4|tr)>/g,"\n").replace(/<[^>]+>/g,"").replace(/\n{3,}/g,"\n\n").trim():"";
     const full=txt()+(cleanAi?"\n\n[제안서 분석 결과]\n"+cleanAi:"");
@@ -423,6 +518,56 @@ Hook 아이디어: ${d.hookIdea}
     color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:700,
     cursor:disabled?"not-allowed":"pointer",marginBottom:10
   });
+
+  if(startMode==="start") return(
+    <div style={{fontFamily:"'Apple SD Gothic Neo','Malgun Gothic',sans-serif",background:"#f3f4f6",minHeight:"100vh",padding:"28px 14px"}}>
+      <div style={{maxWidth:820,margin:"0 auto"}}>
+        <div style={{background:NAVY,color:"white",borderRadius:14,padding:"30px 34px",marginBottom:16,boxShadow:"0 2px 18px rgba(0,0,0,0.12)"}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:"#93c5fd",marginBottom:14}}>예스유학 · YES Study Abroad</div>
+          <div style={{fontSize:26,fontWeight:800,lineHeight:1.3,marginBottom:8}}>학생 제안서 생성</div>
+          <div style={{fontSize:13,color:"#bfdbfe",lineHeight:1.7}}>복사해둔 학생 데이터가 있으면 바로 Tool 2 형식의 전략 제안서로 만들 수 있습니다.</div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+          <div style={{background:"white",border:"1px solid #e5e7eb",borderRadius:12,padding:"22px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:10}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:800,color:NAVY}}>기존 데이터로 제안서 만들기</div>
+                <div style={{fontSize:12,color:"#6b7280",marginTop:3}}>Tool 1의 전체 데이터 복사 내용을 붙여넣으면 바로 분석 제안서가 생성됩니다.</div>
+              </div>
+              <span style={{background:"#dbeafe",color:"#1e40af",fontSize:10,fontWeight:800,borderRadius:999,padding:"4px 9px",whiteSpace:"nowrap"}}>빠른 생성</span>
+            </div>
+            <textarea value={importText} onChange={e=>{setImportText(e.target.value);setImportErr("");}}
+              placeholder={"예스유학 학생 정보\n\n[기본 정보]\n이름: ...\n현재: ...\n지원: ..."}
+              rows={13}
+              style={{...iStyle,resize:"vertical",lineHeight:1.55,fontSize:12,marginBottom:8}} />
+            {importErr&&<div style={{fontSize:11,color:"#dc2626",marginBottom:8}}>{importErr}</div>}
+            <button onClick={importAndGenerate}
+              style={{width:"100%",padding:"13px",background:"#065f46",color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer"}}>
+              붙여넣은 데이터로 Tool 2 형식 제안서 생성
+            </button>
+          </div>
+
+          <div style={{background:"white",border:"1px solid #e5e7eb",borderRadius:12,padding:"22px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:800,color:NAVY,marginBottom:8}}>새 학생 정보 입력</div>
+              <div style={{fontSize:12,color:"#6b7280",lineHeight:1.7,marginBottom:18}}>기존 복사 데이터가 없으면 8개 섹션을 차례로 입력한 뒤 제안서를 생성합니다.</div>
+              <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px 14px",fontSize:11,color:"#374151",lineHeight:1.8}}>
+                <div><b>01</b> 기본 정보</div>
+                <div><b>02</b> 학업·시험</div>
+                <div><b>03</b> 스포츠·예술·봉사</div>
+                <div><b>04</b> 목표 학교·방학 계획</div>
+              </div>
+            </div>
+            <button onClick={()=>{setStartMode("form");setStep(1);setAi("");}}
+              style={{width:"100%",padding:"13px",background:NAVY,color:"white",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",marginTop:18}}>
+              새로 입력 시작
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return(
     <div style={{fontFamily:"'Apple SD Gothic Neo','Malgun Gothic',sans-serif",background:"#f3f4f6",minHeight:"100vh",padding:"20px 12px"}}>
