@@ -1,1 +1,9 @@
 desktop.ini
+.env
+*.xlsx
+data/private/*
+!data/private/.gitkeep
+reports/private/*
+!reports/private/.gitkeep
+__pycache__/
+.pytest_cache/

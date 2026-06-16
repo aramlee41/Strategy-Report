@@ -1,0 +1,17 @@
+{
+  "student_alias": "student_sample_0001",
+  "interests": ["applied math", "community sports analytics"],
+  "academic_goals": ["Strengthen writing evidence", "Maintain A-range grades"],
+  "current_evidence": [
+    {"category": "academic", "description": "A-range transcript", "status": "current", "strength_0_1": 0.7, "rubric_delta": 0}
+  ],
+  "planned_evidence": [
+    {"category": "hook", "description": "sports analytics project planned", "status": "planned", "strength_0_1": 0.5, "rubric_delta": 4}
+  ],
+  "verified_evidence": [
+    {"category": "leadership", "description": "verified team captain evidence", "status": "verified", "strength_0_1": 0.8, "rubric_delta": 2}
+  ],
+  "weekly_available_hours": 6,
+  "months_until_deadline": 6,
+  "target_schools": ["Phillips Exeter Academy", "Loomis Chaffee School"]
+}

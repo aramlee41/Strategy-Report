@@ -1,0 +1,26 @@
+{
+  "student_alias": "student_sample_0001",
+  "cohort": "synthetic",
+  "consultant_alias": "consultant_sample",
+  "ssat_percentile": 96,
+  "toefl_score": 112,
+  "gpa_label": "A",
+  "academic_comment": "Synthetic strong academic profile.",
+  "english_fluency_0_100": 95,
+  "personality_interview_0_5": 4.5,
+  "boarding_fit_recommendation_0_100": 100,
+  "boarding_life_comment": "Synthetic boarding readiness evidence.",
+  "ec_strength_0_5": 4.5,
+  "leadership_0_5": 4.5,
+  "hook_0_5": 4.0,
+  "cocurricular_comment": "Synthetic EC profile.",
+  "overall_comment": "Synthetic sample only.",
+  "school_preferences": {
+    "us_region": "Northeast",
+    "sports_gender": "Boys",
+    "preferred_sports": ["Golf", "Soccer"],
+    "athletic_condition_required": false
+  },
+  "needs_ssat_optional": false,
+  "needs_esl": false
+}

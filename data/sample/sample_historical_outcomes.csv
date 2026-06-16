@@ -1,0 +1,3 @@
+anonymized_student_id,cohort,school_name,outcome,legacy_prediction_margin,legacy_category,school_strength,application_strength_if_available,notes
+student_sample_0001,synthetic,Phillips Exeter Academy,waitlisted,-4.5,Competitive Accept,95,91.87,Synthetic sample only
+student_sample_0002,synthetic,Cushing Academy,admitted,12.5,Safety School,69.56,82.06,Synthetic sample only

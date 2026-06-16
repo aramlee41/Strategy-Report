@@ -1,0 +1,11 @@
+{
+  "legacy_global_adjustment": 0,
+  "category_thresholds": [
+    {"low": -10000, "high": -26, "label": "Extremely Unlikely Accept"},
+    {"low": -26, "high": -16, "label": "Dream School"},
+    {"low": -16, "high": -6, "label": "Goal School (Reach)"},
+    {"low": -6, "high": 6, "label": "Competitive Accept"},
+    {"low": 6, "high": 12, "label": "Likely Accept"},
+    {"low": 12, "high": 10000, "label": "Safety School"}
+  ]
+}
