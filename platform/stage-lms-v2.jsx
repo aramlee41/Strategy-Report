@@ -187,6 +187,152 @@ function v2TestOverall(type, details, fallback) {
 function v2AcademicSummary(st) {
   return (st.academicTerms || []).map(t => ({ term: t.term, school: t.school, gpa: v2TermGpa(t), comment: (t.subjects || []).map(s => `${s.subject}: ${s.comment}`).join(" / ") }));
 }
+function v2Num(value) {
+  const n = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+function v2Round(value, digits = 2) {
+  const p = 10 ** digits;
+  return Math.round((Number(value) || 0) * p) / p;
+}
+function v2LegacyFindTest(st, pattern) {
+  return (st.tests || []).find(t => pattern.test(String(t.type || ""))) || {};
+}
+function v2LegacyTestOverall(test) {
+  return v2Num(test.overall || v2TestOverall(test.type, test.details || {}, ""));
+}
+function v2LegacyToeflEval(st) {
+  const test = v2LegacyFindTest(st, /TOEFL|IELTS|DET/i);
+  const type = String(test.type || "");
+  const raw = v2LegacyTestOverall(test);
+  if (!raw) return { raw: "", eval: null, label: "English Test missing", warning: "TOEFL/IELTS/DET 점수가 없어 Stage 1 English conversion을 비워두었습니다." };
+  if (/TOEFL/i.test(type)) {
+    const tableValue = raw >= 110 ? 95 + (raw - 110) * 0.5 : raw >= 100 ? 80 + (raw - 100) * 1.5 : raw >= 60 ? raw - 20 : raw;
+    return { raw, eval: Math.max(0, Math.min(100, v2Round(tableValue, 1))), label: `TOEFL ${raw}` };
+  }
+  if (/IELTS/i.test(type)) return { raw, eval: Math.max(40, Math.min(100, v2Round(raw * 12, 1))), label: `IELTS ${raw}`, warning: "IELTS는 TOEFL 표 원본이 아니라 화면용 등가 추정입니다." };
+  if (/DET/i.test(type)) return { raw, eval: Math.max(40, Math.min(100, v2Round((raw - 60) * 0.7 + 40, 1))), label: `DET ${raw}`, warning: "DET는 TOEFL 표 원본이 아니라 화면용 등가 추정입니다." };
+  return { raw, eval: null, label: "English Test missing" };
+}
+function v2LegacyGpaEval(st) {
+  const gpa = v2CumulativeGpa(st.academicTerms || []);
+  if (gpa) return { label: `${gpa} / 4.3`, eval: Math.max(0, Math.min(100, v2Round(Number(gpa) / 4.3 * 100, 1))) };
+  const text = (v2AcademicSummary(st).map(a => `${a.gpa} ${a.comment}`).join(" ") || "").toUpperCase();
+  if (/A\+/.test(text)) return { label: "A+", eval: 100 };
+  if (/\bA\b|DISTINCTION|우수/.test(text)) return { label: "A", eval: 95 };
+  if (/B/.test(text) && /A/.test(text)) return { label: "Most A / Some B", eval: 82 };
+  if (/B/.test(text)) return { label: "B", eval: 63 };
+  return { label: "GPA missing", eval: null, warning: "GPA/성적표가 부족해 legacy GPA conversion을 비워두었습니다." };
+}
+function v2LegacyEcInputs(st) {
+  const ecs = st.ecs || [];
+  const joined = ecs.map(e => `${e.name || ""} ${e.position || ""} ${e.leadership || ""} ${e.impact || ""} ${e.honors || ""}`).join(" ");
+  const leadershipHit = /captain|president|founder|leader|mentor|representative|회장|주장|리더|창립|대표/i.test(joined);
+  const impactHits = ecs.filter(e => /award|winner|rank|regional|national|state|1위|수상|대회|전국|대표|성과|impact/i.test(`${e.impact || ""} ${e.honors || ""}`)).length;
+  const years = ecs.filter(e => String(e.from || "") && String(e.to || "")).length;
+  const hours = ecs.reduce((n, e) => n + v2Num(e.hours), 0);
+  const sports = ecs.some(e => /athletic|sports|varsity|jv|ski|soccer|tennis|golf|swim|basketball|baseball/i.test(`${e.cat || ""} ${e.name || ""}`));
+  const arts = ecs.some(e => /art|music|theater|orchestra|visual|choir|dance/i.test(`${e.cat || ""} ${e.name || ""}`));
+  const ec = Math.min(5, Math.max(1, (ecs.length >= 4 ? 2.5 : ecs.length >= 2 ? 1.8 : ecs.length ? 1.2 : 0) + impactHits * 0.8 + years * 0.25 + Math.min(0.7, hours / 20)));
+  const leadership = leadershipHit ? Math.min(5, 2.5 + impactHits * 0.6) : Math.min(2, ecs.length * 0.5);
+  const hook = Math.min(5, (st.profile ? 1.2 : 0) + (sports ? 1.2 : 0) + (arts ? 0.8 : 0) + impactHits * 0.7 + (st.projectPlan ? 0.8 : 0));
+  const warning = ecs.length <= 2 && !leadershipHit && impactHits === 0 ? "EC가 1-2개 단순 참여 중심이면 C축은 낮게 산정됩니다. 리더십/성과/기간 증빙이 필요합니다." : "";
+  return { ec, leadership, hook, warning };
+}
+function v2LegacyStage1Score(st) {
+  const ssatTest = v2LegacyFindTest(st, /SSAT/i);
+  const ssatRaw = v2LegacyTestOverall(ssatTest);
+  const toefl = v2LegacyToeflEval(st);
+  const gpa = v2LegacyGpaEval(st);
+  const warnings = [toefl.warning, gpa.warning].filter(Boolean);
+  const available = [toefl.eval, gpa.eval].filter(x => x !== null && x !== undefined);
+  const ssatEval = ssatRaw || (available.length ? available.reduce((a, b) => a + b, 0) / available.length : 0);
+  if (!ssatRaw) warnings.push("SSAT가 없어 Python legacy engine과 같이 TOEFL/GPA 평균으로 임시 보정했습니다.");
+  const english = toefl.eval ?? 0;
+  const personality = st.basic?.interviewScore ? v2Num(st.basic.interviewScore) : ((st.tasks || []).filter(t => t.done).length ? 3.5 : 3);
+  const boardingFit = Math.min(100, 55 + (st.weekly?.length ? 8 : 0) + (st.calendarEvents?.length ? 7 : 0) + (st.school ? 8 : 0) + (st.profile ? 10 : 0));
+  const ec = v2LegacyEcInputs(st);
+  if (ec.warning) warnings.push(ec.warning);
+  const academicsA = ssatEval * 0.20 + (toefl.eval ?? 0) * 0.45 + (gpa.eval ?? 0) * 0.35;
+  const boardingB = english * 0.30 + personality * 20 * 0.60 + boardingFit * 0.10;
+  const cocurricularC = ec.ec * 20 * 0.35 + ec.leadership * 20 * 0.30 + ec.hook * 20 * 0.35;
+  const weighted = (academicsA * 1.3 + boardingB * 0.7 + cocurricularC) / 3;
+  return {
+    ssatRaw,
+    ssatEval: v2Round(ssatEval),
+    toefl,
+    gpa,
+    personality: v2Round(personality),
+    boardingFit: v2Round(boardingFit),
+    ecStrength: v2Round(ec.ec),
+    leadership: v2Round(ec.leadership),
+    hook: v2Round(ec.hook),
+    academicsA: v2Round(academicsA),
+    boardingB: v2Round(boardingB),
+    cocurricularC: v2Round(cocurricularC),
+    simpleAverage: v2Round((academicsA + boardingB + cocurricularC) / 3),
+    weighted: v2Round(weighted),
+    warnings
+  };
+}
+function v2LegacySchoolStrength(school) {
+  const rank = v2Num(school.yesRank || school.avgRank || school.nicheRank || 50) || 50;
+  return v2Round(95 - (rank - 1) * (15 / 23), 4);
+}
+function v2LegacyCategory(margin) {
+  if (margin >= -6 && margin <= 6) return "Competitive Accept";
+  if (margin >= -16 && margin < -6) return "Goal School (Reach)";
+  if (margin >= -26 && margin < -16) return "Dream School";
+  if (margin < -26) return "Extremely Unlikely Accept";
+  if (margin > 6 && margin <= 12) return "Likely Accept";
+  return "Safety School";
+}
+function v2LegacyPredictions(st, schools) {
+  const score = v2LegacyStage1Score(st);
+  const targetNames = (st.interests || []).map(x => x.school).filter(Boolean);
+  const pool = targetNames.length ? targetNames.map(n => v2FindSchool(schools, n)).filter(Boolean) : [...(schools || [])].sort((a, b) => v2Num(a.yesRank || a.avgRank || 999) - v2Num(b.yesRank || b.avgRank || 999)).slice(0, 8);
+  return pool.map(school => {
+    const schoolStrength = v2LegacySchoolStrength(school);
+    const toeflDetriment = Math.max(0, schoolStrength - (score.toefl.eval ?? 0));
+    const gpaDetriment = Math.max(0, (schoolStrength - (score.gpa.eval ?? 0)) / 3);
+    const margin = score.weighted - schoolStrength - toeflDetriment - gpaDetriment;
+    return {
+      school,
+      schoolStrength,
+      toeflDetriment: v2Round(toeflDetriment),
+      gpaDetriment: v2Round(gpaDetriment),
+      margin: v2Round(margin),
+      category: v2LegacyCategory(margin)
+    };
+  });
+}
+function V2LegacyStage1Panel({ st, schools }) {
+  const legacy = v2LegacyStage1Score(st);
+  const predictions = v2LegacyPredictions(st, schools || []);
+  return <div className="grid">
+    <V2Section title="Legacy Stage 1 Engine - 엑셀 모델 이식 결과">
+      <p className="small muted">이 섹션이 이번에 이식된 Stage 1입니다. 기존 화면용 Rubric 점수와 별개로, 엑셀의 A/B/C legacy scoring 구조를 그대로 드러냅니다.</p>
+      <div className="grid g4">
+        <Metric title="A Academics" val={legacy.academicsA} />
+        <Metric title="B Boarding Life" val={legacy.boardingB} />
+        <Metric title="C Co-curricular" val={legacy.cocurricularC} />
+        <Metric title="Weighted Strength" val={legacy.weighted} />
+      </div>
+      <table className="table" style={{ marginTop: 12 }}><thead><tr><th>축</th><th>입력/변환값</th><th>계산식</th><th>해석</th></tr></thead><tbody>
+        <tr><td>Academics A</td><td>SSAT {legacy.ssatRaw || "미입력"} → {legacy.ssatEval}, {legacy.toefl.label} → {legacy.toefl.eval ?? "미입력"}, GPA {legacy.gpa.label} → {legacy.gpa.eval ?? "미입력"}</td><td>SSAT 20% + TOEFL 45% + GPA 35%</td><td>시험과 성적표를 별도 가중치로 반영합니다.</td></tr>
+        <tr><td>Boarding Life B</td><td>English {legacy.toefl.eval ?? 0}, Personality {legacy.personality}/5, Boarding Fit {legacy.boardingFit}/100</td><td>English 30% + Personality 60% + Fit 10%</td><td>인터뷰/생활 적응 근거가 부족하면 자동으로 중간값에 머뭅니다.</td></tr>
+        <tr><td>Co-curricular C</td><td>EC {legacy.ecStrength}/5, Leadership {legacy.leadership}/5, Hook {legacy.hook}/5</td><td>EC 35% + Leadership 30% + Hook 35%</td><td>단순 멤버십은 낮게, 수상/대표성/장기성/스토리 증빙은 높게 반영합니다.</td></tr>
+      </tbody></table>
+      {legacy.warnings.length > 0 && <div className="card" style={{ marginTop: 12, background: "#fff7ed", borderColor: "#fed7aa" }}><b>Stage 1 경고</b>{legacy.warnings.map((w, i) => <p className="small" key={i}>- {w}</p>)}</div>}
+    </V2Section>
+    <V2Section title="Legacy Stage 1 학교별 판정">
+      <table className="table"><thead><tr><th>학교</th><th>School Strength</th><th>학생 Strength</th><th>감점</th><th>Margin</th><th>Legacy Category</th></tr></thead><tbody>
+        {predictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td>{p.schoolStrength}</td><td>{legacy.weighted}</td><td>TOEFL {p.toeflDetriment}<br />GPA {p.gpaDetriment}</td><td>{p.margin}</td><td><span className={"pill " + (p.category.includes("Safety") || p.category.includes("Likely") ? "p-green" : p.category.includes("Competitive") ? "p-blue" : p.category.includes("Dream") ? "p-amber" : "p-red")}>{p.category}</span></td></tr>)}
+      </tbody></table>
+      <p className="small muted">카테고리는 내부 전략용 estimate이며 합격 보장/확률이 아닙니다. Stage 2는 이 baseline 위에 증빙력, hook, 실행 가능성, 시나리오 delta를 얹어 해석합니다.</p>
+    </V2Section>
+  </div>;
+}
 
 function V2Field({ label, val, set, type = "text", list = [] }) {
   const id = "v2_" + label.replace(/\W/g, "_") + "_" + Math.random().toString(36).slice(2);
@@ -343,7 +489,12 @@ function V2Ecs({ st, update }) {
 }
 function V2BasicReport({ st, schools }) {
   const recs = (st.interests || []).map(x => x.school).filter(Boolean).map(name => v2FindSchool(schools, name)).filter(Boolean);
-  return <div className="grid"><V2Section title="성적 변화"><V2GpaChart terms={st.academicTerms || []} /></V2Section><EnhancedReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={recs.length ? recs : schools} /></div>;
+  const reportSchools = recs.length ? recs : schools;
+  return <div className="grid">
+    <V2LegacyStage1Panel st={st} schools={reportSchools} />
+    <V2Section title="성적 변화"><V2GpaChart terms={st.academicTerms || []} /></V2Section>
+    <EnhancedReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} />
+  </div>;
 }
 function V2StageTwo({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
