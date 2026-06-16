@@ -306,31 +306,145 @@ function v2LegacyPredictions(st, schools) {
     };
   });
 }
-function V2LegacyStage1Panel({ st, schools }) {
+function v2ClientRubrics(st) {
   const legacy = v2LegacyStage1Score(st);
-  const predictions = v2LegacyPredictions(st, schools || []);
-  return <div className="grid">
-    <V2Section title="Legacy Stage 1 Engine - 엑셀 모델 이식 결과">
-      <p className="small muted">이 섹션이 이번에 이식된 Stage 1입니다. 기존 화면용 Rubric 점수와 별개로, 엑셀의 A/B/C legacy scoring 구조를 그대로 드러냅니다.</p>
+  const ecNames = (st.ecs || []).map(e => e.name).filter(Boolean).slice(0, 3).join(", ");
+  const comments = v2AcademicSummary(st).flatMap(a => String(a.comment || "").split("/").map(x => x.trim()).filter(Boolean));
+  return [
+    {
+      key: "academics",
+      title: "학업 준비도",
+      score: legacy.academicsA,
+      evidence: `성적표와 시험 데이터를 함께 보았을 때 학업 준비도는 ${legacy.academicsA}점으로 평가됩니다. SSAT는 ${legacy.ssatRaw || "아직 입력되지 않았고"}, 영어 시험은 ${legacy.toefl.label}, 성적 평가는 ${legacy.gpa.label} 기준으로 반영되었습니다.`,
+      gap: legacy.academicsA >= 85 ? "현재 학업 지표는 지원서에서 강점으로 사용할 수 있습니다. 다만 상위권 학교에서는 과목별 Teacher's Comment와 최근 성적 흐름까지 함께 보여주는 것이 중요합니다." : "학업 준비도는 아직 보완 여지가 있습니다. 특히 핵심 과목 성적 흐름, SSAT/영어 시험의 세부 영역, 교사 코멘트를 함께 정리해야 학교가 학생의 학업 잠재력을 더 명확히 볼 수 있습니다."
+    },
+    {
+      key: "english",
+      title: "영어/커뮤니케이션",
+      score: legacy.toefl.eval ?? 0,
+      evidence: `영어 지표는 ${legacy.toefl.label} 기준으로 보았습니다. 보딩스쿨 지원에서는 점수 자체뿐 아니라 인터뷰에서 자신의 관심사와 학교 적합성을 자연스럽게 설명하는 힘이 함께 평가됩니다.`,
+      gap: (legacy.toefl.eval ?? 0) >= 90 ? "영어 점수는 기본 경쟁력을 갖춘 편입니다. 이제는 인터뷰 답변의 구조, 구체적인 사례, Why School 표현을 다듬는 단계가 필요합니다." : "영어 점수와 말하기 증빙을 함께 보완해야 합니다. 시험 점수 향상과 동시에 인터뷰에서 사용할 5-6개의 핵심 경험을 영어로 정리하는 것이 좋습니다."
+    },
+    {
+      key: "boarding",
+      title: "보딩 적합도",
+      score: legacy.boardingB,
+      evidence: `보딩 생활 적합도는 영어 소통력, 인터뷰에서 보일 성숙도, 기숙사 생활에 필요한 자기관리 근거를 함께 반영했습니다. 현재 입력된 일정, 활동, 학생 스토리를 기준으로 ${legacy.boardingB}점입니다.`,
+      gap: legacy.boardingB >= 80 ? "기숙사 생활 적응력은 긍정적으로 설명할 수 있습니다. 지원서에서는 책임감, 공동체 기여, 시간관리 사례를 구체적으로 보여주는 것이 좋습니다." : "보딩 적합도는 아직 서류에서 충분히 보이지 않을 수 있습니다. 주중 루틴, 방학 계획, 팀 활동에서의 책임감, 선생님/코치의 관찰 코멘트를 보강해야 합니다."
+    },
+    {
+      key: "ec",
+      title: "EC 깊이/다양성",
+      score: legacy.cocurricularC,
+      evidence: `EC 평가는 활동 개수만 보지 않고, 기간·역할·성과·스토리로 이어지는지를 보았습니다. 현재 입력된 대표 활동은 ${ecNames || "아직 충분히 정리되지 않았습니다"}이며, 이 근거로 ${legacy.cocurricularC}점입니다.`,
+      gap: legacy.cocurricularC >= 80 ? "EC는 지원서에서 핵심 차별점으로 사용할 수 있습니다. 이제 활동별 성과를 숫자, 수상, 포트폴리오, 추천서 문장으로 증빙하는 작업이 필요합니다." : "EC는 단순 참여보다 리더십과 결과물이 더 필요합니다. 한두 개 활동을 깊게 발전시켜 팀 내 역할, 외부 성과, 지속 기간, 학생만의 관점을 분명히 만들어야 합니다."
+    },
+    {
+      key: "recommendation",
+      title: "추천서/근거 강도",
+      score: Math.min(100, Math.max(35, legacy.boardingFit + comments.length * 4)),
+      evidence: comments.length ? `성적표 코멘트와 입력된 교사 코멘트에서 ${comments.slice(0, 2).join(" / ")} 등의 근거를 확인했습니다.` : "아직 Teacher's Comment나 추천서에 사용할 구체 문장이 충분히 입력되지 않았습니다.",
+      gap: comments.length >= 2 ? "추천서 소재는 어느 정도 확보되어 있습니다. 과목별로 학생의 성향이 반복적으로 드러나도록 문장 후보를 정리하면 설득력이 높아집니다." : "추천서는 합격 가능성을 끌어올리는 중요한 자료입니다. 과목 교사, 코치, 어드바이저가 학생을 어떻게 설명할 수 있는지 구체 문장과 사례를 수집해야 합니다."
+    }
+  ];
+}
+function v2RadarPoints(items, center = 150, radius = 105) {
+  return items.map((item, i) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * i) / items.length;
+    const r = radius * Math.max(0, Math.min(100, item.value)) / 100;
+    return { ...item, x: center + Math.cos(angle) * r, y: center + Math.sin(angle) * r, lx: center + Math.cos(angle) * (radius + 35), ly: center + Math.sin(angle) * (radius + 35) };
+  });
+}
+function V2RadarChart({ st }) {
+  const legacy = v2LegacyStage1Score(st);
+  const items = [
+    { label: "SSAT", value: legacy.ssatEval },
+    { label: "English", value: legacy.toefl.eval ?? 0 },
+    { label: "GPA", value: legacy.gpa.eval ?? 0 },
+    { label: "Communication", value: legacy.toefl.eval ?? 0 },
+    { label: "Interview", value: legacy.personality * 20 },
+    { label: "Boarding Fit", value: legacy.boardingFit },
+    { label: "EC Depth", value: legacy.ecStrength * 20 },
+    { label: "Leadership", value: legacy.leadership * 20 },
+    { label: "Hook", value: legacy.hook * 20 }
+  ];
+  const points = v2RadarPoints(items);
+  const polygon = points.map(p => `${p.x},${p.y}`).join(" ");
+  const rings = [20, 40, 60, 80, 100].map(level => v2RadarPoints(items.map(x => ({ ...x, value: level }))).map(p => `${p.x},${p.y}`).join(" "));
+  return <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 18, alignItems: "center" }}>
+    <svg viewBox="0 0 300 300" style={{ width: "100%", maxWidth: 360, background: "#f8fafc", border: "1px solid #d9dee8", borderRadius: 8 }}>
+      {rings.map((r, i) => <polygon key={i} points={r} fill="none" stroke={i === 4 ? "#94a3b8" : "#cbd5e1"} strokeWidth={i === 4 ? 1.4 : 1} />)}
+      {points.map((p, i) => <line key={i} x1="150" y1="150" x2={p.lx} y2={p.ly} stroke="#e2e8f0" />)}
+      <polygon points={polygon} fill="rgba(37,99,235,.20)" stroke="#2563eb" strokeWidth="3" />
+      {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4.5" fill="#dc2626" />)}
+      {points.map((p, i) => <text key={i} x={p.lx} y={p.ly} textAnchor={p.lx > 165 ? "start" : p.lx < 135 ? "end" : "middle"} dominantBaseline="middle" fontSize="10" fill="#111827">{p.label}</text>)}
+      <text x="150" y="153" textAnchor="middle" fontSize="11" fill="#475569">100</text>
+    </svg>
+    <div>
+      <h3 style={{ marginTop: 0 }}>학생 역량 방사형 분석</h3>
+      <p className="small" style={{ fontSize: 13, lineHeight: 1.8 }}>이 그래프는 학생의 학업, 영어, 보딩 적합도, EC 깊이, 리더십, Hook을 한눈에 비교하기 위한 시각 자료입니다. 바깥쪽에 가까울수록 현재 지원서에서 강점으로 사용하기 좋고, 안쪽에 머무는 축은 남은 기간 동안 보완 전략을 세워야 하는 영역입니다.</p>
+      <table className="table"><tbody>{items.map(x => <tr key={x.label}><th>{x.label}</th><td><div className="progress"><div style={{ width: `${Math.max(0, Math.min(100, x.value))}%` }} /></div></td><td style={{ width: 50 }}>{v2Round(x.value, 1)}</td></tr>)}</tbody></table>
+    </div>
+  </div>;
+}
+function V2ClientCategoryPill({ category }) {
+  const cls = category.includes("Safety") || category.includes("Likely") ? "p-green" : category.includes("Competitive") ? "p-blue" : category.includes("Dream") || category.includes("Goal") ? "p-amber" : "p-red";
+  return <span className={"pill " + cls}>{category}</span>;
+}
+function v2CustomerSchoolNote(prediction) {
+  const c = prediction.category;
+  if (c.includes("Safety") || c.includes("Likely")) return "현재 입력된 자료 기준으로는 현실적인 지원권에 들어옵니다. 다만 보딩스쿨 지원에서는 학교별 에세이와 인터뷰 완성도가 최종 결과를 크게 좌우하므로, 이 학교를 안정권으로만 보지 말고 Why School을 구체화해야 합니다.";
+  if (c.includes("Competitive")) return "현재 준비도와 학교 난이도가 비교적 맞물리는 구간입니다. 합격 가능성을 높이려면 학생의 대표 활동과 추천서 근거가 학교가 원하는 학생상과 직접 연결되어야 합니다.";
+  if (c.includes("Goal")) return "도전 학교입니다. 현재 점수만으로는 약간의 보완이 필요하므로 시험 세부 점수, 리더십 성과, 인터뷰 스토리를 한 단계 끌어올리는 전략이 필요합니다.";
+  return "상위 도전 학교입니다. 지원 자체는 가능하지만, 현재 자료만으로는 합격 설득력이 충분하지 않을 수 있습니다. 강력한 Hook, 외부 성과, 추천서, 학교별 에세이 완성도가 반드시 필요합니다.";
+}
+function v2RecommendedSchools(st, schools) {
+  const targetNames = new Set((st.interests || []).map(x => x.school).filter(Boolean));
+  return v2LegacyPredictions({ ...st, interests: [] }, schools || [])
+    .filter(p => !targetNames.has(p.school.name))
+    .filter(p => /Safety|Likely|Competitive/.test(p.category))
+    .sort((a, b) => b.schoolStrength - a.schoolStrength)
+    .slice(0, 4);
+}
+function V2ClientStrategyReport({ st, schools }) {
+  const reportSchools = schools || [];
+  const legacy = v2LegacyStage1Score(st);
+  const rubrics = v2ClientRubrics(st);
+  const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
+  const interestPredictions = interestNames.length ? v2LegacyPredictions(st, reportSchools) : [];
+  const recommended = v2RecommendedSchools(st, window.PREP_SCHOOLS || reportSchools);
+  const lowest = [...rubrics].sort((a, b) => a.score - b.score).slice(0, 2);
+  return <div className="report">
+    <div className="report-cover">
+      <div className="brand">YES Boarding Prep</div>
+      <h2>{st.name || "학생"} 학생 종합 전략 리포트</h2>
+      <p>{st.school || "현재 학교 미입력"} · {st.targetYear || "지원연도 미정"} {st.targetGrade || ""} · 학생 입력 데이터와 기존 합격 분석 모델 기반</p>
+    </div>
+    <div className="report-body">
+      <div className="section-title"><span>01</span>학생 기본 진단</div>
       <div className="grid g4">
-        <Metric title="A Academics" val={legacy.academicsA} />
-        <Metric title="B Boarding Life" val={legacy.boardingB} />
-        <Metric title="C Co-curricular" val={legacy.cocurricularC} />
-        <Metric title="Weighted Strength" val={legacy.weighted} />
+        <Metric title="종합 준비도" val={legacy.weighted} />
+        <Metric title="학업 준비도" val={legacy.academicsA} />
+        <Metric title="보딩 적합도" val={legacy.boardingB} />
+        <Metric title="EC/Hook" val={legacy.cocurricularC} />
       </div>
-      <table className="table" style={{ marginTop: 12 }}><thead><tr><th>축</th><th>입력/변환값</th><th>계산식</th><th>해석</th></tr></thead><tbody>
-        <tr><td>Academics A</td><td>SSAT {legacy.ssatRaw || "미입력"} → {legacy.ssatEval}, {legacy.toefl.label} → {legacy.toefl.eval ?? "미입력"}, GPA {legacy.gpa.label} → {legacy.gpa.eval ?? "미입력"}</td><td>SSAT 20% + TOEFL 45% + GPA 35%</td><td>시험과 성적표를 별도 가중치로 반영합니다.</td></tr>
-        <tr><td>Boarding Life B</td><td>English {legacy.toefl.eval ?? 0}, Personality {legacy.personality}/5, Boarding Fit {legacy.boardingFit}/100</td><td>English 30% + Personality 60% + Fit 10%</td><td>인터뷰/생활 적응 근거가 부족하면 자동으로 중간값에 머뭅니다.</td></tr>
-        <tr><td>Co-curricular C</td><td>EC {legacy.ecStrength}/5, Leadership {legacy.leadership}/5, Hook {legacy.hook}/5</td><td>EC 35% + Leadership 30% + Hook 35%</td><td>단순 멤버십은 낮게, 수상/대표성/장기성/스토리 증빙은 높게 반영합니다.</td></tr>
-      </tbody></table>
-      {legacy.warnings.length > 0 && <div className="card" style={{ marginTop: 12, background: "#fff7ed", borderColor: "#fed7aa" }}><b>Stage 1 경고</b>{legacy.warnings.map((w, i) => <p className="small" key={i}>- {w}</p>)}</div>}
-    </V2Section>
-    <V2Section title="Legacy Stage 1 학교별 판정">
-      <table className="table"><thead><tr><th>학교</th><th>School Strength</th><th>학생 Strength</th><th>감점</th><th>Margin</th><th>Legacy Category</th></tr></thead><tbody>
-        {predictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td>{p.schoolStrength}</td><td>{legacy.weighted}</td><td>TOEFL {p.toeflDetriment}<br />GPA {p.gpaDetriment}</td><td>{p.margin}</td><td><span className={"pill " + (p.category.includes("Safety") || p.category.includes("Likely") ? "p-green" : p.category.includes("Competitive") ? "p-blue" : p.category.includes("Dream") ? "p-amber" : "p-red")}>{p.category}</span></td></tr>)}
-      </tbody></table>
-      <p className="small muted">카테고리는 내부 전략용 estimate이며 합격 보장/확률이 아닙니다. Stage 2는 이 baseline 위에 증빙력, hook, 실행 가능성, 시나리오 delta를 얹어 해석합니다.</p>
-    </V2Section>
+      <p style={{ lineHeight: 1.8 }}>현재 입력된 자료를 기준으로 보면 {st.name || "학생"} 학생은 <b>{legacy.weighted}점</b> 수준의 종합 준비도를 보입니다. 학업, 영어, 생활 적합도, EC/Hook을 분리해서 보면 강점과 보완점이 비교적 뚜렷하게 나타납니다. 이 점수는 합격을 보장하는 숫자가 아니라, 지원 전략을 세우기 위한 내부 분석 지표입니다.</p>
+      <V2RadarChart st={st} />
+
+      <div className="section-title"><span>02</span>Rubric 점수표와 근거</div>
+      <div className="rubrics">{rubrics.map(r => <Rub key={r.key} title={r.title} val={v2Round(r.score, 1)} max={100} />)}</div>
+      <table className="table" style={{ marginTop: 14 }}><tbody>{rubrics.map(r => <tr key={r.key}><th style={{ width: 150 }}>{r.title}</th><td><p style={{ margin: 0, lineHeight: 1.75 }}>{r.evidence}</p><p style={{ margin: "8px 0 0", lineHeight: 1.75 }}><b>보완 방향:</b> {r.gap}</p></td></tr>)}</tbody></table>
+
+      <div className="section-title"><span>03</span>관심/희망학교 판정</div>
+      {interestPredictions.length ? <table className="table"><thead><tr><th>학교</th><th>현재 판정</th><th>해석 및 보완 방향</th></tr></thead><tbody>{interestPredictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>{v2CustomerSchoolNote(p)}</td></tr>)}</tbody></table> : <p className="small">관심/희망학교가 아직 지정되지 않았습니다. 학생 상세의 관심학교 3개를 입력하면 해당 학교만 대상으로 판정이 표시됩니다.</p>}
+
+      <div className="section-title"><span>04</span>현재 점수 기준 추천 학교 4개</div>
+      <table className="table"><thead><tr><th>추천 학교</th><th>추천 구간</th><th>추천 이유</th><th>다음 액션</th></tr></thead><tbody>{recommended.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">{p.school.state || ""} · SSAT 기준 {p.school.ssat || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>현재 준비도에서 현실적으로 검토할 수 있는 학교입니다. {p.school.fit || "학업 적합도, 보딩 준비도, EC 깊이를 함께 검토해야 합니다."}</td><td style={{ lineHeight: 1.7 }}>{p.school.name}의 프로그램 중 학생의 Hook과 연결되는 지점을 2개 이상 찾고, 인터뷰와 에세이에서 사용할 구체 사례를 준비해 주세요.</td></tr>)}</tbody></table>
+
+      <div className="section-title"><span>05</span>우선 보완 전략</div>
+      {lowest.map((r, i) => <p key={r.key} style={{ lineHeight: 1.8 }}><b>{i + 1}. {r.title}</b><br />{r.gap}</p>)}
+      <p style={{ lineHeight: 1.8 }}>남은 기간에는 모든 항목을 동시에 넓게 보완하기보다, 점수가 낮은 축을 중심으로 증빙 가능한 결과물을 만드는 것이 중요합니다. 특히 학교별 에세이와 인터뷰에서는 단순히 활동을 나열하기보다, 학생이 어떤 환경에서 성장했고 어떤 방식으로 학교 공동체에 기여할 수 있는지를 한 문장으로 정리해야 합니다.</p>
+    </div>
   </div>;
 }
 
@@ -490,17 +604,13 @@ function V2Ecs({ st, update }) {
 function V2BasicReport({ st, schools }) {
   const recs = (st.interests || []).map(x => x.school).filter(Boolean).map(name => v2FindSchool(schools, name)).filter(Boolean);
   const reportSchools = recs.length ? recs : schools;
-  return <div className="grid">
-    <V2LegacyStage1Panel st={st} schools={reportSchools} />
-    <V2Section title="성적 변화"><V2GpaChart terms={st.academicTerms || []} /></V2Section>
-    <EnhancedReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} />
-  </div>;
+  return <V2ClientStrategyReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} />;
 }
 function V2StageTwo({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
-  return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <EnhancedReport st={st} schools={schools} />}</div>;
+  return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}</div>;
 }
 function V2StageThree({ st, update, schools }) {
   const [sub, setSub] = useState("actions");
