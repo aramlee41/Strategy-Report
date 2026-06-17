@@ -13,6 +13,12 @@ const V2_SCHOOL_TYPES = ["보딩스쿨", "국제학교 (Day School)", "외국인
 const V2_COUNTRIES = ["대한민국", "미국", "기타"];
 const V2_LANGUAGES = ["한국어", "영어", "중국어", "일본어", "스페인어", "프랑스어", "기타"];
 const V2_NATIONALITIES = ["대한민국", "미국", "캐나다", "중국", "일본", "기타"];
+const V2_ADDRESS_TYPES = ["Permanent Address", "Mailing Address", "Guardian Address", "기타"];
+const V2_PHONE_TYPES = ["학생 휴대폰", "학생 보조 연락처", "카카오톡", "WhatsApp", "기타"];
+const V2_COUNTRY_CODES = ["+82 대한민국", "+1 미국/캐나다", "+86 중국", "+81 일본", "+44 영국", "+61 호주", "기타"];
+const V2_EDUCATION_LEVELS = ["고등학교 중퇴", "고등학교 졸업", "전문대 중퇴", "전문대 졸업", "4년제 대학교 (학사) 중퇴", "4년제 대학교 (학사) 졸업", "대학원 (석사) 중퇴", "대학원 (석사) 졸업", "대학원 (박사) 중퇴", "대학원 (박사) 졸업", "기타"];
+const V2_PARENT_KEYS = [["father", "아버지"], ["mother", "어머니"]];
+const V2_SIBLING_COUNTS = ["0", "1", "2", "3", "4", "5+"];
 const V2_TEST_FIELDS = {
   SSAT: ["Verbal", "Quantitative", "Reading", "Total", "Percentile", "Writing Sample"],
   PSAT: ["Reading and Writing", "Math", "Total", "Selection Index", "Percentile"],
@@ -47,6 +53,17 @@ const V2_EMPTY_EC = () => ({
   cat: "Athletics: JV/Varsity", season: "Fall", name: "", team: "", from: "", to: "",
   weeks: "", hours: "", level: "", position: "", leadership: "", honors: "", impact: ""
 });
+const V2_EMPTY_ADDRESS = (type = "Permanent Address") => ({ type, typeOther: "", zip: "", searchQuery: "", koreanAddress: "", englishAddress: "", notes: "" });
+const V2_EMPTY_PHONE = () => ({ type: "학생 휴대폰", typeOther: "", countryCode: "+82 대한민국", countryCodeOther: "", number: "", preferred: "Yes" });
+const V2_EMPTY_PARENT = relation => ({
+  relation,
+  nameKo: "", passportName: "", dob: "", countryCode: "+82 대한민국", countryCodeOther: "", phone: "",
+  occupation: "", title: "", company: "", companyAddress: "", email: "",
+  educationLevel: "", highSchoolName: "", collegeName: "", bachelorDegree: "", bachelorYear: "",
+  masterSchoolName: "", masterDegree: "", masterYear: "", doctoralSchoolName: "", doctoralDegree: "", doctoralYear: "",
+  sameAddress: "Yes", linkedAddressType: "Permanent Address", address: ""
+});
+const V2_EMPTY_SIBLING = () => ({ relation: "", relationOther: "", name: "", englishName: "", dob: "", school: "", grade: "", notes: "" });
 
 function v2BaseData() {
   const raw = typeof load === "function" ? load() : {};
@@ -68,6 +85,21 @@ function v2NormalizeStudent(s) {
   const previous = [...(s.previousSchools || []), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS()].slice(0, 3);
   const interests = [...(s.interests || []).map(x => ({ ...x, reason: x.reason || x.note || "" })), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()].slice(0, 3);
   const terms = s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ subject: "Overall", grade: a.gpa || "", comment: a.comment || "" }] }));
+  const addresses = basic.addresses?.length ? basic.addresses : [
+    { ...V2_EMPTY_ADDRESS("Permanent Address"), zip: basic.zip || "", searchQuery: basic.addressSearchQuery || "", koreanAddress: basic.koreanAddress || basic.address || "", englishAddress: basic.englishAddress || "" },
+    V2_EMPTY_ADDRESS("Mailing Address")
+  ];
+  const phones = basic.phones?.length ? basic.phones : [
+    { ...V2_EMPTY_PHONE(), number: basic.phone || "" }
+  ];
+  const parents = {
+    father: { ...V2_EMPTY_PARENT("father"), ...(basic.parents?.father || {}) },
+    mother: { ...V2_EMPTY_PARENT("mother"), ...(basic.parents?.mother || {}) }
+  };
+  if (basic.parentPhone && !parents.father.phone && !parents.mother.phone) parents.father.phone = basic.parentPhone;
+  const siblingCount = basic.siblingCount || String((basic.siblings || []).length || "0");
+  const siblingTarget = siblingCount === "5+" ? Math.max(5, (basic.siblings || []).length) : Number(siblingCount);
+  const siblings = Array.from({ length: siblingTarget || 0 }, (_, i) => ({ ...V2_EMPTY_SIBLING(), ...((basic.siblings || [])[i] || {}) }));
   return {
     ...s,
     owners,
@@ -99,7 +131,12 @@ function v2NormalizeStudent(s) {
       koreanAddress: basic.koreanAddress || basic.address || "",
       englishAddress: basic.englishAddress || "",
       addressSearchQuery: basic.addressSearchQuery || "",
-      ...basic
+      ...basic,
+      addresses,
+      phones,
+      parents,
+      siblingCount,
+      siblings
     },
     currentSchoolInfo: s.currentSchoolInfo || {},
     previousSchools: previous,
@@ -484,16 +521,50 @@ function V2LanguageLevelPicker({ label, values = [], levels = {}, setValues, set
   const setLevel = (lang, level) => setLevels({ ...levels, [lang]: level });
   return <div className="field"><span className="label">{label}</span><div className="language-grid">{options.map(lang => <div key={lang} className={"language-row " + (values.includes(lang) ? "selected" : "")}><button type="button" className="language-toggle" onClick={() => toggle(lang)}>{values.includes(lang) ? "✓" : "+"}</button><span>{lang}</span>{values.includes(lang) && <select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select>}</div>)}</div></div>;
 }
-function V2AddressHelper({ basic, setBasic }) {
+function V2AddressSearchButtons({ address }) {
   const openRoad = () => {
-    const q = encodeURIComponent(basic.addressSearchQuery || basic.koreanAddress || "");
+    const q = encodeURIComponent(address.searchQuery || address.koreanAddress || "");
     window.open(`https://www.juso.go.kr/openIndexPage.do?keyword=${q}`, "_blank");
   };
   const openEnglish = () => {
-    const q = encodeURIComponent(basic.koreanAddress || basic.addressSearchQuery || "");
+    const q = encodeURIComponent(address.koreanAddress || address.searchQuery || "");
     window.open(`https://www.jusoen.com/?query=${q}`, "_blank");
   };
-  return <V2Section title="주소"><div className="grid g3"><V2Field label="우편번호" val={basic.zip} set={v => setBasic("zip", v)} /><V2Field label="주소 검색어" val={basic.addressSearchQuery} set={v => setBasic("addressSearchQuery", v)} /><div className="field"><span className="label">&nbsp;</span><div className="right"><button type="button" className="btn ghost" onClick={openRoad}>도로명주소 검색</button><button type="button" className="btn ghost" onClick={openEnglish}>영문주소 변환</button></div></div></div><V2Text label="한국어 주소" val={basic.koreanAddress} set={v => setBasic("koreanAddress", v)} /><V2Text label="영문 주소" val={basic.englishAddress} set={v => setBasic("englishAddress", v)} /><p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p></V2Section>;
+  return <div className="field"><span className="label">&nbsp;</span><div className="right"><button type="button" className="btn ghost" onClick={openRoad}>도로명주소 검색</button><button type="button" className="btn ghost" onClick={openEnglish}>영문주소 변환</button></div></div>;
+}
+function V2AddressHelper({ basic, setBasic }) {
+  const addresses = basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address")];
+  const phones = basic.phones || [V2_EMPTY_PHONE()];
+  const editAddress = (i, patch) => setBasic("addresses", v2SetArr(addresses, i, patch));
+  const editPhone = (i, patch) => setBasic("phones", v2SetArr(phones, i, patch));
+  return <V2Section title="학생 주소/연락처">
+    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v })} /><V2AddressSearchButtons address={a} /></div><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v })} /><V2Text label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
+    <ArrayEditor title="학생 연락처" rows={phones} add={() => setBasic("phones", [...phones, V2_EMPTY_PHONE()])} render={(p, i) => <div className="grid g4"><V2Select label="연락처 구분" val={p.type} set={v => editPhone(i, { type: v })} options={V2_PHONE_TYPES} />{p.type === "기타" && <V2Field label="연락처 구분 직접 입력" val={p.typeOther} set={v => editPhone(i, { typeOther: v })} />}<V2Select label="지역/국가번호" val={p.countryCode} set={v => editPhone(i, { countryCode: v })} options={V2_COUNTRY_CODES} />{p.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={p.countryCodeOther} set={v => editPhone(i, { countryCodeOther: v })} />}<V2Field label="전화번호/ID" val={p.number} set={v => editPhone(i, { number: v })} /><V2Select label="대표 연락처" val={p.preferred} set={v => editPhone(i, { preferred: v })} options={["Yes", "No"]} /></div>} />
+    <div className="grid g2"><V2Field label="학생 이메일" val={basic.email} set={v => setBasic("email", v)} /><V2Field label="학생 Social Media" val={basic.socialMedia} set={v => setBasic("socialMedia", v)} /></div>
+    <p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p>
+  </V2Section>;
+}
+function V2ParentEditor({ label, parent, setParent, addresses }) {
+  return <div className="card" style={{ background: "#f8fbfe", marginBottom: 12 }}><h3>{label}</h3><div className="grid g3"><V2Field label="성함" val={parent.nameKo} set={v => setParent({ nameKo: v })} /><V2Field label="영문 성함 (여권명)" val={parent.passportName} set={v => setParent({ passportName: v })} /><V2Field label="생년월일" type="date" val={parent.dob} set={v => setParent({ dob: v })} /><V2Select label="지역/국가번호" val={parent.countryCode} set={v => setParent({ countryCode: v })} options={V2_COUNTRY_CODES} />{parent.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={parent.countryCodeOther} set={v => setParent({ countryCodeOther: v })} />}<V2Field label="핸드폰 번호" val={parent.phone} set={v => setParent({ phone: v })} /><V2Field label="개인 이메일 주소" val={parent.email} set={v => setParent({ email: v })} /><V2Field label="직업" val={parent.occupation} set={v => setParent({ occupation: v })} /><V2Field label="직책" val={parent.title} set={v => setParent({ title: v })} /><V2Field label="회사명" val={parent.company} set={v => setParent({ company: v })} /></div><V2Text label="회사 주소" val={parent.companyAddress} set={v => setParent({ companyAddress: v })} /><div className="grid g3"><V2Select label="최종학력" val={parent.educationLevel} set={v => setParent({ educationLevel: v })} options={V2_EDUCATION_LEVELS} /><V2Field label="고등학교명" val={parent.highSchoolName} set={v => setParent({ highSchoolName: v })} /><V2Field label="대학교명" val={parent.collegeName} set={v => setParent({ collegeName: v })} /><V2Field label="학사 학위명" val={parent.bachelorDegree} set={v => setParent({ bachelorDegree: v })} /><V2Field label="학사 수여연도" val={parent.bachelorYear} set={v => setParent({ bachelorYear: v })} /><V2Field label="대학원 (석사) 명" val={parent.masterSchoolName} set={v => setParent({ masterSchoolName: v })} /><V2Field label="석사 학위명" val={parent.masterDegree} set={v => setParent({ masterDegree: v })} /><V2Field label="석사 수여연도" val={parent.masterYear} set={v => setParent({ masterYear: v })} /><V2Field label="대학원 (박사) 명" val={parent.doctoralSchoolName} set={v => setParent({ doctoralSchoolName: v })} /><V2Field label="박사 학위명" val={parent.doctoralDegree} set={v => setParent({ doctoralDegree: v })} /><V2Field label="박사 수여연도" val={parent.doctoralYear} set={v => setParent({ doctoralYear: v })} /></div><div className="grid g3"><V2Select label="자녀와 집주소 동일 여부" val={parent.sameAddress} set={v => setParent({ sameAddress: v })} options={["Yes", "No"]} />{parent.sameAddress === "Yes" && <V2Select label="가져올 자녀 주소" val={parent.linkedAddressType} set={v => setParent({ linkedAddressType: v })} options={(addresses || []).map(a => a.type).filter(Boolean)} />}</div>{parent.sameAddress === "No" && <V2Text label="부모 주소" val={parent.address} set={v => setParent({ address: v })} />}</div>;
+}
+function V2FamilySection({ basic, setBasic }) {
+  const parents = basic.parents || { father: V2_EMPTY_PARENT("father"), mother: V2_EMPTY_PARENT("mother") };
+  const addresses = basic.addresses || [];
+  const setParent = (key, patch) => setBasic("parents", { ...parents, [key]: { ...parents[key], ...patch } });
+  const count = basic.siblingCount || "0";
+  const siblingLen = count === "5+" ? Math.max(5, (basic.siblings || []).length) : Number(count);
+  const siblings = Array.from({ length: siblingLen || 0 }, (_, i) => ({ ...V2_EMPTY_SIBLING(), ...((basic.siblings || [])[i] || {}) }));
+  const setSiblingCount = value => {
+    const len = value === "5+" ? 5 : Number(value);
+    setBasic({ siblingCount: value, siblings: Array.from({ length: len || 0 }, (_, i) => ({ ...V2_EMPTY_SIBLING(), ...((basic.siblings || [])[i] || {}) })) });
+  };
+  const editSibling = (i, patch) => setBasic("siblings", v2SetArr(siblings, i, patch));
+  const gender = basic.gender || "";
+  const relationOptions = gender === "남자" ? ["형", "누나", "쌍둥이", "남동생", "여동생", "기타"] : ["오빠", "언니", "쌍둥이", "남동생", "여동생", "기타"];
+  return <V2Section title="가족관계">
+    {V2_PARENT_KEYS.map(([key, label]) => <V2ParentEditor key={key} label={label} parent={parents[key] || V2_EMPTY_PARENT(key)} setParent={patch => setParent(key, patch)} addresses={addresses} />)}
+    <div className="card" style={{ background: "#f8fbfe" }}><h3>형제관계</h3><V2Select label="형제 수" val={count} set={setSiblingCount} options={V2_SIBLING_COUNTS} />{siblings.map((s, i) => <div key={i} className="card" style={{ marginTop: 12 }}><h3>형제/자매/남매 {i + 1}</h3><div className="grid g3"><V2Select label="학생과의 관계" val={s.relation} set={v => editSibling(i, { relation: v })} options={relationOptions} />{s.relation === "기타" && <V2Field label="관계 직접 입력" val={s.relationOther} set={v => editSibling(i, { relationOther: v })} />}<V2Field label="성함" val={s.name} set={v => editSibling(i, { name: v })} /><V2Field label="영문 성함" val={s.englishName} set={v => editSibling(i, { englishName: v })} /><V2Field label="생년월일" type="date" val={s.dob} set={v => editSibling(i, { dob: v })} /><V2Field label="학교명" val={s.school} set={v => editSibling(i, { school: v })} /><V2Select label="현재 학년" val={s.grade} set={v => editSibling(i, { grade: v })} options={V2_GRADE_OPTIONS} /></div><V2Text label="메모" val={s.notes} set={v => editSibling(i, { notes: v })} /></div>)}</div>
+  </V2Section>;
 }
 function V2SubTabs({ tabs, active, set }) {
   return <div className="tabs" style={{ marginTop: 4 }}>{tabs.map(t => <button key={t[0]} className={"tab " + (active === t[0] ? "active" : "")} onClick={() => set(t[0])}>{t[1]}</button>)}</div>;
@@ -543,7 +614,7 @@ function V2StageOne({ st, update, schools, staff }) {
   const [sub, setSub] = useState("identity");
   const basic = st.basic || {};
   const setBasic = (k, v) => {
-    const nb = { ...basic, [k]: v };
+    const nb = typeof k === "object" ? { ...basic, ...k } : { ...basic, [k]: v };
     update({ basic: nb, ...v2NamePatch(nb) });
   };
   const tabs = [["identity", "기본 정보"], ["program", "프로그램/목표"], ["schools", "학교 정보"], ["grades", "성적표"], ["tests", "시험"], ["ecs", "EC 기본"], ["report", "기초 보고서"]];
@@ -555,8 +626,8 @@ function V2Identity({ st, basic, setBasic, update, staff }) {
   return <div className="grid">
     <V2Section title="이름 / 생년월일 / 담당자"><div className="grid g4"><V2Field label="성" val={basic.lastNameKo} set={v => setBasic("lastNameKo", v)} /><V2Field label="이름" val={basic.firstNameKo} set={v => setBasic("firstNameKo", v)} /><V2Field label="영문 이름" val={basic.firstNameEn} set={v => setBasic("firstNameEn", v)} /><V2Field label="영문 성" val={basic.lastNameEn} set={v => setBasic("lastNameEn", v)} /><V2Field label="Preferred Name" val={basic.preferredName} set={v => setBasic("preferredName", v)} /><V2Field label="생년월일" type="date" val={basic.dob} set={v => setBasic("dob", v)} /><V2Select label="성별" val={basic.gender} set={v => setBasic("gender", v)} options={["남자", "여자", "미입력"]} /><V2OwnerPicker staff={staff} values={st.owners || []} set={setOwners} /></div></V2Section>
     <V2Section title="출생 / 국적"><div className="grid g3"><V2Field label="출생 도시" val={basic.birthCity} set={v => setBasic("birthCity", v)} /><V2Select label="출생 국가" val={basic.birthCountry} set={v => setBasic("birthCountry", v)} options={V2_COUNTRIES} />{basic.birthCountry === "기타" && <V2Field label="출생 국가 직접 입력" val={basic.birthCountryOther} set={v => setBasic("birthCountryOther", v)} />}</div><V2Multi label="국적" values={basic.nationalities || []} set={v => setBasic("nationalities", v)} options={V2_NATIONALITIES} otherValue={basic.nationalityOther} setOther={v => setBasic("nationalityOther", v)} /><div className="grid g3"><V2Select label="미국 영주권/시민권" val={basic.usStatus} set={v => setBasic("usStatus", v)} options={["없음", "영주권", "시민권", "기타"]} />{basic.usStatus === "기타" && <V2Field label="미국 체류/신분 직접 입력" val={basic.usStatusOther} set={v => setBasic("usStatusOther", v)} />}</div></V2Section>
-    <V2Section title="연락처"><div className="grid g3"><V2Field label="학생 이메일" val={basic.email} set={v => setBasic("email", v)} /><V2Field label="학생 휴대폰" val={basic.phone} set={v => setBasic("phone", v)} /><V2Field label="학생 Social Media" val={basic.socialMedia} set={v => setBasic("socialMedia", v)} /><V2Field label="부모 연락처" val={basic.parentPhone} set={v => setBasic("parentPhone", v)} /></div></V2Section>
     <V2AddressHelper basic={basic} setBasic={setBasic} />
+    <V2FamilySection basic={basic} setBasic={setBasic} />
     <V2Section title="언어"><V2Multi label="모국어" values={basic.firstLanguages || []} set={v => setBasic("firstLanguages", v)} options={V2_LANGUAGES} otherValue={basic.firstLanguageOther} setOther={v => setBasic("firstLanguageOther", v)} /><V2Multi label="가정 사용 언어" values={basic.homeLanguages || []} set={v => setBasic("homeLanguages", v)} options={V2_LANGUAGES} otherValue={basic.homeLanguageOther} setOther={v => setBasic("homeLanguageOther", v)} /><V2LanguageLevelPicker label="그 외 소통 가능 언어" values={basic.communicationLanguages || []} levels={basic.communicationLanguageLevels || {}} setValues={v => setBasic("communicationLanguages", v)} setLevels={setCommLevels} options={V2_LANGUAGES} />{(basic.communicationLanguages || []).includes("기타") && <V2Field label="기타 소통 가능 언어" val={basic.communicationLanguageOther} set={v => setBasic("communicationLanguageOther", v)} />}</V2Section>
     <V2Section title="지원 조건"><div className="grid g3"><V2Select label="Financial Aid" val={basic.financialAid} set={v => setBasic("financialAid", v)} options={["Yes", "No", "미정"]} /><V2Select label="Boarding/Day 지원" val={basic.boardingDay} set={v => setBasic("boardingDay", v)} options={["Boarding", "Day", "Both"]} /></div><V2Text label="추가 필수 정보/특이사항" val={basic.requiredNotes} set={v => setBasic("requiredNotes", v)} /></V2Section>
   </div>;
