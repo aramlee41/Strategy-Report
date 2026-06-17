@@ -9,24 +9,38 @@ const V2_GRADE_OPTIONS = Array.from({ length: 9 }, (_, i) => `${i + 4}학년`);
 const V2_TARGET_GRADE_OPTIONS = [...V2_GRADE_OPTIONS, "대학"];
 const V2_YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() + i));
 const V2_PROGRAM_OPTIONS = ["주니어보딩", "시니어보딩", "보딩프렙"];
-const V2_SCHOOL_TYPES = ["보딩스쿨", "국제학교 (Day School)", "외국인학교", "공립학교", "특목고/자사고", "기타"];
+const V2_SCHOOL_TYPES = ["보딩스쿨", "국제학교 (Day School)", "외국인학교", "공립학교", "특목고/자사고", "온라인 스쿨", "홈스쿨링", "기타"];
 const V2_COUNTRIES = ["대한민국", "미국", "기타"];
 const V2_LANGUAGES = ["한국어", "영어", "중국어", "일본어", "스페인어", "프랑스어", "기타"];
 const V2_NATIONALITIES = ["대한민국", "미국", "캐나다", "중국", "일본", "기타"];
 const V2_ADDRESS_TYPES = ["Permanent Address", "Mailing Address", "Guardian Address", "기타"];
-const V2_PHONE_TYPES = ["학생 휴대폰", "학생 보조 연락처", "카카오톡", "WhatsApp", "기타"];
+const V2_PHONE_TYPES = ["학생 휴대폰", "학생 보조 연락처", "카카오톡", "WhatsApp", "Instagram", "Facebook", "기타"];
 const V2_COUNTRY_CODES = ["+82 대한민국", "+1 미국/캐나다", "+86 중국", "+81 일본", "+44 영국", "+61 호주", "기타"];
 const V2_EDUCATION_LEVELS = ["고등학교 중퇴", "고등학교 졸업", "전문대 중퇴", "전문대 졸업", "4년제 대학교 (학사) 중퇴", "4년제 대학교 (학사) 졸업", "대학원 (석사) 중퇴", "대학원 (석사) 졸업", "대학원 (박사) 중퇴", "대학원 (박사) 졸업", "기타"];
 const V2_PARENT_KEYS = [["father", "아버지"], ["mother", "어머니"]];
 const V2_SIBLING_COUNTS = ["0", "1", "2", "3", "4", "5+"];
+const V2_TRANSCRIPT_YEARS = Array.from({ length: 8 }, (_, i) => String(new Date().getFullYear() - 5 + i));
+const V2_TERM_SEASONS = ["Spring", "Summer", "Fall", "Winter"];
+const V2_SUBJECT_CATEGORIES = ["English", "Math", "Science", "Social Sciences", "Arts", "Health", "World Languages", "Electives"];
+const V2_LETTER_GRADES = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F", "P", "미입력"];
+const V2_EC_STATUS = ["진행 중", "완료"];
+const V2_EC_CATEGORIES_CLIENT = ["Sports", "Music", "Arts", "Community Services", "STEM", "Debate/Speech", "Journalism/Publication", "Internship/Entrepreneurship", "Academic & Intellectual"];
+const V2_SPORTS_LIST = [
+  "Football 미식축구", "Soccer 축구", "Cross Country 크로스컨트리", "Field Hockey 필드하키", "Volleyball 배구", "Tennis 테니스", "Golf 골프", "Water Polo 수구", "Crew / Rowing 조정", "Mountain Biking 산악자전거", "Equestrian 승마", "Sailing 세일링", "Cheerleading 치어리딩",
+  "Basketball 농구", "Ice Hockey 아이스하키", "Wrestling 레슬링", "Swimming & Diving 수영/다이빙", "Squash 스쿼시", "Indoor Track 실내 육상", "Skiing 스키", "Snowboarding 스노보드", "Figure Skating 피겨스케이팅", "Fencing 펜싱", "Dance 댄스",
+  "Baseball 야구", "Softball 소프트볼", "Lacrosse 라크로스", "Track & Field 육상", "Ultimate Frisbee 얼티밋 프리스비", "Rugby 럭비", "Cycling 사이클", "Badminton 배드민턴", "Outdoor Adventure / Climbing 클라이밍·아웃도어",
+  "Fitness / Weight Training 피트니스·웨이트", "Yoga 요가", "Martial Arts 무술", "Rock Climbing 암벽등반", "Recreational Sports 레크리에이션 스포츠", "Intramural Sports 교내 리그", "Strength & Conditioning 체력훈련", "Outdoor Program 하이킹·캠핑·카약·스키 등"
+];
+const V2_EC_LEVELS = ["Junior Varsity", "Varsity", "Regional", "National", "기타"];
+const V2_AWARD_LEVELS = ["International", "National", "Regional/Local", "School"];
 const V2_TEST_FIELDS = {
-  SSAT: ["Verbal", "Quantitative", "Reading", "Total", "Percentile", "Writing Sample"],
-  PSAT: ["Reading and Writing", "Math", "Total", "Selection Index", "Percentile"],
-  SAT: ["Reading and Writing", "Math", "Total", "Percentile"],
-  ACT: ["English", "Math", "Reading", "Science", "Composite", "Writing"],
-  TOEFL: ["Reading", "Listening", "Speaking", "Writing", "Total"],
-  IELTS: ["Listening", "Reading", "Writing", "Speaking", "Overall"],
-  DET: ["Overall", "Literacy", "Comprehension", "Conversation", "Production"]
+  SSAT: ["Verbal", "Quantitative", "Reading", "Percentile", "Writing Sample"],
+  PSAT: ["Reading and Writing", "Math", "Selection Index", "Percentile"],
+  SAT: ["Reading and Writing", "Math", "Percentile"],
+  ACT: ["English", "Math", "Reading", "Science", "Writing"],
+  TOEFL: ["Reading", "Listening", "Speaking", "Writing"],
+  IELTS: ["Listening", "Reading", "Writing", "Speaking"],
+  DET: ["Literacy", "Comprehension", "Conversation", "Production"]
 };
 const V2_EC_CATEGORIES = [
   "Athletics: Club", "Athletics: JV/Varsity", "Academic", "Art", "Club", "Community Service",
@@ -44,14 +58,15 @@ const V2_ACTIVITY_SUGGESTIONS = [
 ];
 const V2_EMPTY_PREVIOUS = () => ({
   name: "", type: "", email: "", phone: "", counselor: "", address: "", website: "",
-  startDate: "", endDate: "", gradeAttended: "", finalGrade: "", discipline: "No", withdrawal: "No", notes: ""
+  startDate: "", endDate: "", gradeFrom: "", gradeTo: "", gradeAttended: "", finalGrade: "", discipline: "No", withdrawal: "No", notes: ""
 });
 const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "" });
-const V2_EMPTY_TERM = school => ({ school: school || "", term: "", subjects: [{ subject: "", grade: "", comment: "" }], termGpa: "" });
+const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: "Fall", term: "", gradeLevel: "", subjects: [{ category: "English", subject: "", grade: "", comment: "" }], termGpa: "", rank: "" });
 const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
+const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
 const V2_EMPTY_EC = () => ({
-  cat: "Athletics: JV/Varsity", season: "Fall", name: "", team: "", from: "", to: "",
-  weeks: "", hours: "", level: "", position: "", leadership: "", honors: "", impact: ""
+  cat: "Sports", status: "진행 중", name: "", team: "", from: "", to: "",
+  weeks: "", hours: "", level: "", levelOther: "", position: "", honors: "", impact: "", awards: []
 });
 const V2_EMPTY_ADDRESS = (type = "Permanent Address") => ({ type, typeOther: "", zip: "", searchQuery: "", koreanAddress: "", englishAddress: "", notes: "" });
 const V2_EMPTY_PHONE = () => ({ type: "학생 휴대폰", typeOther: "", countryCode: "+82 대한민국", countryCodeOther: "", number: "", preferred: "Yes" });
@@ -82,16 +97,18 @@ function v2NormalizeStudent(s) {
   const splitKo = String(s.name || "").trim().split(/\s+/);
   const splitEn = String(s.en || "").trim().split(/\s+/);
   const owners = s.owners || [s.owner || "aram"].filter(Boolean);
-  const previous = [...(s.previousSchools || []), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS()].slice(0, 3);
-  const interests = [...(s.interests || []).map(x => ({ ...x, reason: x.reason || x.note || "" })), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()].slice(0, 3);
-  const terms = s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ subject: "Overall", grade: a.gpa || "", comment: a.comment || "" }] }));
+  const previous = [...(s.previousSchools || []), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS()].slice(0, Math.max(2, (s.previousSchools || []).length));
+  const mappedInterests = (s.interests || []).map(x => ({ ...x, reason: x.reason || x.note || "" }));
+  const interests = mappedInterests.length >= 3 ? mappedInterests : [...mappedInterests, V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()].slice(0, 3);
+  const terms = (s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ category: "English", subject: "Overall", grade: a.gpa || "", comment: a.comment || "" }] }))).map(t => {
+    const parts = String(t.term || "").split(/\s+/);
+    return { year: t.year || parts.find(x => /^\d{4}$/.test(x)) || String(new Date().getFullYear()), season: t.season || parts.find(x => V2_TERM_SEASONS.includes(x)) || "Fall", ...t, subjects: (t.subjects || []).map(sub => ({ category: sub.category || "English", subject: sub.subject || "", grade: sub.grade || "", comment: sub.comment || "" })) };
+  });
   const addresses = basic.addresses?.length ? basic.addresses : [
     { ...V2_EMPTY_ADDRESS("Permanent Address"), zip: basic.zip || "", searchQuery: basic.addressSearchQuery || "", koreanAddress: basic.koreanAddress || basic.address || "", englishAddress: basic.englishAddress || "" },
     V2_EMPTY_ADDRESS("Mailing Address")
   ];
-  const phones = basic.phones?.length ? basic.phones : [
-    { ...V2_EMPTY_PHONE(), number: basic.phone || "" }
-  ];
+  const phones = basic.phones?.length ? basic.phones : [{ ...V2_EMPTY_PHONE(), number: basic.phone || "" }];
   const parents = {
     father: { ...V2_EMPTY_PARENT("father"), ...(basic.parents?.father || {}) },
     mother: { ...V2_EMPTY_PARENT("mother"), ...(basic.parents?.mother || {}) }
@@ -127,7 +144,8 @@ function v2NormalizeStudent(s) {
       communicationLanguages: basic.communicationLanguages || (basic.languages ? String(basic.languages).split(",").map(x => x.trim()).filter(Boolean) : []),
       communicationLanguageLevels: basic.communicationLanguageLevels || {},
       communicationLanguageOther: basic.communicationLanguageOther || "",
-      socialMedia: basic.socialMedia || "",
+      personalEmail: basic.personalEmail || basic.email || "",
+      schoolEmail: basic.schoolEmail || "",
       koreanAddress: basic.koreanAddress || basic.address || "",
       englishAddress: basic.englishAddress || "",
       addressSearchQuery: basic.addressSearchQuery || "",
@@ -222,12 +240,12 @@ function v2TestOverall(type, details, fallback) {
     const vals = ["Listening", "Reading", "Writing", "Speaking"].map(k => Number(details?.[k])).filter(Boolean);
     return vals.length === 4 ? Math.round((vals.reduce((a, b) => a + b, 0) / 4) * 2) / 2 : details?.Overall || fallback || "";
   }
-  if (type === "ACT") return details?.Composite || fallback || "";
+  if (type === "ACT") return fallback || "";
   if (type === "DET") return details?.Overall || fallback || "";
   return details?.Total || fallback || "";
 }
 function v2AcademicSummary(st) {
-  return (st.academicTerms || []).map(t => ({ term: t.term, school: t.school, gpa: v2TermGpa(t), comment: (t.subjects || []).map(s => `${s.subject}: ${s.comment}`).join(" / ") }));
+  return (st.academicTerms || []).map(t => ({ term: v2TermLabel(t), school: t.school, gpa: v2TermGpa(t), comment: (t.subjects || []).map(s => `${s.subject}: ${s.comment}`).join(" / ") }));
 }
 function v2Num(value) {
   const n = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
@@ -268,9 +286,10 @@ function v2LegacyGpaEval(st) {
 }
 function v2LegacyEcInputs(st) {
   const ecs = st.ecs || [];
-  const joined = ecs.map(e => `${e.name || ""} ${e.position || ""} ${e.leadership || ""} ${e.impact || ""} ${e.honors || ""}`).join(" ");
+  const awardText = e => (e.awards || []).map(a => `${a.level || ""} ${a.competition || ""} ${a.awardName || ""} ${a.position || ""} ${a.notes || ""}`).join(" ");
+  const joined = ecs.map(e => `${e.name || ""} ${e.position || ""} ${e.level || ""} ${e.levelOther || ""} ${e.leadership || ""} ${e.impact || ""} ${e.honors || ""} ${awardText(e)}`).join(" ");
   const leadershipHit = /captain|president|founder|leader|mentor|representative|회장|주장|리더|창립|대표/i.test(joined);
-  const impactHits = ecs.filter(e => /award|winner|rank|regional|national|state|1위|수상|대회|전국|대표|성과|impact/i.test(`${e.impact || ""} ${e.honors || ""}`)).length;
+  const impactHits = ecs.filter(e => /award|winner|rank|regional|national|international|state|1위|수상|대회|전국|대표|성과|impact/i.test(`${e.impact || ""} ${e.honors || ""} ${awardText(e)}`)).length;
   const years = ecs.filter(e => String(e.from || "") && String(e.to || "")).length;
   const hours = ecs.reduce((n, e) => n + v2Num(e.hours), 0);
   const sports = ecs.some(e => /athletic|sports|varsity|jv|ski|soccer|tennis|golf|swim|basketball|baseball/i.test(`${e.cat || ""} ${e.name || ""}`));
@@ -510,16 +529,21 @@ function V2OwnerPicker({ staff = [], values = [], set }) {
   return <div className="field owner-picker"><span className="label">담당자</span><button type="button" className="input owner-trigger" onClick={() => setOpen(!open)}>{selected.length ? selected.map(a => a.name).join(", ") : "담당자 선택"}</button>{open && <div className="owner-menu">{staff.map(a => <button type="button" key={a.id} className={"owner-option " + (values.includes(a.id) ? "selected" : "")} onClick={() => toggle(a.id)}><span>{values.includes(a.id) ? "✓" : ""}</span>{a.name}</button>)}</div>}</div>;
 }
 function V2LanguageLevelPicker({ label, values = [], levels = {}, setValues, setLevels, options }) {
-  const toggle = lang => {
-    const next = values.includes(lang) ? values.filter(x => x !== lang) : [...values, lang];
+  const [pending, setPending] = useState("");
+  const add = () => {
+    if (!pending || values.includes(pending)) return;
+    setValues([...values, pending]);
+    setLevels({ ...levels, [pending]: "Intermediate" });
+    setPending("");
+  };
+  const remove = lang => {
     const nextLevels = { ...levels };
-    if (!next.includes(lang)) delete nextLevels[lang];
-    if (next.includes(lang) && !nextLevels[lang]) nextLevels[lang] = "Intermediate";
-    setValues(next);
+    delete nextLevels[lang];
+    setValues(values.filter(x => x !== lang));
     setLevels(nextLevels);
   };
   const setLevel = (lang, level) => setLevels({ ...levels, [lang]: level });
-  return <div className="field"><span className="label">{label}</span><div className="language-grid">{options.map(lang => <div key={lang} className={"language-row " + (values.includes(lang) ? "selected" : "")}><button type="button" className="language-toggle" onClick={() => toggle(lang)}>{values.includes(lang) ? "✓" : "+"}</button><span>{lang}</span>{values.includes(lang) && <select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select>}</div>)}</div></div>;
+  return <div className="field"><span className="label">{label}</span><div className="grid g3"><V2Select label="언어 선택" val={pending} set={setPending} options={options.filter(o => !values.includes(o))} /><div className="field"><span className="label">&nbsp;</span><button type="button" className="btn ghost" onClick={add}>언어 추가</button></div></div><div className="grid">{values.map(lang => <div key={lang} className="language-row selected"><span>{lang}</span><select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select><button type="button" className="btn ghost" onClick={() => remove(lang)}>삭제</button></div>)}</div></div>;
 }
 function V2AddressSearchButtons({ address }) {
   const openRoad = () => {
@@ -538,14 +562,23 @@ function V2AddressHelper({ basic, setBasic }) {
   const editAddress = (i, patch) => setBasic("addresses", v2SetArr(addresses, i, patch));
   const editPhone = (i, patch) => setBasic("phones", v2SetArr(phones, i, patch));
   return <V2Section title="학생 주소/연락처">
-    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v })} /><V2AddressSearchButtons address={a} /></div><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v })} /><V2Text label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
+    <div className="grid g2"><V2Field label="개인 이메일" val={basic.personalEmail} set={v => setBasic("personalEmail", v)} /><V2Field label="학교 이메일" val={basic.schoolEmail} set={v => setBasic("schoolEmail", v)} /></div>
     <ArrayEditor title="학생 연락처" rows={phones} add={() => setBasic("phones", [...phones, V2_EMPTY_PHONE()])} render={(p, i) => <div className="grid g4"><V2Select label="연락처 구분" val={p.type} set={v => editPhone(i, { type: v })} options={V2_PHONE_TYPES} />{p.type === "기타" && <V2Field label="연락처 구분 직접 입력" val={p.typeOther} set={v => editPhone(i, { typeOther: v })} />}<V2Select label="지역/국가번호" val={p.countryCode} set={v => editPhone(i, { countryCode: v })} options={V2_COUNTRY_CODES} />{p.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={p.countryCodeOther} set={v => editPhone(i, { countryCodeOther: v })} />}<V2Field label="전화번호/ID" val={p.number} set={v => editPhone(i, { number: v })} /><V2Select label="대표 연락처" val={p.preferred} set={v => editPhone(i, { preferred: v })} options={["Yes", "No"]} /></div>} />
-    <div className="grid g2"><V2Field label="학생 이메일" val={basic.email} set={v => setBasic("email", v)} /><V2Field label="학생 Social Media" val={basic.socialMedia} set={v => setBasic("socialMedia", v)} /></div>
+    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
     <p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p>
   </V2Section>;
 }
+function v2EducationStage(level = "") {
+  if (/박사/.test(level)) return 4;
+  if (/석사/.test(level)) return 3;
+  if (/4년제|학사/.test(level)) return 2;
+  if (/전문대/.test(level)) return 2;
+  if (/고등학교/.test(level)) return 1;
+  return 0;
+}
 function V2ParentEditor({ label, parent, setParent, addresses }) {
-  return <div className="card" style={{ background: "#f8fbfe", marginBottom: 12 }}><h3>{label}</h3><div className="grid g3"><V2Field label="성함" val={parent.nameKo} set={v => setParent({ nameKo: v })} /><V2Field label="영문 성함 (여권명)" val={parent.passportName} set={v => setParent({ passportName: v })} /><V2Field label="생년월일" type="date" val={parent.dob} set={v => setParent({ dob: v })} /><V2Select label="지역/국가번호" val={parent.countryCode} set={v => setParent({ countryCode: v })} options={V2_COUNTRY_CODES} />{parent.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={parent.countryCodeOther} set={v => setParent({ countryCodeOther: v })} />}<V2Field label="핸드폰 번호" val={parent.phone} set={v => setParent({ phone: v })} /><V2Field label="개인 이메일 주소" val={parent.email} set={v => setParent({ email: v })} /><V2Field label="직업" val={parent.occupation} set={v => setParent({ occupation: v })} /><V2Field label="직책" val={parent.title} set={v => setParent({ title: v })} /><V2Field label="회사명" val={parent.company} set={v => setParent({ company: v })} /></div><V2Text label="회사 주소" val={parent.companyAddress} set={v => setParent({ companyAddress: v })} /><div className="grid g3"><V2Select label="최종학력" val={parent.educationLevel} set={v => setParent({ educationLevel: v })} options={V2_EDUCATION_LEVELS} /><V2Field label="고등학교명" val={parent.highSchoolName} set={v => setParent({ highSchoolName: v })} /><V2Field label="대학교명" val={parent.collegeName} set={v => setParent({ collegeName: v })} /><V2Field label="학사 학위명" val={parent.bachelorDegree} set={v => setParent({ bachelorDegree: v })} /><V2Field label="학사 수여연도" val={parent.bachelorYear} set={v => setParent({ bachelorYear: v })} /><V2Field label="대학원 (석사) 명" val={parent.masterSchoolName} set={v => setParent({ masterSchoolName: v })} /><V2Field label="석사 학위명" val={parent.masterDegree} set={v => setParent({ masterDegree: v })} /><V2Field label="석사 수여연도" val={parent.masterYear} set={v => setParent({ masterYear: v })} /><V2Field label="대학원 (박사) 명" val={parent.doctoralSchoolName} set={v => setParent({ doctoralSchoolName: v })} /><V2Field label="박사 학위명" val={parent.doctoralDegree} set={v => setParent({ doctoralDegree: v })} /><V2Field label="박사 수여연도" val={parent.doctoralYear} set={v => setParent({ doctoralYear: v })} /></div><div className="grid g3"><V2Select label="자녀와 집주소 동일 여부" val={parent.sameAddress} set={v => setParent({ sameAddress: v })} options={["Yes", "No"]} />{parent.sameAddress === "Yes" && <V2Select label="가져올 자녀 주소" val={parent.linkedAddressType} set={v => setParent({ linkedAddressType: v })} options={(addresses || []).map(a => a.type).filter(Boolean)} />}</div>{parent.sameAddress === "No" && <V2Text label="부모 주소" val={parent.address} set={v => setParent({ address: v })} />}</div>;
+  const stage = v2EducationStage(parent.educationLevel);
+  return <div className="card" style={{ background: "#f8fbfe", marginBottom: 12 }}><h3>{label}</h3><div className="grid g3"><V2Field label="성함" val={parent.nameKo} set={v => setParent({ nameKo: v })} /><V2Field label="영문 성함 (여권명)" val={parent.passportName} set={v => setParent({ passportName: v })} /><V2Field label="생년월일" type="date" val={parent.dob} set={v => setParent({ dob: v })} /><V2Select label="지역/국가번호" val={parent.countryCode} set={v => setParent({ countryCode: v })} options={V2_COUNTRY_CODES} />{parent.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={parent.countryCodeOther} set={v => setParent({ countryCodeOther: v })} />}<V2Field label="핸드폰 번호" val={parent.phone} set={v => setParent({ phone: v })} /><V2Field label="개인 이메일 주소" val={parent.email} set={v => setParent({ email: v })} /><V2Field label="직업" val={parent.occupation} set={v => setParent({ occupation: v })} /><V2Field label="직책" val={parent.title} set={v => setParent({ title: v })} /><V2Field label="회사명" val={parent.company} set={v => setParent({ company: v })} /></div><V2Text label="회사 주소" val={parent.companyAddress} set={v => setParent({ companyAddress: v })} /><div className="grid g3"><V2Select label="최종학력" val={parent.educationLevel} set={v => setParent({ educationLevel: v })} options={V2_EDUCATION_LEVELS} />{stage >= 1 && <V2Field label="고등학교명" val={parent.highSchoolName} set={v => setParent({ highSchoolName: v })} />}{stage >= 2 && <V2Field label="대학교명" val={parent.collegeName} set={v => setParent({ collegeName: v })} />}{stage >= 2 && <V2Field label="학사 학위명" val={parent.bachelorDegree} set={v => setParent({ bachelorDegree: v })} />}{stage >= 2 && <V2Field label="학사 수여연도" val={parent.bachelorYear} set={v => setParent({ bachelorYear: v })} />}{stage >= 3 && <V2Field label="대학원 (석사) 명" val={parent.masterSchoolName} set={v => setParent({ masterSchoolName: v })} />}{stage >= 3 && <V2Field label="석사 학위명" val={parent.masterDegree} set={v => setParent({ masterDegree: v })} />}{stage >= 3 && <V2Field label="석사 수여연도" val={parent.masterYear} set={v => setParent({ masterYear: v })} />}{stage >= 4 && <V2Field label="대학원 (박사) 명" val={parent.doctoralSchoolName} set={v => setParent({ doctoralSchoolName: v })} />}{stage >= 4 && <V2Field label="박사 학위명" val={parent.doctoralDegree} set={v => setParent({ doctoralDegree: v })} />}{stage >= 4 && <V2Field label="박사 수여연도" val={parent.doctoralYear} set={v => setParent({ doctoralYear: v })} />}</div><div className="grid g3"><V2Select label="자녀와 집주소 동일 여부" val={parent.sameAddress} set={v => setParent({ sameAddress: v })} options={["Yes", "No"]} />{parent.sameAddress === "Yes" && <V2Select label="가져올 자녀 주소" val={parent.linkedAddressType} set={v => setParent({ linkedAddressType: v })} options={(addresses || []).map(a => a.type).filter(Boolean)} />}</div>{parent.sameAddress === "No" && <V2Text label="부모 주소" val={parent.address} set={v => setParent({ address: v })} />}</div>;
 }
 function V2FamilySection({ basic, setBasic }) {
   const parents = basic.parents || { father: V2_EMPTY_PARENT("father"), mother: V2_EMPTY_PARENT("mother") };
@@ -667,7 +700,7 @@ function V2SchoolInfo({ st, update, schools }) {
     }
     setModal(null);
   };
-  return <div className="grid"><V2CustomSchoolModal open={modal !== null} onClose={() => setModal(null)} onSave={saveCustom} /><V2Section title="현재 학교"><div className="grid g3"><V2SmartSchool label="현재 학교" val={st.school} set={setCurrentSchool} schools={schools} /><div className="field"><span className="label">&nbsp;</span><button className="btn ghost" onClick={() => setModal("current")}>직접 입력</button></div><V2Select label="학교 구분" val={current.type} set={v => setCurrentInfo({ type: v })} options={V2_SCHOOL_TYPES} /><V2Field label="학교 이메일" val={current.email} set={v => setCurrentInfo({ email: v })} /><V2Field label="학교 전화번호" val={current.phone} set={v => setCurrentInfo({ phone: v })} /><V2Field label="교장/카운슬러" val={current.counselor} set={v => setCurrentInfo({ counselor: v })} /><V2Field label="재학 시작일" type="date" val={current.startDate} set={v => setCurrentInfo({ startDate: v })} /><V2Field label="재학 종료일" type="date" val={current.endDate} set={v => setCurrentInfo({ endDate: v })} /><V2Field label="Website" val={current.website} set={v => setCurrentInfo({ website: v })} /></div><V2Text label="현재 학교 주소" val={current.address} set={v => setCurrentInfo({ address: v })} /></V2Section><V2Section title="이전 학교">{prev.map((p, i) => <div key={i} className="card" style={{ marginBottom: 12, background: "#f9fafb" }}><h3>이전 학교 {i + 1}</h3><div className="grid g3"><V2SmartSchool label={`이전 학교 ${i + 1}`} val={p.name} set={v => selectPrev(i, v)} schools={schools} /><div className="field"><span className="label">&nbsp;</span><button className="btn ghost" onClick={() => setModal(i)}>직접 입력</button></div><V2Select label="학교 구분" val={p.type} set={v => setPrev(i, { type: v })} options={V2_SCHOOL_TYPES} /><V2Field label="학교 이메일" val={p.email} set={v => setPrev(i, { email: v })} /><V2Field label="학교 전화번호" val={p.phone} set={v => setPrev(i, { phone: v })} /><V2Field label="교장/카운슬러" val={p.counselor} set={v => setPrev(i, { counselor: v })} /><V2Field label="재학 시작일" type="date" val={p.startDate} set={v => setPrev(i, { startDate: v })} /><V2Field label="재학 종료일" type="date" val={p.endDate} set={v => setPrev(i, { endDate: v })} /><V2Field label="재학 학년" val={p.gradeAttended} set={v => setPrev(i, { gradeAttended: v })} /><V2Select label="징계/정학" val={p.discipline} set={v => setPrev(i, { discipline: v })} options={["No", "Yes"]} /><V2Select label="비건강 사유 자퇴" val={p.withdrawal} set={v => setPrev(i, { withdrawal: v })} options={["No", "Yes"]} /></div><V2Text label="학교 주소" val={p.address} set={v => setPrev(i, { address: v })} /><V2Text label="설명/메모" val={p.notes} set={v => setPrev(i, { notes: v })} /></div>)}</V2Section></div>;
+  return <div className="grid"><V2Section title="현재 학교"><div className="grid g3"><V2SmartSchool label="현재 학교" val={st.school} set={setCurrentSchool} schools={schools} /><V2Select label="학교 구분" val={current.type} set={v => setCurrentInfo({ type: v })} options={V2_SCHOOL_TYPES} /><V2Select label="재학 시작 학년" val={current.gradeFrom} set={v => setCurrentInfo({ gradeFrom: v })} options={V2_GRADE_OPTIONS} /><V2Select label="재학 종료/현재 학년" val={current.gradeTo} set={v => setCurrentInfo({ gradeTo: v })} options={V2_GRADE_OPTIONS} /><V2Field label="학교 이메일" val={current.email} set={v => setCurrentInfo({ email: v })} /><V2Field label="학교 전화번호" val={current.phone} set={v => setCurrentInfo({ phone: v })} /><V2Field label="교장/카운슬러" val={current.counselor} set={v => setCurrentInfo({ counselor: v })} /><V2Field label="재학 시작일" type="date" val={current.startDate} set={v => setCurrentInfo({ startDate: v })} /><V2Field label="재학 종료일" type="date" val={current.endDate} set={v => setCurrentInfo({ endDate: v })} /><V2Field label="Website" val={current.website} set={v => setCurrentInfo({ website: v })} /></div><V2Text label="현재 학교 주소" val={current.address} set={v => setCurrentInfo({ address: v })} /></V2Section><V2Section title="이전 학교"><div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn ghost" onClick={() => update({ previousSchools: [...prev, V2_EMPTY_PREVIOUS()] })}>학교 추가</button></div>{prev.map((p, i) => <div key={i} className="card" style={{ marginBottom: 12, background: "#f9fafb" }}><h3>이전 학교 {i + 1}</h3><div className="grid g3"><V2SmartSchool label={`이전 학교 ${i + 1}`} val={p.name} set={v => selectPrev(i, v)} schools={schools} /><V2Select label="학교 구분" val={p.type} set={v => setPrev(i, { type: v })} options={V2_SCHOOL_TYPES} /><V2Select label="재학 시작 학년" val={p.gradeFrom} set={v => setPrev(i, { gradeFrom: v })} options={V2_GRADE_OPTIONS} /><V2Select label="재학 종료 학년" val={p.gradeTo} set={v => setPrev(i, { gradeTo: v })} options={V2_GRADE_OPTIONS} /><V2Field label="학교 이메일" val={p.email} set={v => setPrev(i, { email: v })} /><V2Field label="학교 전화번호" val={p.phone} set={v => setPrev(i, { phone: v })} /><V2Field label="교장/카운슬러" val={p.counselor} set={v => setPrev(i, { counselor: v })} /><V2Field label="재학 시작일" type="date" val={p.startDate} set={v => setPrev(i, { startDate: v })} /><V2Field label="재학 종료일" type="date" val={p.endDate} set={v => setPrev(i, { endDate: v })} /><V2Select label="징계/정학" val={p.discipline} set={v => setPrev(i, { discipline: v })} options={["No", "Yes"]} /><V2Select label="비건강 사유 자퇴" val={p.withdrawal} set={v => setPrev(i, { withdrawal: v })} options={["No", "Yes"]} /></div><V2Text label="학교 주소" val={p.address} set={v => setPrev(i, { address: v })} /><V2Text label="설명/메모" val={p.notes} set={v => setPrev(i, { notes: v })} /></div>)}</V2Section></div>;
 }
 function V2CustomSchoolModal({ open, onClose, onSave }) {
   const [form, setForm] = useState(V2_EMPTY_PREVIOUS());
@@ -676,22 +709,113 @@ function V2CustomSchoolModal({ open, onClose, onSave }) {
   return <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}><div className="card" style={{ maxWidth: 760, width: "100%" }}><div className="right" style={{ justifyContent: "space-between" }}><h3>학교 직접 입력</h3><button className="btn ghost" onClick={onClose}>닫기</button></div><div className="grid g3"><V2Field label="학교명" val={form.name} set={v => set("name", v)} /><V2Select label="학교 구분" val={form.type} set={v => set("type", v)} options={V2_SCHOOL_TYPES} /><V2Field label="Website" val={form.website} set={v => set("website", v)} /><V2Field label="학교 이메일" val={form.email} set={v => set("email", v)} /><V2Field label="학교 전화번호" val={form.phone} set={v => set("phone", v)} /><V2Field label="교장/카운슬러" val={form.counselor} set={v => set("counselor", v)} /></div><V2Text label="학교 주소" val={form.address} set={v => set("address", v)} /><button className="btn primary" onClick={() => onSave(form)}>저장</button></div></div>;
 }
 function V2InterestSchools({ st, update, schools }) {
-  const interests = st.interests || [V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()];
+  const interests = st.interests?.length ? st.interests : [V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()];
   const set = (i, patch) => update({ interests: v2SetArr(interests, i, patch) });
-  return <V2Section title="관심 학교">{interests.map((x, i) => <div className="grid g2" key={i}><V2SmartSchool label={`관심 학교 ${i + 1}`} val={x.school} set={v => set(i, { school: v })} schools={schools} /><V2Text label="이유" val={x.reason || x.note} set={v => set(i, { reason: v, note: v })} /></div>)}</V2Section>;
+  return <V2Section title="관심 학교"><div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn ghost" onClick={() => update({ interests: [...interests, V2_EMPTY_INTEREST()] })}>관심학교 추가</button></div>{interests.map((x, i) => <div className="grid g2" key={i}><V2SmartSchool label={`관심 학교 ${i + 1}`} val={x.school} set={v => set(i, { school: v })} schools={schools} /><V2Field label="이유" val={x.reason || x.note} set={v => set(i, { reason: v, note: v })} /></div>)}</V2Section>;
+}
+function v2GradeNumber(v) {
+  const m = String(v || "").match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+function v2TermLabel(t) {
+  return [t?.year, t?.season].filter(Boolean).join(" ").trim() || t?.term || "";
+}
+function v2RangeIncludes(record, grade) {
+  const from = v2GradeNumber(record?.gradeFrom);
+  const to = v2GradeNumber(record?.gradeTo);
+  if (!from && !to) return false;
+  return grade >= (from || to) && grade <= (to || from);
+}
+function v2SchoolForGrade(st, grade) {
+  const previous = (st.previousSchools || []).find(s => s.name && v2RangeIncludes(s, grade));
+  if (previous) return previous.name;
+  if (st.school && (!st.currentSchoolInfo || v2RangeIncludes(st.currentSchoolInfo, grade))) return st.school;
+  return st.school || (st.previousSchools || []).find(s => s.name)?.name || "";
+}
+function v2PresetTranscriptTerms(st) {
+  const currentGrade = v2GradeNumber(st.currentGrade || st.grade) || 8;
+  const currentYear = new Date().getFullYear();
+  const grades = [currentGrade - 2, currentGrade - 1, currentGrade].filter(g => g >= 4 && g <= 12);
+  return grades.flatMap(grade => {
+    const springYear = currentYear - (currentGrade - grade);
+    const school = v2SchoolForGrade(st, grade);
+    return [
+      { ...V2_EMPTY_TERM(school), gradeLevel: `${grade}학년`, year: String(springYear - 1), season: "Fall", term: `${springYear - 1} Fall` },
+      { ...V2_EMPTY_TERM(school), gradeLevel: `${grade}학년`, year: String(springYear), season: "Spring", term: `${springYear} Spring` }
+    ];
+  });
+}
+function v2GpaSeries(terms, mode) {
+  const rows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), gpa: v2TermGpa(t) })).filter(x => x.gpa !== null && !Number.isNaN(x.gpa));
+  if (mode === "grade") {
+    const groups = {};
+    rows.forEach(r => { const key = r.gradeLevel || "학년 미입력"; groups[key] = [...(groups[key] || []), r.gpa]; });
+    return Object.entries(groups).sort((a, b) => v2GradeNumber(a[0]) - v2GradeNumber(b[0])).map(([label, values]) => ({ label, gpa: v2Round(values.reduce((a, b) => a + b, 0) / values.length) }));
+  }
+  if (mode === "school") {
+    const groups = {};
+    rows.forEach(r => { const key = r.school || "학교 미입력"; groups[key] = [...(groups[key] || []), r.gpa]; });
+    return Object.entries(groups).map(([label, values]) => ({ label, gpa: v2Round(values.reduce((a, b) => a + b, 0) / values.length) }));
+  }
+  return rows.map(r => ({ label: r.label || "학기", gpa: r.gpa }));
+}
+function V2GpaLineChart({ terms, mode = "term" }) {
+  const vals = v2GpaSeries(terms, mode);
+  if (!vals.length) return <p className="small muted">성적을 입력하면 GPA 변화 그래프가 표시됩니다.</p>;
+  const width = 640;
+  const height = 260;
+  const left = 48;
+  const right = 24;
+  const top = 26;
+  const bottom = 58;
+  const max = 4.3;
+  const x = i => vals.length === 1 ? width / 2 : left + i * ((width - left - right) / (vals.length - 1));
+  const y = gpa => top + (max - Math.max(0, Math.min(max, gpa))) / max * (height - top - bottom);
+  const points = vals.map((v, i) => `${x(i)},${y(v.gpa)}`).join(" ");
+  return <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", minHeight: 230, background: "#f8fbfe", border: "1px solid #d7e6f3", borderRadius: 8 }}>
+    {[0, 1, 2, 3, 4].map(g => <g key={g}><line x1={left} y1={y(g)} x2={width - right} y2={y(g)} stroke="#dbeafe" /><text x="14" y={y(g) + 4} fontSize="12" fill="#45627c">{g}.0</text></g>)}
+    <polyline points={points} fill="none" stroke="#2b7bbb" strokeWidth="3" />
+    {vals.map((v, i) => <g key={`${v.label}-${i}`}><circle cx={x(i)} cy={y(v.gpa)} r="5" fill="#0f5f99" /><text x={x(i)} y={y(v.gpa) - 10} textAnchor="middle" fontSize="12" fill="#12324a">{v.gpa}</text><text x={x(i)} y={height - 28} textAnchor="middle" fontSize="11" fill="#45627c">{String(v.label).slice(0, 16)}</text></g>)}
+  </svg>;
+}
+function V2GpaChartModal({ open, onClose, terms }) {
+  const [mode, setMode] = useState("term");
+  if (!open) return null;
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.38)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div className="card" style={{ width: "min(920px, 96vw)", maxHeight: "90vh", overflow: "auto" }}>
+      <div className="right" style={{ justifyContent: "space-between", marginBottom: 12 }}><h3>GPA 변화 그래프</h3><button type="button" className="btn ghost" onClick={onClose}>닫기</button></div>
+      <div className="tabs" style={{ marginBottom: 12 }}>{[["term", "학기별 그래프"], ["grade", "학년별 그래프"], ["school", "학교별 그래프"]].map(([k, label]) => <button type="button" key={k} className={"tab " + (mode === k ? "active" : "")} onClick={() => setMode(k)}>{label}</button>)}</div>
+      <V2GpaLineChart terms={terms} mode={mode} />
+    </div>
+  </div>;
 }
 function V2Transcript({ st, update }) {
+  const [chartOpen, setChartOpen] = useState(false);
   const terms = st.academicTerms || [V2_EMPTY_TERM(st.school)];
   const schoolOptions = [st.school, ...(st.previousSchools || []).map(s => s.name)].filter(Boolean);
-  const saveTerms = next => update({ academicTerms: next, academics: next.map(t => ({ school: t.school, term: t.term, gpa: v2TermGpa(t) || "", comment: (t.subjects || []).map(s => `${s.subject}: ${s.comment}`).join(" / ") })) });
+  const saveTerms = next => {
+    const normalized = next.map(t => ({ ...t, term: v2TermLabel(t) }));
+    update({ academicTerms: normalized, academics: normalized.map(t => ({ school: t.school, term: v2TermLabel(t), gpa: v2TermGpa(t) || "", comment: (t.subjects || []).map(s => `${s.category || ""} ${s.subject || ""}: ${s.comment || ""}`).join(" / ") })) });
+  };
   const editTerm = (i, patch) => saveTerms(v2SetArr(terms, i, patch));
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
-  return <div className="grid"><V2Section title="GPA 요약"><div className="grid g3"><Metric title="누적 GPA" val={v2CumulativeGpa(terms) || "미입력"} /><Metric title="입력 학기" val={terms.length} /><Metric title="최근 학기 GPA" val={v2TermGpa(terms[terms.length - 1]) || "미입력"} /></div><V2GpaChart terms={terms} /></V2Section><ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(st.school)])} render={(t, ti) => <div><div className="grid g4"><V2Field label="학교" val={t.school} set={v => editTerm(ti, { school: v })} list={schoolOptions} /><V2Field label="학기" val={t.term} set={v => editTerm(ti, { term: v })} list={["2025 Fall", "2026 Spring", "2026 Fall", "2027 Spring"]} /><V2Field label="학기별 GPA 직접 입력" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} /><div className="field"><span className="label">계산 GPA</span><div className="input">{v2TermGpa(t) || "미입력"}</div></div></div><table className="table"><thead><tr><th>과목</th><th>성적</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <tr key={si}><td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td><td><input className="input" value={s.grade || ""} onChange={e => editSubject(ti, si, { grade: e.target.value })} /></td><td><textarea className="textarea" value={s.comment || ""} onChange={e => editSubject(ti, si, { comment: e.target.value })} /></td><td><button className="btn ghost" onClick={() => editTerm(ti, { subjects: (t.subjects || []).filter((_, x) => x !== si) })}>삭제</button></td></tr>)}</tbody></table><button className="btn ghost" onClick={() => editTerm(ti, { subjects: [...(t.subjects || []), { subject: "", grade: "", comment: "" }] })}>과목 추가</button></div>} /></div>;
-}
-function V2GpaChart({ terms }) {
-  const vals = (terms || []).map(t => ({ label: t.term || "학기", gpa: v2TermGpa(t) })).filter(x => x.gpa !== null && !Number.isNaN(x.gpa));
-  if (!vals.length) return <p className="small muted">성적을 입력하면 GPA 변화 그래프가 표시됩니다.</p>;
-  return <div style={{ display: "grid", gridTemplateColumns: `repeat(${vals.length}, 1fr)`, gap: 10, alignItems: "end", height: 170, marginTop: 14 }}>{vals.map(v => <div key={v.label} style={{ textAlign: "center" }}><div style={{ height: Math.max(8, v.gpa / 4.3 * 120), background: "#2563eb", borderRadius: "6px 6px 0 0" }}></div><b className="small">{v.gpa}</b><div className="small muted">{v.label}</div></div>)}</div>;
+  const addSubject = ti => editTerm(ti, { subjects: [...(terms[ti].subjects || []), { category: "English", subject: "", grade: "", comment: "" }] });
+  return <div className="grid">
+    <V2Section title="GPA 요약">
+      <div className="grid g2">
+        <button type="button" className="card" style={{ textAlign: "left", background: "#eef7ff", cursor: "pointer" }} onClick={() => setChartOpen(true)}><span className="label">누적 GPA</span><h2 style={{ margin: "6px 0 0" }}>{v2CumulativeGpa(terms) || "미입력"}</h2><span className="small muted">클릭하면 GPA 변화 그래프가 열립니다.</span></button>
+        <Metric title="최근 학기 GPA" val={v2TermGpa(terms[terms.length - 1]) || "미입력"} />
+      </div>
+      <V2GpaLineChart terms={terms} />
+      <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={terms} />
+    </V2Section>
+    <V2Section title="성적표 빠른 세팅"><button type="button" className="btn ghost" onClick={() => saveTerms(v2PresetTranscriptTerms(st))}>학교 정보 기준 최근 3년 성적표 세팅</button><p className="small muted">현재/이전 학교의 재학 학년 정보를 기준으로 최근 3년의 Fall/Spring 입력란을 먼저 만들어 둡니다.</p></V2Section>
+    <ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(st.school)])} render={(t, ti) => <div>
+      <div className="grid g4"><V2Field label="학교" val={t.school} set={v => editTerm(ti, { school: v })} list={schoolOptions} /><V2Select label="학년" val={t.gradeLevel} set={v => editTerm(ti, { gradeLevel: v })} options={V2_GRADE_OPTIONS} /><V2Select label="연도" val={t.year} set={v => editTerm(ti, { year: v })} options={V2_TRANSCRIPT_YEARS} /><V2Select label="시즌" val={t.season} set={v => editTerm(ti, { season: v })} options={V2_TERM_SEASONS} /><V2Field label="학기 GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} /><V2Field label="Rank (optional)" val={t.rank} set={v => editTerm(ti, { rank: v })} /></div>
+      <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>Letter Grade</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <tr key={si}><td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">선택</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td><td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td><td><select className="select" value={s.grade || ""} onChange={e => editSubject(ti, si, { grade: e.target.value })}><option value="">선택</option>{V2_LETTER_GRADES.map(o => <option key={o} value={o}>{o}</option>)}</select></td><td><textarea className="textarea" value={s.comment || ""} onChange={e => editSubject(ti, si, { comment: e.target.value })} /></td><td><button type="button" className="btn ghost" onClick={() => editTerm(ti, { subjects: (t.subjects || []).filter((_, x) => x !== si) })}>삭제</button></td></tr>)}</tbody></table>
+      <button type="button" className="btn ghost" onClick={() => addSubject(ti)}>과목 추가</button>
+    </div>} />
+  </div>;
 }
 function V2Tests({ st, update }) {
   const tests = st.tests || [];
@@ -706,10 +830,52 @@ function V2Tests({ st, update }) {
     return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Field label="총점/Overall" val={r.overall || v2TestOverall(r.type, details, "")} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} />)}</div><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
   }} />;
 }
+function v2ActivitySuggestions(cat) {
+  const map = {
+    Music: ["Orchestra", "Choir", "Band", "Piano", "Violin", "Cello", "Composition", "Music Production"],
+    Arts: ["Visual Arts", "Painting", "Drawing", "Photography", "Film", "Theater", "Design", "Portfolio"],
+    "Community Services": ["Volunteer Tutoring", "Community Service", "Fundraising", "Peer Mentoring", "Environmental Service"],
+    STEM: ["Robotics", "Coding Project", "Research Project", "Science Olympiad", "Math Team", "Engineering Club"],
+    "Debate/Speech": ["Debate", "Speech", "Model UN", "Mock Trial", "Public Forum", "Student Presentation"],
+    "Journalism/Publication": ["School Newspaper", "Yearbook", "Literary Magazine", "Podcast", "Broadcasting"],
+    "Internship/Entrepreneurship": ["Internship", "Startup Project", "Business Club", "Market Research", "Social Venture"],
+    "Academic & Intellectual": ["Academic Team", "Book Club", "History Bowl", "Language Club", "Independent Study"]
+  };
+  return map[cat] || V2_ACTIVITY_SUGGESTIONS;
+}
+function V2AwardEditor({ awards = [], setAwards }) {
+  const rows = awards.length ? awards : [];
+  const edit = (i, patch) => setAwards(v2SetArr(rows, i, patch));
+  return <div style={{ marginTop: 12 }}><div className="right" style={{ justifyContent: "space-between", marginBottom: 8 }}><b>관련 수상내역</b><button type="button" className="btn ghost" onClick={() => setAwards([...rows, V2_EMPTY_AWARD()])}>수상 추가</button></div>
+    {rows.length ? <table className="table"><thead><tr><th>레벨</th><th>대회명</th><th>상 이름</th><th>수상 연월</th><th>포지션</th><th>비고</th><th></th></tr></thead><tbody>{rows.map((a, i) => <tr key={i}><td><select className="select" value={a.level || ""} onChange={e => edit(i, { level: e.target.value })}><option value="">선택</option>{V2_AWARD_LEVELS.map(o => <option key={o} value={o}>{o}</option>)}</select></td><td><input className="input" value={a.competition || ""} onChange={e => edit(i, { competition: e.target.value })} /></td><td><input className="input" value={a.awardName || ""} onChange={e => edit(i, { awardName: e.target.value })} /></td><td><input className="input" type="month" value={a.date || ""} onChange={e => edit(i, { date: e.target.value })} /></td><td><input className="input" value={a.position || ""} onChange={e => edit(i, { position: e.target.value })} /></td><td><input className="input" value={a.notes || ""} onChange={e => edit(i, { notes: e.target.value })} /></td><td><button type="button" className="btn ghost" onClick={() => setAwards(rows.filter((_, x) => x !== i))}>삭제</button></td></tr>)}</tbody></table> : <p className="small muted">수상내역이 있으면 추가해 주세요. 없으면 비워두면 됩니다.</p>}
+  </div>;
+}
 function V2Ecs({ st, update }) {
   const ecs = st.ecs || [];
   const edit = (i, patch) => update({ ecs: v2SetArr(ecs, i, patch) });
-  return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, V2_EMPTY_EC()] })} render={(r, i) => <div><div className="grid g4"><V2Field label="활동 분류" val={r.cat} set={v => edit(i, { cat: v })} list={V2_EC_CATEGORIES} /><V2Field label="시즌" val={r.season} set={v => edit(i, { season: v })} list={V2_SEASONS} /><V2Field label="활동명/종목" val={r.name} set={v => edit(i, { name: v })} list={V2_ACTIVITY_SUGGESTIONS} /><V2Field label="팀/클럽/기관명" val={r.team} set={v => edit(i, { team: v })} /><MonthField label="시작" val={r.from} set={v => edit(i, { from: v })} /><MonthField label="종료" val={r.to} set={v => edit(i, { to: v })} /><V2Field label="참여 주 수" val={r.weeks} set={v => edit(i, { weeks: v })} type="number" /><V2Field label="주당 시간" val={r.hours} set={v => edit(i, { hours: v })} type="number" /><V2Field label="레벨" val={r.level} set={v => edit(i, { level: v })} list={["Beginner", "Intermediate", "Advanced", "JV", "Varsity", "Regional", "National"]} /><V2Field label="포지션/역할" val={r.position} set={v => edit(i, { position: v })} list={["Member", "Captain", "Founder", "President", "Lead", "Mentor", "Representative"]} /></div><div className="grid g2"><V2Text label="리더십 / 책임" val={r.leadership} set={v => edit(i, { leadership: v })} /><V2Text label="성과 / 임팩트 / 원서 스토리" val={r.impact} set={v => edit(i, { impact: v })} /><V2Text label="수상 / 포트폴리오 / 증빙" val={r.honors} set={v => edit(i, { honors: v })} /></div></div>} />;
+  return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, V2_EMPTY_EC()] })} render={(r, i) => {
+    const isSports = r.cat === "Sports";
+    const levelOptions = isSports ? V2_EC_LEVELS : ["School", "Regional/Local", "National", "International", "Independent/Personal", "기타"];
+    const nameLabel = isSports ? "종목" : "활동명";
+    const teamLabel = isSports ? "팀/클럽명" : "기관/클럽/프로젝트명";
+    return <div>
+      <div className="grid g4">
+        <V2Select label="활동 분류" val={r.cat} set={v => edit(i, { cat: v, name: "", level: "", levelOther: "" })} options={V2_EC_CATEGORIES_CLIENT} />
+        <V2Select label="상태" val={r.status} set={v => edit(i, { status: v, to: v === "진행 중" ? "" : r.to })} options={V2_EC_STATUS} />
+        <V2Field label={nameLabel} val={r.name} set={v => edit(i, { name: v })} list={isSports ? V2_SPORTS_LIST : v2ActivitySuggestions(r.cat)} />
+        <V2Field label={teamLabel} val={r.team} set={v => edit(i, { team: v })} />
+        <MonthField label="시작" val={r.from} set={v => edit(i, { from: v })} />
+        {r.status === "완료" && <MonthField label="종료" val={r.to} set={v => edit(i, { to: v })} />}
+        <V2Field label="참여 주 수" val={r.weeks} set={v => edit(i, { weeks: v })} type="number" />
+        <V2Field label="주당 시간" val={r.hours} set={v => edit(i, { hours: v })} type="number" />
+        <V2Select label={isSports ? "레벨" : "활동 범위"} val={r.level} set={v => edit(i, { level: v })} options={levelOptions} />
+        {r.level === "기타" && <V2Field label="레벨 직접 입력" val={r.levelOther} set={v => edit(i, { levelOther: v })} />}
+        <V2Field label="포지션/역할" val={r.position} set={v => edit(i, { position: v })} />
+      </div>
+      {!isSports && <V2Field label="간단 설명" val={r.description} set={v => edit(i, { description: v })} />}
+      <V2AwardEditor awards={r.awards || []} setAwards={awards => edit(i, { awards })} />
+    </div>;
+  }} />;
 }
 function V2BasicReport({ st, schools }) {
   const recs = (st.interests || []).map(x => x.school).filter(Boolean).map(name => v2FindSchool(schools, name)).filter(Boolean);
