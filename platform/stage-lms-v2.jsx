@@ -40,6 +40,7 @@ const V2_LEGACY_STRENGTHS = [
 ];
 const V2_TRANSCRIPT_YEARS = Array.from({ length: 8 }, (_, i) => String(new Date().getFullYear() - 5 + i));
 const V2_TERM_SEASONS = ["Spring", "Summer", "Fall", "Winter"];
+const V2_TERM_SORT_ORDER = { Spring: 4, Summer: 3, Fall: 2, Winter: 1 };
 const V2_SUBJECT_CATEGORIES = ["English", "Math", "Science", "Social Sciences", "Arts", "Health", "World Languages", "Electives"];
 const V2_LETTER_GRADES = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F", "P", "미입력"];
 const V2_GRADING_SCALE_TYPES = ["Letter Grade", "Letter Grade with Plus/Minus", "100-Point Percentage", "4.0 GPA Scale", "4.3 GPA Scale", "4.5 GPA Scale", "5.0 GPA Scale", "1-7 Scale", "1-6 Scale", "1-5 Scale", "IB 1-7 Scale", "AP 1-5 Scale", "A-Level / IGCSE Letter Scale", "Korean Middle School Achievement Scale", "Korean High School 9-Rank Scale", "Pass / Fail", "Custom Scale", "Unknown"];
@@ -100,7 +101,14 @@ const V2_EMPTY_PREVIOUS = () => ({
 });
 const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "", has_legacy_connection: "No", legacy_school_name: "", legacy_relationship_type: "", legacy_connection_strength: "", legacy_notes: "" });
 const V2_EMPTY_GRADING_SCALE = () => ({ type: "Letter Grade with Plus/Minus", gradeInputType: "Letter Grade with Plus/Minus", gpaScale: "4.0 GPA Scale", source: "Unknown", confidence: "Low", notes: "", entries: V2_GRADING_SCALE_TEMPLATES["Letter Grade with Plus/Minus"].map(([raw_grade_label, normalized_score]) => ({ raw_grade_label, normalized_score, description: "" })) });
-const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: "Fall", term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
+function v2DefaultTranscriptSeason(date = new Date()) {
+  const month = date.getMonth();
+  if (month <= 5) return "Spring";
+  if (month <= 7) return "Summer";
+  if (month <= 10) return "Fall";
+  return "Winter";
+}
+const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: v2DefaultTranscriptSeason(), term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
 const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
 const V2_EMPTY_EC = () => ({
@@ -306,7 +314,7 @@ function v2NormalizeStudent(s) {
     currentSchoolInfo: s.currentSchoolInfo || {},
     previousSchools: previous,
     interests,
-    academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
+    academicTerms: terms.length ? v2SortTranscriptTerms(terms) : [V2_EMPTY_TERM(s.school)],
     tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT" })),
     ecs: (s.ecs || []).length ? s.ecs : [V2_EMPTY_EC()],
     applications: s.applications || [],
@@ -957,6 +965,31 @@ function v2GradeNumber(v) {
 function v2TermLabel(t) {
   return [t?.year, t?.season].filter(Boolean).join(" ").trim() || t?.term || "";
 }
+function v2TermYearNumber(t) {
+  const direct = Number(t?.year);
+  if (Number.isFinite(direct)) return direct;
+  const found = String(t?.term || "").match(/\b(20\d{2})\b/);
+  return found ? Number(found[1]) : 0;
+}
+function v2TermSeasonRank(t) {
+  return V2_TERM_SORT_ORDER[t?.season] || V2_TERM_SORT_ORDER[String(t?.term || "").split(/\s+/).find(x => V2_TERM_SEASONS.includes(x))] || 0;
+}
+function v2SortTranscriptTerms(terms = []) {
+  return terms.map((term, index) => ({ term, index })).sort((a, b) => {
+    const yearDiff = v2TermYearNumber(b.term) - v2TermYearNumber(a.term);
+    if (yearDiff) return yearDiff;
+    const seasonDiff = v2TermSeasonRank(b.term) - v2TermSeasonRank(a.term);
+    if (seasonDiff) return seasonDiff;
+    return a.index - b.index;
+  }).map(x => x.term);
+}
+function v2NormalizePlaceholderTerm(t) {
+  const defaultSeason = v2DefaultTranscriptSeason();
+  if (defaultSeason !== "Fall" && String(t?.year || "") === String(new Date().getFullYear()) && t?.season === "Fall" && v2TranscriptIsBlank([t])) {
+    return { ...t, season: defaultSeason };
+  }
+  return t;
+}
 function v2RangeIncludes(record, grade) {
   const from = v2GradeNumber(record?.gradeFrom);
   const to = v2GradeNumber(record?.gradeTo);
@@ -973,14 +1006,14 @@ function v2PresetTranscriptTerms(st) {
   const currentGrade = v2GradeNumber(st.currentGrade || st.grade) || 8;
   const currentYear = new Date().getFullYear();
   const grades = [currentGrade - 2, currentGrade - 1, currentGrade].filter(g => g >= 4 && g <= 12);
-  return grades.flatMap(grade => {
+  return v2SortTranscriptTerms(grades.flatMap(grade => {
     const springYear = currentYear - (currentGrade - grade);
     const school = v2SchoolForGrade(st, grade);
     return [
       { ...V2_EMPTY_TERM(school), gradeLevel: `${grade}학년`, year: String(springYear - 1), season: "Fall", term: `${springYear - 1} Fall` },
       { ...V2_EMPTY_TERM(school), gradeLevel: `${grade}학년`, year: String(springYear), season: "Spring", term: `${springYear} Spring` }
     ];
-  });
+  }));
 }
 function v2TranscriptIsBlank(terms = []) {
   if (!terms.length) return true;
@@ -1129,27 +1162,28 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [chartOpen, setChartOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
-  const terms = st.academicTerms || [V2_EMPTY_TERM(st.school)];
+  const terms = v2SortTranscriptTerms((st.academicTerms || [V2_EMPTY_TERM(st.school)]).map(v2NormalizePlaceholderTerm));
   const schoolOptions = v2StudentSchoolNames(st);
   const transcriptSchools = v2TranscriptSchoolNames(st);
   const defaultSchool = v2AllowedTranscriptSchool(st, st.school);
   const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2RecalculateTermsWithScale(terms, schoolName, scale) });
   const normalizeTerms = next => next.map(t => {
-    const school = v2AllowedTranscriptSchool(st, t.school);
-    const gradingScale = v2StudentSchoolScale(st, schools, school, t.gradingScale);
+    const termInput = v2NormalizePlaceholderTerm(t);
+    const school = v2AllowedTranscriptSchool(st, termInput.school);
+    const gradingScale = v2StudentSchoolScale(st, schools, school, termInput.gradingScale);
     return {
-      ...t,
+      ...termInput,
       school,
-      term: v2TermLabel(t),
+      term: v2TermLabel(termInput),
       gradingScale,
-      subjects: (t.subjects || []).map(s => {
+      subjects: (termInput.subjects || []).map(s => {
         const rawGrade = s.rawGrade || s.grade || "";
         return { ...s, rawGrade, grade: rawGrade, normalizedGrade: s.normalizedGrade || v2NormalizeGrade(rawGrade, gradingScale) };
       })
     };
   });
   const saveTerms = next => {
-    const normalized = normalizeTerms(next);
+    const normalized = v2SortTranscriptTerms(normalizeTerms(next));
     update({
       academicTerms: normalized,
       academics: normalized.map(t => ({
@@ -1182,7 +1216,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     <V2Section title="GPA 요약">
       <div className="grid g2">
         <button type="button" className="card" style={{ textAlign: "left", background: "#eef7ff", cursor: "pointer" }} onClick={() => setChartOpen(true)}><span className="label">누적 GPA</span><h2 style={{ margin: "6px 0 0" }}>{v2CumulativeGpa(terms) || "미입력"}</h2><span className="small muted">클릭하면 GPA 변화 그래프를 볼 수 있습니다.</span></button>
-        <Metric title="최근 학기 GPA" val={v2TermGpa(terms[terms.length - 1]) || "미입력"} />
+        <Metric title="최근 학기 GPA" val={v2TermGpa(v2SortTranscriptTerms(terms)[0]) || "미입력"} />
       </div>
       <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={terms} />
     </V2Section>
@@ -1199,7 +1233,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
         </div>;
       })}
     </V2Section>
-    <ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(defaultSchool)])} render={(t, ti) => {
+    <ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([V2_EMPTY_TERM(defaultSchool), ...terms])} render={(t, ti) => {
       const termSchool = v2AllowedTranscriptSchool(st, t.school);
       const scale = v2StudentSchoolScale(st, schools, termSchool, t.gradingScale);
       const rawOptions = scale.entries.map(e => e.raw_grade_label).filter(Boolean);
