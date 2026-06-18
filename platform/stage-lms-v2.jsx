@@ -191,19 +191,19 @@ function v2RecalculateTermsWithScale(terms = [], schoolName, scale) {
     };
   });
 }
-function v2StudentSchoolNames(st, schools) {
+function v2StudentSchoolNames(st) {
   return [...new Set([
     st.school,
-    ...(st.previousSchools || []).map(s => s.name),
-    ...v2SchoolNames(schools)
+    ...(st.previousSchools || []).map(s => s.name)
   ].filter(Boolean))];
 }
-function v2TranscriptSchoolNames(st, schools, terms = []) {
-  return [...new Set([
-    st.school,
-    ...(st.previousSchools || []).map(s => s.name),
-    ...(terms || []).map(t => t.school)
-  ].filter(Boolean))];
+function v2TranscriptSchoolNames(st) {
+  return v2StudentSchoolNames(st);
+}
+function v2AllowedTranscriptSchool(st, requestedSchool) {
+  const names = v2StudentSchoolNames(st);
+  if (requestedSchool && names.includes(requestedSchool)) return requestedSchool;
+  return names[0] || "";
 }
 function v2PatchStudentSchoolScale(st, schoolName, scale) {
   const gradingScale = v2NormalizeGradingScale(scale);
@@ -1130,13 +1130,16 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
   const terms = st.academicTerms || [V2_EMPTY_TERM(st.school)];
-  const schoolOptions = v2StudentSchoolNames(st, schools);
-  const transcriptSchools = v2TranscriptSchoolNames(st, schools, terms);
+  const schoolOptions = v2StudentSchoolNames(st);
+  const transcriptSchools = v2TranscriptSchoolNames(st);
+  const defaultSchool = v2AllowedTranscriptSchool(st, st.school);
   const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2RecalculateTermsWithScale(terms, schoolName, scale) });
   const normalizeTerms = next => next.map(t => {
-    const gradingScale = v2StudentSchoolScale(st, schools, t.school, t.gradingScale);
+    const school = v2AllowedTranscriptSchool(st, t.school);
+    const gradingScale = v2StudentSchoolScale(st, schools, school, t.gradingScale);
     return {
       ...t,
+      school,
       term: v2TermLabel(t),
       gradingScale,
       subjects: (t.subjects || []).map(s => {
@@ -1161,17 +1164,20 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const editTerm = (i, patch) => saveTerms(v2SetArr(terms, i, patch));
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
   const setRawGrade = (ti, si, rawGrade) => {
-    const gradingScale = v2StudentSchoolScale(st, schools, terms[ti].school, terms[ti].gradingScale);
+    const school = v2AllowedTranscriptSchool(st, terms[ti].school);
+    const gradingScale = v2StudentSchoolScale(st, schools, school, terms[ti].gradingScale);
     editSubject(ti, si, { rawGrade, grade: rawGrade, normalizedGrade: v2NormalizeGrade(rawGrade, gradingScale) });
   };
   const setTermSchool = (ti, school) => {
-    const gradingScale = v2StudentSchoolScale(st, schools, school, terms[ti].gradingScale);
-    editTerm(ti, { school, gradingScale });
+    const allowedSchool = v2AllowedTranscriptSchool(st, school);
+    const gradingScale = v2StudentSchoolScale(st, schools, allowedSchool, terms[ti].gradingScale);
+    editTerm(ti, { school: allowedSchool, gradingScale });
   };
   const addSubject = ti => editTerm(ti, { subjects: [...(terms[ti].subjects || []), { category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }] });
   React.useEffect(() => {
     if (v2TranscriptIsBlank(terms) && (st.school || st.currentGrade || st.grade)) saveTerms(v2PresetTranscriptTerms(st));
-  }, [st.school, st.currentGrade, st.grade, JSON.stringify(st.currentSchoolInfo || {}), JSON.stringify(st.previousSchools || [])]);
+    else if (schoolOptions.length && terms.some(t => !schoolOptions.includes(t.school))) saveTerms(terms);
+  }, [st.school, st.currentGrade, st.grade, JSON.stringify(st.currentSchoolInfo || {}), JSON.stringify(st.previousSchools || []), JSON.stringify(schoolOptions)]);
   return <div className="grid">
     <V2Section title="GPA 요약">
       <div className="grid g2">
@@ -1182,7 +1188,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     </V2Section>
     <V2Section title="학교별 Grading Scale">
       <p className="small muted">학교별로 한 번만 설정하면 아래 학기 성적 입력에 자동으로 적용됩니다. 학교가 여러 개인 경우 각 학교별로 별도 설정할 수 있습니다.</p>
-      {(transcriptSchools.length ? transcriptSchools : [st.school].filter(Boolean)).map(name => {
+      {transcriptSchools.map(name => {
         const open = !!scaleOpen[name];
         return <div key={name} className="card" style={{ background: "#f8fbfe", borderColor: "#c3ddf0", marginBottom: 10 }}>
           <div className="right" style={{ justifyContent: "space-between" }}>
@@ -1193,19 +1199,20 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
         </div>;
       })}
     </V2Section>
-    <ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(st.school)])} render={(t, ti) => {
-      const scale = v2StudentSchoolScale(st, schools, t.school, t.gradingScale);
+    <ArrayEditor title="성적표 / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(defaultSchool)])} render={(t, ti) => {
+      const termSchool = v2AllowedTranscriptSchool(st, t.school);
+      const scale = v2StudentSchoolScale(st, schools, termSchool, t.gradingScale);
       const rawOptions = scale.entries.map(e => e.raw_grade_label).filter(Boolean);
       const numericGrade = v2ScaleNeedsNumeric(scale.gradeInputType);
       const header = v2TermLabel(t) || `학기 ${ti + 1}`;
       return <div className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
         <div style={{ background: "#e8f4fb", borderBottom: "1px solid #b8d8ec", padding: "12px 14px", marginBottom: 14 }}>
           <h3 style={{ margin: "0 0 4px" }}>{header}</h3>
-          <span className="small muted">{t.school || "학교 미입력"}</span>
+          <span className="small muted">{termSchool || "학교 미입력"}</span>
         </div>
         <div style={{ padding: "0 12px 12px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
-          <V2Field label="학교" val={t.school} set={v => setTermSchool(ti, v)} list={schoolOptions} />
+          <V2Select label="학교" val={termSchool} set={v => setTermSchool(ti, v)} options={schoolOptions} />
           <V2Select label="학년" val={t.gradeLevel} set={v => editTerm(ti, { gradeLevel: v })} options={V2_GRADE_OPTIONS} />
           <V2Select label="연도" val={t.year} set={v => editTerm(ti, { year: v })} options={V2_TRANSCRIPT_YEARS} />
           <V2Select label="학기" val={t.season} set={v => editTerm(ti, { season: v })} options={V2_TERM_SEASONS} />
