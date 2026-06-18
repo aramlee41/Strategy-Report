@@ -42,6 +42,9 @@ const V2_TERM_SEASONS = ["Spring", "Summer", "Fall", "Winter"];
 const V2_SUBJECT_CATEGORIES = ["English", "Math", "Science", "Social Sciences", "Arts", "Health", "World Languages", "Electives"];
 const V2_LETTER_GRADES = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "F", "P", "미입력"];
 const V2_GRADING_SCALE_TYPES = ["Letter Grade", "Letter Grade with Plus/Minus", "100-Point Percentage", "4.0 GPA Scale", "4.3 GPA Scale", "4.5 GPA Scale", "5.0 GPA Scale", "1-7 Scale", "1-6 Scale", "1-5 Scale", "IB 1-7 Scale", "AP 1-5 Scale", "A-Level / IGCSE Letter Scale", "Korean Middle School Achievement Scale", "Korean High School 9-Rank Scale", "Pass / Fail", "Custom Scale", "Unknown"];
+const V2_GRADE_INPUT_TYPES = ["Letter Grade", "Letter Grade with Plus/Minus", "100-Point Percentage", "1-7 Scale", "1-6 Scale", "1-5 Scale", "IB 1-7 Scale", "AP 1-5 Scale", "A-Level / IGCSE Letter Scale", "Korean Middle School Achievement Scale", "Korean High School 9-Rank Scale", "Pass / Fail", "Custom Scale", "Unknown"];
+const V2_GPA_SCALE_TYPES = ["Not provided / Not used", "4.0 GPA Scale", "4.3 GPA Scale", "4.5 GPA Scale", "5.0 GPA Scale", "Other"];
+const V2_GPA_SCALE_TYPE_SET = new Set(["4.0 GPA Scale", "4.3 GPA Scale", "4.5 GPA Scale", "5.0 GPA Scale"]);
 const V2_GRADING_SCALE_SOURCES = ["Official school transcript legend", "School profile", "School website", "Counselor-provided information", "Manually entered by admin", "Unknown"];
 const V2_GRADING_SCALE_CONFIDENCE = ["High", "Medium", "Low", "Unknown"];
 const V2_GRADING_SCALE_TEMPLATES = {
@@ -95,7 +98,7 @@ const V2_EMPTY_PREVIOUS = () => ({
   startDate: "", endDate: "", gradeFrom: "", gradeTo: "", gradeAttended: "", finalGrade: "", discipline: "No", disciplineReason: "", withdrawal: "No", withdrawalReason: "", notes: ""
 });
 const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "", has_legacy_connection: "No", legacy_school_name: "", legacy_relationship_type: "", legacy_connection_strength: "", legacy_notes: "" });
-const V2_EMPTY_GRADING_SCALE = () => ({ type: "Letter Grade with Plus/Minus", source: "Unknown", confidence: "Low", notes: "", entries: V2_GRADING_SCALE_TEMPLATES["Letter Grade with Plus/Minus"].map(([raw_grade_label, normalized_score]) => ({ raw_grade_label, min_value: "", max_value: "", normalized_score, description: "" })) });
+const V2_EMPTY_GRADING_SCALE = () => ({ type: "Letter Grade with Plus/Minus", gradeInputType: "Letter Grade with Plus/Minus", gpaScale: "4.0 GPA Scale", source: "Unknown", confidence: "Low", notes: "", entries: V2_GRADING_SCALE_TEMPLATES["Letter Grade with Plus/Minus"].map(([raw_grade_label, normalized_score]) => ({ raw_grade_label, normalized_score, description: "" })) });
 const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: "Fall", term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
 const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
@@ -125,55 +128,67 @@ const V2_EMPTY_FAMILY_STATUS = () => ({
 function v2TemplateEntries(type) {
   return (V2_GRADING_SCALE_TEMPLATES[type] || []).map(([raw_grade_label, normalized_score]) => ({
     raw_grade_label,
-    min_value: "",
-    max_value: "",
     normalized_score,
     description: ""
   }));
 }
 function v2NormalizeGradingScale(scale = {}) {
-  const type = scale.type || "Letter Grade with Plus/Minus";
-  const entries = Array.isArray(scale.entries) && scale.entries.length ? scale.entries : v2TemplateEntries(type);
+  const rawType = scale.gradeInputType || scale.type || "Letter Grade with Plus/Minus";
+  const gradeInputType = V2_GPA_SCALE_TYPE_SET.has(rawType) ? "Letter Grade with Plus/Minus" : rawType;
+  const gpaScale = scale.gpaScale || (V2_GPA_SCALE_TYPE_SET.has(rawType) ? rawType : "4.0 GPA Scale");
+  const entries = Array.isArray(scale.entries) && scale.entries.length ? scale.entries : v2TemplateEntries(gradeInputType);
   return {
-    type,
+    type: gradeInputType,
+    gradeInputType,
+    gpaScale,
+    gpaScaleOther: scale.gpaScaleOther || "",
     source: scale.source || "Unknown",
-    confidence: scale.confidence || (type === "Unknown" ? "Unknown" : "Low"),
+    confidence: scale.confidence || (gradeInputType === "Unknown" ? "Unknown" : "Low"),
     notes: scale.notes || "",
     entries: entries.map(e => ({
       raw_grade_label: e.raw_grade_label || e.label || "",
-      min_value: e.min_value ?? e.min ?? "",
-      max_value: e.max_value ?? e.max ?? "",
       normalized_score: e.normalized_score ?? e.score ?? "",
       description: e.description || ""
     }))
   };
 }
-function v2NumericScaleMax(type) {
-  return ({ "4.0 GPA Scale": 4, "4.3 GPA Scale": 4.3, "4.5 GPA Scale": 4.5, "5.0 GPA Scale": 5 })[type] || null;
-}
 function v2ScaleNeedsNumeric(type) {
-  return ["100-Point Percentage", "4.0 GPA Scale", "4.3 GPA Scale", "4.5 GPA Scale", "5.0 GPA Scale"].includes(type);
+  return type === "100-Point Percentage";
 }
 function v2NormalizeGrade(raw, scale) {
   const value = String(raw ?? "").trim();
   if (!value || value === "誘몄엯??" || value === "미입력") return "";
   const cfg = v2NormalizeGradingScale(scale);
   const numeric = Number(value);
-  if (cfg.type === "100-Point Percentage" && Number.isFinite(numeric)) return Math.round(Math.max(0, Math.min(100, numeric)) * 10) / 10;
-  const max = v2NumericScaleMax(cfg.type);
-  if (max && Number.isFinite(numeric)) return Math.round(Math.max(0, Math.min(100, (numeric / max) * 100)) * 10) / 10;
+  if (cfg.gradeInputType === "100-Point Percentage" && Number.isFinite(numeric)) return Math.round(Math.max(0, Math.min(100, numeric)) * 10) / 10;
   const direct = cfg.entries.find(e => String(e.raw_grade_label || "").trim().toLowerCase() === value.toLowerCase());
   if (direct && direct.normalized_score !== "") return Number(direct.normalized_score);
-  const ranged = cfg.entries.find(e => {
-    const min = Number(e.min_value);
-    const maxVal = Number(e.max_value);
-    return Number.isFinite(numeric) && Number.isFinite(min) && Number.isFinite(maxVal) && numeric >= min && numeric <= maxVal;
-  });
-  return ranged && ranged.normalized_score !== "" ? Number(ranged.normalized_score) : "";
+  return "";
 }
 function v2SchoolGradingScale(schools, name) {
   const school = v2FindSchool(schools, name);
   return v2NormalizeGradingScale(school?.grading_scale_config || school?.gradingScaleConfig || V2_EMPTY_GRADING_SCALE());
+}
+function v2StudentSchoolScale(st, schools, schoolName, fallback) {
+  if (schoolName && st.school === schoolName && st.currentSchoolInfo?.gradingScale) return v2NormalizeGradingScale(st.currentSchoolInfo.gradingScale);
+  const previous = (st.previousSchools || []).find(s => s.name === schoolName && s.gradingScale);
+  if (previous) return v2NormalizeGradingScale(previous.gradingScale);
+  if (schoolName) return v2SchoolGradingScale(schools, schoolName);
+  return v2NormalizeGradingScale(fallback || V2_EMPTY_GRADING_SCALE());
+}
+function v2RecalculateTermsWithScale(terms = [], schoolName, scale) {
+  const gradingScale = v2NormalizeGradingScale(scale);
+  return terms.map(t => {
+    if (t.school !== schoolName) return t;
+    return {
+      ...t,
+      gradingScale,
+      subjects: (t.subjects || []).map(s => {
+        const rawGrade = s.rawGrade || s.grade || "";
+        return { ...s, rawGrade, grade: rawGrade, normalizedGrade: v2NormalizeGrade(rawGrade, gradingScale) };
+      })
+    };
+  });
 }
 
 function v2BaseData() {
@@ -288,7 +303,8 @@ function v2SchoolPatch(school) {
     phone: school.phone || "",
     counselor: school.counselor || "",
     address: school.address || [school.town, school.state].filter(Boolean).join(", "),
-    website: school.website || ""
+    website: school.website || "",
+    gradingScale: v2NormalizeGradingScale(school.grading_scale_config || school.gradingScaleConfig || V2_EMPTY_GRADING_SCALE())
   };
 }
 function v2ParseDetail(detail) {
@@ -867,7 +883,7 @@ function V2SchoolInfo({ st, update, schools }) {
   React.useEffect(() => {
     const school = v2FindSchool(schools, st.school);
     const patch = v2SchoolPatch(school);
-    const shouldFill = school && Object.values(patch).some(Boolean) && ["type", "email", "phone", "counselor", "address", "website"].some(k => !current[k] && patch[k]);
+    const shouldFill = school && Object.values(patch).some(Boolean) && ["type", "email", "phone", "counselor", "address", "website", "gradingScale"].some(k => !current[k] && patch[k]);
     if (shouldFill) {
       const filled = { ...current, name: st.school };
       Object.entries(patch).forEach(([k, v]) => { if (!filled[k] && v) filled[k] = v; });
@@ -879,6 +895,7 @@ function V2SchoolInfo({ st, update, schools }) {
     update({ school: name, currentSchoolInfo: { ...current, name, ...v2SchoolPatch(school) } });
   };
   const setCurrentInfo = patch => update({ currentSchoolInfo: { ...current, ...patch } });
+  const setCurrentScale = scale => update({ currentSchoolInfo: { ...current, gradingScale: v2NormalizeGradingScale(scale) }, academicTerms: v2RecalculateTermsWithScale(st.academicTerms || [], st.school, scale) });
   const setPrev = (i, patch) => update({ previousSchools: v2SetArr(prev, i, patch) });
   const selectPrev = (i, name) => {
     const school = v2FindSchool(schools, name);
@@ -992,27 +1009,27 @@ function V2GpaChartModal({ open, onClose, terms }) {
 function V2GradingScaleEditor({ scale, setScale, compact = false }) {
   const cfg = v2NormalizeGradingScale(scale);
   const edit = patch => setScale(v2NormalizeGradingScale({ ...cfg, ...patch }));
-  const editType = type => edit({ type, entries: type === "Custom Scale" || type === "Unknown" ? cfg.entries : v2TemplateEntries(type), confidence: type === "Unknown" ? "Unknown" : cfg.confidence });
+  const editType = gradeInputType => edit({ type: gradeInputType, gradeInputType, entries: gradeInputType === "Custom Scale" || gradeInputType === "Unknown" ? cfg.entries : v2TemplateEntries(gradeInputType), confidence: gradeInputType === "Unknown" ? "Unknown" : cfg.confidence });
   const editEntry = (i, patch) => edit({ entries: v2SetArr(cfg.entries, i, patch) });
-  const addEntry = () => edit({ entries: [...cfg.entries, { raw_grade_label: "", min_value: "", max_value: "", normalized_score: "", description: "" }] });
-  const showRows = cfg.entries.length || cfg.type === "Custom Scale" || cfg.type === "Unknown";
+  const addEntry = () => edit({ entries: [...cfg.entries, { raw_grade_label: "", normalized_score: "", description: "" }] });
+  const showRows = cfg.entries.length || cfg.gradeInputType === "Custom Scale" || cfg.gradeInputType === "Unknown";
   return <div className="card" style={{ background: "#f8fbfe", borderColor: "#cfe2f3", margin: "12px 0" }}>
     <div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-      <div><b>Grading Scale</b><p className="small muted" style={{ margin: "3px 0 0" }}>Original grade and normalized score are stored separately for audit.</p></div>
-      <button type="button" className="btn ghost" onClick={addEntry}>Conversion Row Add</button>
+      <div><b>Grading Scale</b><p className="small muted" style={{ margin: "3px 0 0" }}>Grade input type and GPA display scale are stored separately.</p></div>
+      <button type="button" className="btn ghost" onClick={addEntry}>Add Conversion Row</button>
     </div>
     <div className="grid g4">
-      <V2Select label="Scale Type" val={cfg.type} set={editType} options={V2_GRADING_SCALE_TYPES} />
+      <V2Select label="Grade Input Type" val={cfg.gradeInputType} set={editType} options={V2_GRADE_INPUT_TYPES} />
+      <V2Select label="GPA Display Scale" val={cfg.gpaScale} set={v => edit({ gpaScale: v })} options={V2_GPA_SCALE_TYPES} />
+      {cfg.gpaScale === "Other" && <V2Field label="GPA Scale 직접 입력" val={cfg.gpaScaleOther} set={v => edit({ gpaScaleOther: v })} />}
       <V2Select label="Source" val={cfg.source} set={v => edit({ source: v })} options={V2_GRADING_SCALE_SOURCES} />
       <V2Select label="Confidence" val={cfg.confidence} set={v => edit({ confidence: v })} options={V2_GRADING_SCALE_CONFIDENCE} />
       <V2Field label="Notes" val={cfg.notes} set={v => edit({ notes: v })} />
     </div>
     {showRows && <table className="table" style={{ marginTop: 10 }}>
-      <thead><tr><th>Raw Grade</th><th>Min</th><th>Max</th><th>Normalized Score</th><th>Description</th><th></th></tr></thead>
+      <thead><tr><th>Original Grade Label</th><th>Normalized Score</th><th>Description</th><th></th></tr></thead>
       <tbody>{cfg.entries.map((r, i) => <tr key={i}>
         <td><input className="input" value={r.raw_grade_label || ""} onChange={e => editEntry(i, { raw_grade_label: e.target.value })} /></td>
-        <td><input className="input" value={r.min_value || ""} onChange={e => editEntry(i, { min_value: e.target.value })} /></td>
-        <td><input className="input" value={r.max_value || ""} onChange={e => editEntry(i, { max_value: e.target.value })} /></td>
         <td><input className="input" type="number" min="0" max="100" value={r.normalized_score || ""} onChange={e => editEntry(i, { normalized_score: e.target.value })} /></td>
         <td><input className="input" value={r.description || ""} onChange={e => editEntry(i, { description: e.target.value })} /></td>
         <td><button type="button" className="btn ghost" onClick={() => edit({ entries: cfg.entries.filter((_, x) => x !== i) })}>Delete</button></td>
@@ -1085,8 +1102,10 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const terms = st.academicTerms || [V2_EMPTY_TERM(st.school)];
   const schoolOptions = [...new Set([st.school, ...(st.previousSchools || []).map(s => s.name), ...v2SchoolNames(schools)].filter(Boolean))];
+  const currentScale = v2StudentSchoolScale(st, schools, st.school, V2_EMPTY_GRADING_SCALE());
+  const setSchoolScale = scale => update({ currentSchoolInfo: { ...(st.currentSchoolInfo || {}), gradingScale: v2NormalizeGradingScale(scale) }, academicTerms: v2RecalculateTermsWithScale(terms, st.school, scale) });
   const normalizeTerms = next => next.map(t => {
-    const gradingScale = v2NormalizeGradingScale(t.gradingScale);
+    const gradingScale = v2StudentSchoolScale(st, schools, t.school, t.gradingScale);
     return {
       ...t,
       term: v2TermLabel(t),
@@ -1112,24 +1131,13 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   };
   const editTerm = (i, patch) => saveTerms(v2SetArr(terms, i, patch));
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
-  const setTermScale = (ti, scale) => {
-    const gradingScale = v2NormalizeGradingScale(scale);
-    editTerm(ti, {
-      gradingScale,
-      subjects: (terms[ti].subjects || []).map(s => {
-        const rawGrade = s.rawGrade || s.grade || "";
-        return { ...s, rawGrade, grade: rawGrade, normalizedGrade: v2NormalizeGrade(rawGrade, gradingScale) };
-      })
-    });
-  };
   const setRawGrade = (ti, si, rawGrade) => {
-    const gradingScale = v2NormalizeGradingScale(terms[ti].gradingScale);
+    const gradingScale = v2StudentSchoolScale(st, schools, terms[ti].school, terms[ti].gradingScale);
     editSubject(ti, si, { rawGrade, grade: rawGrade, normalizedGrade: v2NormalizeGrade(rawGrade, gradingScale) });
   };
   const setTermSchool = (ti, school) => {
-    const currentScale = v2NormalizeGradingScale(terms[ti].gradingScale);
-    const useCurrent = currentScale.source && currentScale.source !== "Unknown";
-    editTerm(ti, { school, gradingScale: useCurrent ? currentScale : v2SchoolGradingScale(schools, school) });
+    const gradingScale = v2StudentSchoolScale(st, schools, school, terms[ti].gradingScale);
+    editTerm(ti, { school, gradingScale });
   };
   const addSubject = ti => editTerm(ti, { subjects: [...(terms[ti].subjects || []), { category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }] });
   React.useEffect(() => {
@@ -1143,10 +1151,14 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       </div>
       <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={terms} />
     </V2Section>
-    <ArrayEditor title="Transcript / Grading Scale / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(st.school)])} render={(t, ti) => {
-      const scale = v2NormalizeGradingScale(t.gradingScale);
+    <V2Section title="School Grading Scale">
+      <p className="small muted">Set this once for the school. Transcript terms below automatically use the selected school's grading scale.</p>
+      <V2GradingScaleEditor scale={currentScale} setScale={setSchoolScale} />
+    </V2Section>
+    <ArrayEditor title="Transcript / Teacher's Comment" rows={terms} add={() => saveTerms([...terms, V2_EMPTY_TERM(st.school)])} render={(t, ti) => {
+      const scale = v2StudentSchoolScale(st, schools, t.school, t.gradingScale);
       const rawOptions = scale.entries.map(e => e.raw_grade_label).filter(Boolean);
-      const numericGrade = v2ScaleNeedsNumeric(scale.type) || !rawOptions.length;
+      const numericGrade = v2ScaleNeedsNumeric(scale.gradeInputType);
       return <div>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
           <V2Field label="School" val={t.school} set={v => setTermSchool(ti, v)} list={schoolOptions} />
@@ -1156,12 +1168,11 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
           <V2Field label="Term GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} />
           <V2Field label="Rank" val={t.rank} set={v => editTerm(ti, { rank: v })} />
         </div>
-        <V2GradingScaleEditor scale={scale} setScale={nextScale => setTermScale(ti, nextScale)} />
         <table className="table"><thead><tr><th>Subject Category</th><th>Subject</th><th>Original Grade</th><th>Normalized Score</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
           <tr>
             <td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">Select</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td>
             <td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td>
-            <td>{numericGrade ? <input className="input" type="number" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} /> : <select className="select" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)}><option value="">Select</option>{rawOptions.map(o => <option key={o} value={o}>{o}</option>)}</select>}</td>
+            <td>{numericGrade ? <input className="input" type="number" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} /> : rawOptions.length ? <select className="select" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)}><option value="">Select</option>{rawOptions.map(o => <option key={o} value={o}>{o}</option>)}</select> : <input className="input" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} />}</td>
             <td><input className="input" type="number" min="0" max="100" value={s.normalizedGrade ?? v2NormalizeGrade(s.rawGrade || s.grade, scale)} onChange={e => editSubject(ti, si, { normalizedGrade: e.target.value })} /></td>
             <td><button type="button" className="btn ghost" onClick={() => setCommentOpen(commentOpen === `${ti}-${si}` ? "" : `${ti}-${si}`)}>{s.comment ? "View" : "+"}</button></td>
             <td><button type="button" className="btn ghost" onClick={() => editTerm(ti, { subjects: (t.subjects || []).filter((_, x) => x !== si) })}>Delete</button></td>
@@ -1275,6 +1286,46 @@ function V2Reports({ students, selected, setSelected, schools }) {
   const st = selected || students[0];
   return <div><div className="card" style={{ marginBottom: 14 }}><span className="label">보고서 학생 선택</span><select className="select" value={st?.id || ""} onChange={e => setSelected(e.target.value)}>{students.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>{st && <V2BasicReport st={st} schools={schools} />}</div>;
 }
+function V2SchoolDataAdmin({ schools = [], updateSchools }) {
+  const [selectedName, setSelectedName] = useState(schools[0]?.name || "Phillips Exeter Academy");
+  const idx = Math.max(0, schools.findIndex(s => s.name === selectedName));
+  const school = schools[idx] || schools[0] || {};
+  const config = v2LegacySchoolConfig(school);
+  const edit = patch => updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  if (!schools.length) return <V2Section title="School Data">No school data.</V2Section>;
+  return <V2Section title="Admin School Data">
+    <V2SmartSchool label="School Search / Select" val={school.name || selectedName} set={setSelectedName} schools={schools} />
+    <div className="grid g4">
+      <V2Field label="School Name" val={school.name} set={v => edit({ name: v })} />
+      <V2Field label="State" val={school.state} set={v => edit({ state: v })} />
+      <V2Field label="Region" val={school.region} set={v => edit({ region: v })} />
+      <V2Field label="Town" val={school.town} set={v => edit({ town: v })} />
+      <V2Field label="Acceptance Rate %" val={school.accept} set={v => edit({ accept: Number(v) })} type="number" />
+      <V2Field label="Average SSAT" val={school.ssat} set={v => edit({ ssat: Number(v) })} type="number" />
+      <V2Field label="Boarding Ratio" val={school.boarding} set={v => edit({ boarding: v })} type="number" />
+      <V2Field label="International Ratio" val={school.intl} set={v => edit({ intl: v })} type="number" />
+      <V2Field label="Website" val={school.website} set={v => edit({ website: v })} />
+    </div>
+    <div className="grid g2">
+      <V2Text label="Strong Programs" val={school.programs} set={v => edit({ programs: v })} />
+      <V2Text label="Sports" val={school.sports} set={v => edit({ sports: v })} />
+      <V2Text label="Arts / Clubs / Leadership" val={school.arts} set={v => edit({ arts: v })} />
+      <V2Text label="Fit" val={school.fit} set={v => edit({ fit: v })} />
+      <V2Text label="Risk" val={school.risk} set={v => edit({ risk: v })} />
+      <V2Text label="Interview / Essay Signal" val={school.interview} set={v => edit({ interview: v })} />
+    </div>
+    <V2GradingScaleEditor scale={school.grading_scale_config || school.gradingScaleConfig || V2_EMPTY_GRADING_SCALE()} setScale={scale => edit({ grading_scale_config: v2NormalizeGradingScale(scale) })} />
+    <div className="card" style={{ background: "#f8fbfe", marginTop: 12 }}>
+      <h3>Legacy / Family Connection</h3>
+      <div className="grid g4">
+        <V2Field label="legacy_sensitivity_multiplier" val={school.legacy_sensitivity_multiplier ?? config.sensitivity} set={v => edit({ legacy_sensitivity_multiplier: Number(v) })} type="number" />
+        <V2Select label="sibling_priority_enabled" val={String(school.sibling_priority_enabled ?? config.siblingPriority)} set={v => edit({ sibling_priority_enabled: v === "true" })} options={["false", "true"]} />
+        <V2Field label="max_legacy_contribution" val={school.max_legacy_contribution ?? config.max} set={v => edit({ max_legacy_contribution: Number(v) })} type="number" />
+        <V2Field label="legacy_weight" val={school.legacy_weight ?? config.weight} set={v => edit({ legacy_weight: Number(v) })} type="number" />
+      </div>
+    </div>
+  </V2Section>;
+}
 function V2SchoolGradingScaleAdmin({ schools = [], updateSchools }) {
   const [selectedName, setSelectedName] = useState("Phillips Exeter Academy");
   const idx = Math.max(0, schools.findIndex(s => s.name === selectedName));
@@ -1303,7 +1354,7 @@ function V2Admin({ data, persist, updateSchools, setSelected, setView }) {
   const staff = data.staffAccounts || [];
   const editStaff = (i, patch) => persist({ ...data, staffAccounts: v2SetArr(staff, i, patch) });
   const addStaff = () => persist({ ...data, staffAccounts: [...staff, { id: "staff" + Date.now(), name: "새 담당자", role: "staff", email: "new@yesuhak.com", password: "prep2026" }] });
-  return <div><V2SubTabs tabs={[["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <div className="grid"><V2SchoolGradingScaleAdmin schools={data.schools || []} updateSchools={updateSchools} /><V2SchoolLegacyAdmin schools={data.schools || []} updateSchools={updateSchools} /><FinalAdmin data={data} updateSchools={updateSchools} setSelected={setSelected} setView={setView} /></div>}{tab === "students" && <V2Dashboard students={data.students || []} setView={setView} setSelected={setSelected} setStage={() => {}} />}</div>;
+  return <div><V2SubTabs tabs={[["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2Dashboard students={data.students || []} setView={setView} setSelected={setSelected} setStage={() => {}} />}</div>;
 }
 
 ReactDOM.render(<V2App />, document.getElementById("root"));
