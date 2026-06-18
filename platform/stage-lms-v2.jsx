@@ -19,6 +19,24 @@ const V2_COUNTRY_CODES = ["+82 대한민국", "+1 미국/캐나다", "+86 중국
 const V2_EDUCATION_LEVELS = ["고등학교 중퇴", "고등학교 졸업", "전문대 중퇴", "전문대 졸업", "4년제 대학교 (학사) 중퇴", "4년제 대학교 (학사) 졸업", "대학원 (석사) 중퇴", "대학원 (석사) 졸업", "대학원 (박사) 중퇴", "대학원 (박사) 졸업", "기타"];
 const V2_PARENT_KEYS = [["father", "아버지"], ["mother", "어머니"]];
 const V2_SIBLING_COUNTS = ["0", "1", "2", "3", "4", "5+"];
+const V2_FAMILY_RECIPIENT_OPTIONS = ["부모", "아버지", "어머니", "기타"];
+const V2_RELIGION_OPTIONS = ["No religion / 무교", "Catholic / 천주교", "Protestant / 개신교", "Orthodox Christian / 정교회", "Other Christian / 기타 기독교", "Buddhist / 불교", "Jewish / 유대교", "Muslim / 이슬람교", "Hindu / 힌두교", "Sikh / 시크교", "Other / 기타", "Prefer not to answer / 답변하지 않음"];
+const V2_LEGACY_ANSWERS = ["No", "Yes", "Prefer not to answer"];
+const V2_LEGACY_RELATIONSHIPS = [
+  "Parent attended the school / 부모가 해당 학교 졸업 또는 재학",
+  "Grandparent attended the school / 조부모가 해당 학교 졸업 또는 재학",
+  "Sibling currently attends the school / 형제자매가 현재 재학 중",
+  "Sibling graduated from the school / 형제자매가 해당 학교 졸업",
+  "Aunt or uncle attended the school / 이모·고모·삼촌·외삼촌 등 친척이 해당 학교 졸업 또는 재학",
+  "Cousin attended the school / 사촌이 해당 학교 졸업 또는 재학",
+  "Other family connection / 기타 가족 관계"
+];
+const V2_LEGACY_STRENGTHS = [
+  "Strong / 강함: 동문 활동, 기부, 학교 행사 참여 등 현재 연결이 뚜렷함",
+  "Moderate / 보통: 졸업 또는 재학 이력은 있으나 현재 활동은 제한적임",
+  "Weak / 약함: 관계는 있으나 오래되었거나 실질적 연결이 약함",
+  "Unknown / 불명확: 관계는 있으나 구체적인 확인 정보가 부족함"
+];
 const V2_TRANSCRIPT_YEARS = Array.from({ length: 8 }, (_, i) => String(new Date().getFullYear() - 5 + i));
 const V2_TERM_SEASONS = ["Spring", "Summer", "Fall", "Winter"];
 const V2_SUBJECT_CATEGORIES = ["English", "Math", "Science", "Social Sciences", "Arts", "Health", "World Languages", "Electives"];
@@ -60,7 +78,7 @@ const V2_EMPTY_PREVIOUS = () => ({
   name: "", type: "", email: "", phone: "", counselor: "", address: "", website: "",
   startDate: "", endDate: "", gradeFrom: "", gradeTo: "", gradeAttended: "", finalGrade: "", discipline: "No", withdrawal: "No", notes: ""
 });
-const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "" });
+const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "", has_legacy_connection: "No", legacy_school_name: "", legacy_relationship_type: "", legacy_connection_strength: "", legacy_notes: "" });
 const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: "Fall", term: "", gradeLevel: "", subjects: [{ category: "English", subject: "", grade: "", comment: "" }], termGpa: "", rank: "" });
 const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
@@ -79,6 +97,13 @@ const V2_EMPTY_PARENT = relation => ({
   sameAddress: "Yes", linkedAddressType: "Permanent Address", address: ""
 });
 const V2_EMPTY_SIBLING = () => ({ relation: "", relationOther: "", name: "", englishName: "", dob: "", school: "", grade: "", notes: "" });
+const V2_EMPTY_FAMILY_STATUS = () => ({
+  livingWith: "부모", livingWithOther: "",
+  admissionsRecipient: "부모", admissionsRecipientOther: "",
+  billingRecipient: "부모", billingRecipientOther: "",
+  fatherDeceased: "No", motherDeceased: "No", divorced: "No", separated: "No",
+  custodyHolder: "", custodyHolderOther: "", fatherRemarried: "No", motherRemarried: "No"
+});
 
 function v2BaseData() {
   const raw = typeof load === "function" ? load() : {};
@@ -98,7 +123,7 @@ function v2NormalizeStudent(s) {
   const splitEn = String(s.en || "").trim().split(/\s+/);
   const owners = s.owners || [s.owner || "aram"].filter(Boolean);
   const previous = [...(s.previousSchools || []), V2_EMPTY_PREVIOUS(), V2_EMPTY_PREVIOUS()].slice(0, Math.max(2, (s.previousSchools || []).length));
-  const mappedInterests = (s.interests || []).map(x => ({ ...x, reason: x.reason || x.note || "" }));
+  const mappedInterests = (s.interests || []).map(x => ({ ...V2_EMPTY_INTEREST(), ...x, reason: x.reason || x.note || "", has_legacy_connection: x.has_legacy_connection || "No" }));
   const interests = mappedInterests.length >= 3 ? mappedInterests : [...mappedInterests, V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()].slice(0, 3);
   const terms = (s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ category: "English", subject: "Overall", grade: a.gpa || "", comment: a.comment || "" }] }))).map(t => {
     const parts = String(t.term || "").split(/\s+/);
@@ -144,6 +169,9 @@ function v2NormalizeStudent(s) {
       communicationLanguages: basic.communicationLanguages || (basic.languages ? String(basic.languages).split(",").map(x => x.trim()).filter(Boolean) : []),
       communicationLanguageLevels: basic.communicationLanguageLevels || {},
       communicationLanguageOther: basic.communicationLanguageOther || "",
+      familyStatus: { ...V2_EMPTY_FAMILY_STATUS(), ...(basic.familyStatus || {}) },
+      studentReligion: basic.studentReligion || "",
+      studentReligionOther: basic.studentReligionOther || "",
       personalEmail: basic.personalEmail || basic.email || "",
       schoolEmail: basic.schoolEmail || "",
       koreanAddress: basic.koreanAddress || basic.address || "",
@@ -348,18 +376,74 @@ function v2LegacyCategory(margin) {
   if (margin > 6 && margin <= 12) return "Likely Accept";
   return "Safety School";
 }
+function v2CleanLegacyValue(value) {
+  return String(value || "").split(" / ")[0].split(":")[0].trim();
+}
+function v2NormName(value) {
+  return String(value || "").toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function v2LegacySchoolConfig(school = {}) {
+  const topTier = {
+    "phillips exeter academy": { sensitivity: 0.7, siblingPriority: true, max: 3.0, weight: 0.35 },
+    "phillips academy andover": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 },
+    "deerfield academy": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 },
+    "hotchkiss school": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 },
+    "choate rosemary hall": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 },
+    "lawrenceville school": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 },
+    "st pauls school": { sensitivity: 0.8, siblingPriority: false, max: 3.5, weight: 0.35 }
+  };
+  const suggested = topTier[v2NormName(school.name)];
+  return {
+    sensitivity: Number(school.legacy_sensitivity_multiplier || school.legacySensitivityMultiplier || suggested?.sensitivity || 1),
+    siblingPriority: String(school.sibling_priority_enabled ?? school.siblingPriorityEnabled ?? suggested?.siblingPriority ?? false) === "true" || school.sibling_priority_enabled === true || school.siblingPriorityEnabled === true,
+    max: Number(school.max_legacy_contribution || school.maxLegacyContribution || suggested?.max || 3.5),
+    weight: Number(school.legacy_weight || school.legacyWeight || suggested?.weight || 0.35)
+  };
+}
+function v2LegacyImpactForSchool(st, school) {
+  const relationScores = {
+    "Parent attended the school": 5,
+    "Grandparent attended the school": 3,
+    "Sibling currently attends the school": 4.5,
+    "Sibling graduated from the school": 4,
+    "Aunt or uncle attended the school": 1.5,
+    "Cousin attended the school": 1,
+    "Other family connection": 0.5
+  };
+  const strengthMultipliers = { Strong: 1.3, Moderate: 1, Weak: 0.7, Unknown: 0.8 };
+  const target = v2NormName(school?.name);
+  const profile = (st.interests || []).find(x => x.has_legacy_connection === "Yes" && v2NormName(x.legacy_school_name || x.school) === target);
+  if (!profile) return { applied: false, contribution: 0, subscore: 0, note: "본 평가에서는 별도의 레거시 또는 가족 관계 요소가 반영되지 않았습니다." };
+  const relationship = v2CleanLegacyValue(profile.legacy_relationship_type);
+  if (!profile.legacy_school_name || !relationship) return { applied: false, contribution: 0, subscore: 0, warning: "레거시 관계 학교명과 관계 유형이 모두 입력되어야 점수에 반영됩니다." };
+  const strength = v2CleanLegacyValue(profile.legacy_connection_strength) || "Unknown";
+  const config = v2LegacySchoolConfig(school);
+  let sensitivity = config.sensitivity;
+  if (relationship === "Sibling currently attends the school" && config.siblingPriority) sensitivity = Math.min(1.4, sensitivity + 0.2);
+  const relationshipScore = relationScores[relationship] || 0;
+  const multiplier = strengthMultipliers[strength] || 0.8;
+  const subscore = Math.min(10, relationshipScore * multiplier * sensitivity);
+  const contribution = Math.min(config.max, subscore * config.weight);
+  return { applied: contribution > 0, contribution: v2Round(contribution), subscore: v2Round(subscore), relationship, strength, schoolName: profile.legacy_school_name, notes: profile.legacy_notes || "", sensitivity, warning: "" };
+}
 function v2LegacyPredictions(st, schools) {
   const score = v2LegacyStage1Score(st);
   const targetNames = (st.interests || []).map(x => x.school).filter(Boolean);
   const pool = targetNames.length ? targetNames.map(n => v2FindSchool(schools, n)).filter(Boolean) : [...(schools || [])].sort((a, b) => v2Num(a.yesRank || a.avgRank || 999) - v2Num(b.yesRank || b.avgRank || 999)).slice(0, 8);
   return pool.map(school => {
+    const legacyImpact = v2LegacyImpactForSchool(st, school);
     const schoolStrength = v2LegacySchoolStrength(school);
     const toeflDetriment = Math.max(0, schoolStrength - (score.toefl.eval ?? 0));
     const gpaDetriment = Math.max(0, (schoolStrength - (score.gpa.eval ?? 0)) / 3);
-    const margin = score.weighted - schoolStrength - toeflDetriment - gpaDetriment;
+    const adjustedScore = score.weighted + legacyImpact.contribution;
+    const margin = adjustedScore - schoolStrength - toeflDetriment - gpaDetriment;
     return {
       school,
       schoolStrength,
+      baseApplicantScore: score.weighted,
+      legacyImpact,
+      legacyContribution: legacyImpact.contribution,
+      adjustedApplicantScore: v2Round(adjustedScore),
       toeflDetriment: v2Round(toeflDetriment),
       gpaDetriment: v2Round(gpaDetriment),
       margin: v2Round(margin),
@@ -473,6 +557,7 @@ function V2ClientStrategyReport({ st, schools }) {
   const rubrics = v2ClientRubrics(st);
   const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
   const interestPredictions = interestNames.length ? v2LegacyPredictions(st, reportSchools) : [];
+  const appliedLegacy = interestPredictions.filter(p => p.legacyImpact?.applied && p.legacyContribution > 0);
   const recommended = v2RecommendedSchools(st, window.PREP_SCHOOLS || reportSchools);
   const lowest = [...rubrics].sort((a, b) => a.score - b.score).slice(0, 2);
   return <div className="report">
@@ -497,7 +582,9 @@ function V2ClientStrategyReport({ st, schools }) {
       <table className="table" style={{ marginTop: 14 }}><tbody>{rubrics.map(r => <tr key={r.key}><th style={{ width: 150 }}>{r.title}</th><td><p style={{ margin: 0, lineHeight: 1.75 }}>{r.evidence}</p><p style={{ margin: "8px 0 0", lineHeight: 1.75 }}><b>보완 방향:</b> {r.gap}</p></td></tr>)}</tbody></table>
 
       <div className="section-title"><span>03</span>관심/희망학교 판정</div>
-      {interestPredictions.length ? <table className="table"><thead><tr><th>학교</th><th>현재 판정</th><th>해석 및 보완 방향</th></tr></thead><tbody>{interestPredictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>{v2CustomerSchoolNote(p)}</td></tr>)}</tbody></table> : <p className="small">관심/희망학교가 아직 지정되지 않았습니다. 학생 상세의 관심학교 3개를 입력하면 해당 학교만 대상으로 판정이 표시됩니다.</p>}
+      {interestPredictions.length ? <table className="table"><thead><tr><th>학교</th><th>Base</th><th>Legacy</th><th>Adjusted</th><th>현재 판정</th><th>해석 및 보완 방향</th></tr></thead><tbody>{interestPredictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td>{p.baseApplicantScore}</td><td>{p.legacyContribution ? `+${p.legacyContribution}` : "-"}</td><td>{p.adjustedApplicantScore}</td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>{v2CustomerSchoolNote(p)}</td></tr>)}</tbody></table> : <p className="small">관심/희망학교가 아직 지정되지 않았습니다. 학생 상세의 관심학교 3개를 입력하면 해당 학교만 대상으로 판정이 표시됩니다.</p>}
+
+      {appliedLegacy.length > 0 && <><div className="section-title"><span>03-1</span>레거시 / 가족 관계 영향</div>{appliedLegacy.map(p => <p key={p.school.name} style={{ lineHeight: 1.8 }}><b>{p.school.name}</b><br />학생은 해당 학교와 <b>{p.legacyImpact.relationship}</b> 관계가 있으며, 연결 강도는 <b>{p.legacyImpact.strength}</b>로 입력되었습니다. 이 요소는 현재 점수에 <b>+{p.legacyContribution}</b>점의 제한적인 맥락 가산점으로 반영되어 adjusted score가 {p.adjustedApplicantScore}점으로 계산되었습니다. 다만 레거시는 독립적인 합격 요인이 아니며, 학업력·영어 실력·인터뷰·추천서·학교 적합성의 약점을 대체하지는 않습니다.</p>)}</>}
 
       <div className="section-title"><span>04</span>현재 점수 기준 추천 학교 4개</div>
       <table className="table"><thead><tr><th>추천 학교</th><th>추천 구간</th><th>추천 이유</th><th>다음 액션</th></tr></thead><tbody>{recommended.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">{p.school.state || ""} · SSAT 기준 {p.school.ssat || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>현재 준비도에서 현실적으로 검토할 수 있는 학교입니다. {p.school.fit || "학업 적합도, 보딩 준비도, EC 깊이를 함께 검토해야 합니다."}</td><td style={{ lineHeight: 1.7 }}>{p.school.name}의 프로그램 중 학생의 Hook과 연결되는 지점을 2개 이상 찾고, 인터뷰와 에세이에서 사용할 구체 사례를 준비해 주세요.</td></tr>)}</tbody></table>
@@ -513,7 +600,7 @@ function V2Field({ label, val, set, type = "text", list = [] }) {
   const id = "v2_" + label.replace(/\W/g, "_") + "_" + Math.random().toString(36).slice(2);
   return <div className="field"><span className="label">{label}</span><input className="input" type={type} value={val || ""} list={list.length ? id : undefined} onChange={e => set(e.target.value)} />{list.length > 0 && <datalist id={id}>{list.map(o => <option key={o} value={o} />)}</datalist>}</div>;
 }
-function V2Text({ label, val, set }) { return <div className="field"><span className="label">{label}</span><textarea className="textarea" value={val || ""} onChange={e => set(e.target.value)} /></div>; }
+function V2Text({ label, val, set, minHeight }) { return <div className="field"><span className="label">{label}</span><textarea className="textarea" style={minHeight ? { minHeight } : undefined} value={val || ""} onChange={e => set(e.target.value)} /></div>; }
 function V2Select({ label, val, set, options }) {
   const display = o => label === "Stage" ? (V2_STAGE_KEYS.find(x => x[0] === o)?.[1] || o) : o;
   return <div className="field"><span className="label">{label}</span><select className="select" value={val || ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
@@ -528,22 +615,20 @@ function V2OwnerPicker({ staff = [], values = [], set }) {
   const toggle = id => set(values.includes(id) ? values.filter(x => x !== id) : [...values, id]);
   return <div className="field owner-picker"><span className="label">담당자</span><button type="button" className="input owner-trigger" onClick={() => setOpen(!open)}>{selected.length ? selected.map(a => a.name).join(", ") : "담당자 선택"}</button>{open && <div className="owner-menu">{staff.map(a => <button type="button" key={a.id} className={"owner-option " + (values.includes(a.id) ? "selected" : "")} onClick={() => toggle(a.id)}><span>{values.includes(a.id) ? "✓" : ""}</span>{a.name}</button>)}</div>}</div>;
 }
-function V2LanguageLevelPicker({ label, values = [], levels = {}, setValues, setLevels, options }) {
+function V2LanguageLevelPicker({ label, values = [], levels = {}, setBoth, options }) {
   const [pending, setPending] = useState("");
   const add = () => {
     if (!pending || values.includes(pending)) return;
-    setValues([...values, pending]);
-    setLevels({ ...levels, [pending]: "Intermediate" });
+    setBoth([...values, pending], { ...levels, [pending]: levels[pending] || "Intermediate" });
     setPending("");
   };
   const remove = lang => {
     const nextLevels = { ...levels };
     delete nextLevels[lang];
-    setValues(values.filter(x => x !== lang));
-    setLevels(nextLevels);
+    setBoth(values.filter(x => x !== lang), nextLevels);
   };
-  const setLevel = (lang, level) => setLevels({ ...levels, [lang]: level });
-  return <div className="field"><span className="label">{label}</span><div className="grid g3"><V2Select label="언어 선택" val={pending} set={setPending} options={options.filter(o => !values.includes(o))} /><div className="field"><span className="label">&nbsp;</span><button type="button" className="btn ghost" onClick={add}>언어 추가</button></div></div><div className="grid">{values.map(lang => <div key={lang} className="language-row selected"><span>{lang}</span><select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select><button type="button" className="btn ghost" onClick={() => remove(lang)}>삭제</button></div>)}</div></div>;
+  const setLevel = (lang, level) => setBoth(values, { ...levels, [lang]: level });
+  return <div className="field"><span className="label">{label}</span><div className="grid g3"><V2Select label="언어 선택" val={pending} set={setPending} options={options.filter(o => !values.includes(o))} /><div className="field"><span className="label">&nbsp;</span><button type="button" className="btn ghost" onClick={add}>언어 추가</button></div></div><div className="grid">{values.map(lang => <div key={lang} className="language-row selected" style={{ gridTemplateColumns: "1fr 180px auto" }}><span>{lang}</span><select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select><button type="button" className="btn ghost" onClick={() => remove(lang)}>삭제</button></div>)}</div></div>;
 }
 function V2AddressSearchButtons({ address }) {
   const openRoad = () => {
@@ -582,8 +667,10 @@ function V2ParentEditor({ label, parent, setParent, addresses }) {
 }
 function V2FamilySection({ basic, setBasic }) {
   const parents = basic.parents || { father: V2_EMPTY_PARENT("father"), mother: V2_EMPTY_PARENT("mother") };
+  const familyStatus = { ...V2_EMPTY_FAMILY_STATUS(), ...(basic.familyStatus || {}) };
   const addresses = basic.addresses || [];
   const setParent = (key, patch) => setBasic("parents", { ...parents, [key]: { ...parents[key], ...patch } });
+  const setFamilyStatus = patch => setBasic("familyStatus", { ...familyStatus, ...patch });
   const count = basic.siblingCount || "0";
   const siblingLen = count === "5+" ? Math.max(5, (basic.siblings || []).length) : Number(count);
   const siblings = Array.from({ length: siblingLen || 0 }, (_, i) => ({ ...V2_EMPTY_SIBLING(), ...((basic.siblings || [])[i] || {}) }));
@@ -594,9 +681,25 @@ function V2FamilySection({ basic, setBasic }) {
   const editSibling = (i, patch) => setBasic("siblings", v2SetArr(siblings, i, patch));
   const gender = basic.gender || "";
   const relationOptions = gender === "남자" ? ["형", "누나", "쌍둥이", "남동생", "여동생", "기타"] : ["오빠", "언니", "쌍둥이", "남동생", "여동생", "기타"];
+  const hasCustodyQuestions = familyStatus.divorced === "Yes" || familyStatus.separated === "Yes";
   return <V2Section title="가족관계">
+    <div className="card" style={{ background: "#f8fbfe", marginBottom: 12 }}><h3>가족 기본 확인</h3>
+      <div className="grid g3">
+        <V2Select label="학생이 현재 함께 살고 있는 분" val={familyStatus.livingWith} set={v => setFamilyStatus({ livingWith: v })} options={V2_FAMILY_RECIPIENT_OPTIONS} />
+        {familyStatus.livingWith === "기타" && <V2Field label="함께 거주하는 분 직접 입력" val={familyStatus.livingWithOther} set={v => setFamilyStatus({ livingWithOther: v })} />}
+        <V2Select label="입학서류를 받아보실 분" val={familyStatus.admissionsRecipient} set={v => setFamilyStatus({ admissionsRecipient: v })} options={V2_FAMILY_RECIPIENT_OPTIONS} />
+        {familyStatus.admissionsRecipient === "기타" && <V2Field label="입학서류 수령자 직접 입력" val={familyStatus.admissionsRecipientOther} set={v => setFamilyStatus({ admissionsRecipientOther: v })} />}
+        <V2Select label="입학금 및 등록금 서류를 받아보실 분" val={familyStatus.billingRecipient} set={v => setFamilyStatus({ billingRecipient: v })} options={V2_FAMILY_RECIPIENT_OPTIONS} />
+        {familyStatus.billingRecipient === "기타" && <V2Field label="등록금 서류 수령자 직접 입력" val={familyStatus.billingRecipientOther} set={v => setFamilyStatus({ billingRecipientOther: v })} />}
+        <V2Select label="아버지 사망" val={familyStatus.fatherDeceased} set={v => setFamilyStatus({ fatherDeceased: v })} options={["No", "Yes"]} />
+        <V2Select label="어머니 사망" val={familyStatus.motherDeceased} set={v => setFamilyStatus({ motherDeceased: v })} options={["No", "Yes"]} />
+        <V2Select label="이혼 여부" val={familyStatus.divorced} set={v => setFamilyStatus({ divorced: v })} options={["No", "Yes"]} />
+        <V2Select label="별거 여부" val={familyStatus.separated} set={v => setFamilyStatus({ separated: v })} options={["No", "Yes"]} />
+      </div>
+      {hasCustodyQuestions && <div className="grid g3"><V2Select label="지원 학생의 양육권을 가진 분" val={familyStatus.custodyHolder} set={v => setFamilyStatus({ custodyHolder: v })} options={["아버지", "어머니", "기타"]} />{familyStatus.custodyHolder === "기타" && <V2Field label="양육권자 직접 입력" val={familyStatus.custodyHolderOther} set={v => setFamilyStatus({ custodyHolderOther: v })} />}<V2Select label="아버지 재혼" val={familyStatus.fatherRemarried} set={v => setFamilyStatus({ fatherRemarried: v })} options={["No", "Yes"]} /><V2Select label="어머니 재혼" val={familyStatus.motherRemarried} set={v => setFamilyStatus({ motherRemarried: v })} options={["No", "Yes"]} /></div>}
+    </div>
     {V2_PARENT_KEYS.map(([key, label]) => <V2ParentEditor key={key} label={label} parent={parents[key] || V2_EMPTY_PARENT(key)} setParent={patch => setParent(key, patch)} addresses={addresses} />)}
-    <div className="card" style={{ background: "#f8fbfe" }}><h3>형제관계</h3><V2Select label="형제 수" val={count} set={setSiblingCount} options={V2_SIBLING_COUNTS} />{siblings.map((s, i) => <div key={i} className="card" style={{ marginTop: 12 }}><h3>형제/자매/남매 {i + 1}</h3><div className="grid g3"><V2Select label="학생과의 관계" val={s.relation} set={v => editSibling(i, { relation: v })} options={relationOptions} />{s.relation === "기타" && <V2Field label="관계 직접 입력" val={s.relationOther} set={v => editSibling(i, { relationOther: v })} />}<V2Field label="성함" val={s.name} set={v => editSibling(i, { name: v })} /><V2Field label="영문 성함" val={s.englishName} set={v => editSibling(i, { englishName: v })} /><V2Field label="생년월일" type="date" val={s.dob} set={v => editSibling(i, { dob: v })} /><V2Field label="학교명" val={s.school} set={v => editSibling(i, { school: v })} /><V2Select label="현재 학년" val={s.grade} set={v => editSibling(i, { grade: v })} options={V2_GRADE_OPTIONS} /></div><V2Text label="메모" val={s.notes} set={v => editSibling(i, { notes: v })} /></div>)}</div>
+    <div className="card" style={{ background: "#f8fbfe" }}><h3>형제관계</h3><V2Select label="형제 수" val={count} set={setSiblingCount} options={V2_SIBLING_COUNTS} />{siblings.map((s, i) => <div key={i} className="card" style={{ marginTop: 12 }}><h3>형제/자매/남매 {i + 1}</h3><div className="grid g3"><V2Select label="학생과의 관계" val={s.relation} set={v => editSibling(i, { relation: v })} options={relationOptions} />{s.relation === "기타" && <V2Field label="관계 직접 입력" val={s.relationOther} set={v => editSibling(i, { relationOther: v })} />}<V2Field label="성함" val={s.name} set={v => editSibling(i, { name: v })} /><V2Field label="영문 성함" val={s.englishName} set={v => editSibling(i, { englishName: v })} /><V2Field label="생년월일" type="date" val={s.dob} set={v => editSibling(i, { dob: v })} /><V2Field label="학교명" val={s.school} set={v => editSibling(i, { school: v })} /><V2Select label="현재 학년" val={s.grade} set={v => editSibling(i, { grade: v })} options={V2_GRADE_OPTIONS} /></div><V2Text label="메모" val={s.notes} set={v => editSibling(i, { notes: v })} minHeight={48} /></div>)}</div>
   </V2Section>;
 }
 function V2SubTabs({ tabs, active, set }) {
@@ -655,14 +758,14 @@ function V2StageOne({ st, update, schools, staff }) {
 }
 function V2Identity({ st, basic, setBasic, update, staff }) {
   const setOwners = owners => update({ owners, owner: owners[0] || "" });
-  const setCommLevels = levels => setBasic("communicationLanguageLevels", levels);
+  const setCommunicationLanguageProfile = (languages, levels) => setBasic({ communicationLanguages: languages, communicationLanguageLevels: levels });
   return <div className="grid">
     <V2Section title="이름 / 생년월일 / 담당자"><div className="grid g4"><V2Field label="성" val={basic.lastNameKo} set={v => setBasic("lastNameKo", v)} /><V2Field label="이름" val={basic.firstNameKo} set={v => setBasic("firstNameKo", v)} /><V2Field label="영문 이름" val={basic.firstNameEn} set={v => setBasic("firstNameEn", v)} /><V2Field label="영문 성" val={basic.lastNameEn} set={v => setBasic("lastNameEn", v)} /><V2Field label="Preferred Name" val={basic.preferredName} set={v => setBasic("preferredName", v)} /><V2Field label="생년월일" type="date" val={basic.dob} set={v => setBasic("dob", v)} /><V2Select label="성별" val={basic.gender} set={v => setBasic("gender", v)} options={["남자", "여자", "미입력"]} /><V2OwnerPicker staff={staff} values={st.owners || []} set={setOwners} /></div></V2Section>
     <V2Section title="출생 / 국적"><div className="grid g3"><V2Field label="출생 도시" val={basic.birthCity} set={v => setBasic("birthCity", v)} /><V2Select label="출생 국가" val={basic.birthCountry} set={v => setBasic("birthCountry", v)} options={V2_COUNTRIES} />{basic.birthCountry === "기타" && <V2Field label="출생 국가 직접 입력" val={basic.birthCountryOther} set={v => setBasic("birthCountryOther", v)} />}</div><V2Multi label="국적" values={basic.nationalities || []} set={v => setBasic("nationalities", v)} options={V2_NATIONALITIES} otherValue={basic.nationalityOther} setOther={v => setBasic("nationalityOther", v)} /><div className="grid g3"><V2Select label="미국 영주권/시민권" val={basic.usStatus} set={v => setBasic("usStatus", v)} options={["없음", "영주권", "시민권", "기타"]} />{basic.usStatus === "기타" && <V2Field label="미국 체류/신분 직접 입력" val={basic.usStatusOther} set={v => setBasic("usStatusOther", v)} />}</div></V2Section>
     <V2AddressHelper basic={basic} setBasic={setBasic} />
     <V2FamilySection basic={basic} setBasic={setBasic} />
-    <V2Section title="언어"><V2Multi label="모국어" values={basic.firstLanguages || []} set={v => setBasic("firstLanguages", v)} options={V2_LANGUAGES} otherValue={basic.firstLanguageOther} setOther={v => setBasic("firstLanguageOther", v)} /><V2Multi label="가정 사용 언어" values={basic.homeLanguages || []} set={v => setBasic("homeLanguages", v)} options={V2_LANGUAGES} otherValue={basic.homeLanguageOther} setOther={v => setBasic("homeLanguageOther", v)} /><V2LanguageLevelPicker label="그 외 소통 가능 언어" values={basic.communicationLanguages || []} levels={basic.communicationLanguageLevels || {}} setValues={v => setBasic("communicationLanguages", v)} setLevels={setCommLevels} options={V2_LANGUAGES} />{(basic.communicationLanguages || []).includes("기타") && <V2Field label="기타 소통 가능 언어" val={basic.communicationLanguageOther} set={v => setBasic("communicationLanguageOther", v)} />}</V2Section>
-    <V2Section title="지원 조건"><div className="grid g3"><V2Select label="Financial Aid" val={basic.financialAid} set={v => setBasic("financialAid", v)} options={["Yes", "No", "미정"]} /><V2Select label="Boarding/Day 지원" val={basic.boardingDay} set={v => setBasic("boardingDay", v)} options={["Boarding", "Day", "Both"]} /></div><V2Text label="추가 필수 정보/특이사항" val={basic.requiredNotes} set={v => setBasic("requiredNotes", v)} /></V2Section>
+    <V2Section title="언어"><V2Multi label="모국어" values={basic.firstLanguages || []} set={v => setBasic("firstLanguages", v)} options={V2_LANGUAGES} otherValue={basic.firstLanguageOther} setOther={v => setBasic("firstLanguageOther", v)} /><V2Multi label="가정 사용 언어" values={basic.homeLanguages || []} set={v => setBasic("homeLanguages", v)} options={V2_LANGUAGES} otherValue={basic.homeLanguageOther} setOther={v => setBasic("homeLanguageOther", v)} /><V2LanguageLevelPicker label="그 외 소통 가능 언어" values={basic.communicationLanguages || []} levels={basic.communicationLanguageLevels || {}} setBoth={setCommunicationLanguageProfile} options={V2_LANGUAGES} />{(basic.communicationLanguages || []).includes("기타") && <V2Field label="기타 소통 가능 언어" val={basic.communicationLanguageOther} set={v => setBasic("communicationLanguageOther", v)} />}</V2Section>
+    <V2Section title="지원 조건"><div className="grid g3"><V2Select label="Financial Aid" val={basic.financialAid} set={v => setBasic("financialAid", v)} options={["Yes", "No", "미정"]} /><V2Select label="Boarding/Day 지원" val={basic.boardingDay} set={v => setBasic("boardingDay", v)} options={["Boarding", "Day", "Both"]} /><V2Select label="학생 종교" val={basic.studentReligion} set={v => setBasic("studentReligion", v)} options={V2_RELIGION_OPTIONS} />{basic.studentReligion === "Other / 기타" && <V2Field label="학생 종교 직접 입력" val={basic.studentReligionOther} set={v => setBasic("studentReligionOther", v)} />}</div><V2Text label="추가 필수 정보/특이사항" val={basic.requiredNotes} set={v => setBasic("requiredNotes", v)} /></V2Section>
   </div>;
 }
 function V2Program({ st, update, schools }) {
@@ -711,7 +814,7 @@ function V2CustomSchoolModal({ open, onClose, onSave }) {
 function V2InterestSchools({ st, update, schools }) {
   const interests = st.interests?.length ? st.interests : [V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()];
   const set = (i, patch) => update({ interests: v2SetArr(interests, i, patch) });
-  return <V2Section title="관심 학교"><div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn ghost" onClick={() => update({ interests: [...interests, V2_EMPTY_INTEREST()] })}>관심학교 추가</button></div>{interests.map((x, i) => <div className="grid g2" key={i}><V2SmartSchool label={`관심 학교 ${i + 1}`} val={x.school} set={v => set(i, { school: v })} schools={schools} /><V2Field label="이유" val={x.reason || x.note} set={v => set(i, { reason: v, note: v })} /></div>)}</V2Section>;
+  return <V2Section title="관심 학교"><div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn ghost" onClick={() => update({ interests: [...interests, V2_EMPTY_INTEREST()] })}>관심학교 추가</button></div>{interests.map((x, i) => <div className="card" key={i} style={{ marginBottom: 12, background: "#f8fbfe" }}><div className="grid g2"><V2SmartSchool label={`관심 학교 ${i + 1}`} val={x.school} set={v => set(i, { school: v, legacy_school_name: x.legacy_school_name || v })} schools={schools} /><V2Field label="이유" val={x.reason || x.note} set={v => set(i, { reason: v, note: v })} /></div><div className="grid g3"><V2Select label="지원 학교에 가족 또는 레거시 관계가 있나요?" val={x.has_legacy_connection || "No"} set={v => set(i, { has_legacy_connection: v })} options={V2_LEGACY_ANSWERS} />{x.has_legacy_connection === "Yes" && <V2Field label="가족 또는 레거시 관계가 있는 학교명" val={x.legacy_school_name || x.school} set={v => set(i, { legacy_school_name: v })} list={v2SchoolNames(schools)} />}{x.has_legacy_connection === "Yes" && <V2Select label="학생과 해당 졸업생/재학생의 관계" val={x.legacy_relationship_type} set={v => set(i, { legacy_relationship_type: v })} options={V2_LEGACY_RELATIONSHIPS} />}{x.has_legacy_connection === "Yes" && <V2Select label="해당 가족 관계의 현재 연결성 또는 확인 가능성" val={x.legacy_connection_strength} set={v => set(i, { legacy_connection_strength: v })} options={V2_LEGACY_STRENGTHS} />}</div>{x.has_legacy_connection === "Yes" && <V2Text label="레거시 관계에 대한 추가 메모" val={x.legacy_notes} set={v => set(i, { legacy_notes: v })} minHeight={56} />}</div>)}</V2Section>;
 }
 function v2GradeNumber(v) {
   const m = String(v || "").match(/\d+/);
@@ -918,12 +1021,21 @@ function V2Reports({ students, selected, setSelected, schools }) {
   const st = selected || students[0];
   return <div><div className="card" style={{ marginBottom: 14 }}><span className="label">보고서 학생 선택</span><select className="select" value={st?.id || ""} onChange={e => setSelected(e.target.value)}>{students.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>{st && <V2BasicReport st={st} schools={schools} />}</div>;
 }
+function V2SchoolLegacyAdmin({ schools = [], updateSchools }) {
+  const [selectedName, setSelectedName] = useState("Phillips Exeter Academy");
+  const idx = Math.max(0, schools.findIndex(s => s.name === selectedName));
+  const school = schools[idx] || schools[0] || {};
+  const config = v2LegacySchoolConfig(school);
+  const edit = patch => updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  if (!schools.length) return null;
+  return <V2Section title="Legacy / Family Connection 학교별 설정"><div className="grid g4"><V2SmartSchool label="학교 검색/선택" val={school.name || selectedName} set={setSelectedName} schools={schools} /><V2Field label="legacy_sensitivity_multiplier" val={school.legacy_sensitivity_multiplier ?? config.sensitivity} set={v => edit({ legacy_sensitivity_multiplier: Number(v) })} type="number" /><V2Select label="sibling_priority_enabled" val={String(school.sibling_priority_enabled ?? config.siblingPriority)} set={v => edit({ sibling_priority_enabled: v === "true" })} options={["false", "true"]} /><V2Field label="max_legacy_contribution" val={school.max_legacy_contribution ?? config.max} set={v => edit({ max_legacy_contribution: Number(v) })} type="number" /><V2Field label="legacy_weight" val={school.legacy_weight ?? config.weight} set={v => edit({ legacy_weight: Number(v) })} type="number" /></div><p className="small muted">레거시는 합격 가능성을 대체하지 않는 작은 맥락 가산점입니다. Phillips Exeter Academy는 기본 제안값으로 sensitivity 0.7, sibling priority true, max 3.0을 사용합니다.</p></V2Section>;
+}
 function V2Admin({ data, persist, updateSchools, setSelected, setView }) {
   const [tab, setTab] = useState("staff");
   const staff = data.staffAccounts || [];
   const editStaff = (i, patch) => persist({ ...data, staffAccounts: v2SetArr(staff, i, patch) });
   const addStaff = () => persist({ ...data, staffAccounts: [...staff, { id: "staff" + Date.now(), name: "새 담당자", role: "staff", email: "new@yesuhak.com", password: "prep2026" }] });
-  return <div><V2SubTabs tabs={[["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <FinalAdmin data={data} updateSchools={updateSchools} setSelected={setSelected} setView={setView} />}{tab === "students" && <V2Dashboard students={data.students || []} setView={setView} setSelected={setSelected} setStage={() => {}} />}</div>;
+  return <div><V2SubTabs tabs={[["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <div className="grid"><V2SchoolLegacyAdmin schools={data.schools || []} updateSchools={updateSchools} /><FinalAdmin data={data} updateSchools={updateSchools} setSelected={setSelected} setView={setView} /></div>}{tab === "students" && <V2Dashboard students={data.students || []} setView={setView} setSelected={setSelected} setStage={() => {}} />}</div>;
 }
 
 ReactDOM.render(<V2App />, document.getElementById("root"));

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LegacySchoolPreferences(BaseModel):
@@ -23,6 +23,44 @@ class LegacySchoolPreferences(BaseModel):
     conditional_sport: Optional[str] = None
 
 
+LegacyConnectionAnswer = Literal["No", "Yes", "Prefer not to answer"]
+LegacyRelationshipType = Literal[
+    "Parent attended the school",
+    "Grandparent attended the school",
+    "Sibling currently attends the school",
+    "Sibling graduated from the school",
+    "Aunt or uncle attended the school",
+    "Cousin attended the school",
+    "Other family connection",
+]
+LegacyConnectionStrength = Literal["Strong", "Moderate", "Weak", "Unknown"]
+
+
+class LegacyFamilyConnectionProfile(BaseModel):
+    has_legacy_connection: LegacyConnectionAnswer = "No"
+    legacy_school_name: Optional[str] = None
+    legacy_relationship_type: Optional[LegacyRelationshipType] = None
+    legacy_connection_strength: Optional[LegacyConnectionStrength] = None
+    legacy_notes: Optional[str] = None
+
+
+class LegacyFamilyConnectionImpact(BaseModel):
+    has_legacy_connection: LegacyConnectionAnswer = "No"
+    legacy_school_name: Optional[str] = None
+    legacy_relationship_type: Optional[str] = None
+    legacy_connection_strength: Optional[str] = None
+    legacy_notes: Optional[str] = None
+    legacy_relationship_score: float = 0.0
+    legacy_strength_multiplier: float = 0.0
+    legacy_school_sensitivity: float = 1.0
+    legacy_subscore: float = 0.0
+    legacy_contribution: float = 0.0
+    matched_evaluated_school: bool = False
+    applied: bool = False
+    explanation: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+
 class LegacyStage1Input(BaseModel):
     student_alias: str
     cohort: str = ""
@@ -41,6 +79,7 @@ class LegacyStage1Input(BaseModel):
     cocurricular_comment: Optional[str] = None
     overall_comment: Optional[str] = None
     school_preferences: LegacySchoolPreferences = Field(default_factory=LegacySchoolPreferences)
+    legacy_connections: list[LegacyFamilyConnectionProfile] = Field(default_factory=list)
     needs_ssat_optional: Optional[bool] = None
     needs_esl: Optional[bool] = None
 
@@ -108,6 +147,10 @@ class LegacySchool(BaseModel):
     source_sheet: Optional[str] = None
     source_row: Optional[int] = None
     source_notes: Optional[str] = None
+    legacy_sensitivity_multiplier: float = 1.0
+    sibling_priority_enabled: bool = False
+    max_legacy_contribution: float = 3.5
+    legacy_weight: float = 0.35
 
 
 class CompatibilityResult(BaseModel):
@@ -134,6 +177,10 @@ class LegacyPredictionResult(BaseModel):
     school_name: str
     school_strength: float
     weighted_application_strength: float
+    base_applicant_score: float = 0.0
+    legacy_contribution: float = 0.0
+    adjusted_applicant_score: float = 0.0
+    legacy_impact: LegacyFamilyConnectionImpact = Field(default_factory=LegacyFamilyConnectionImpact)
     prediction_margin: float
     category: str
     toefl_detriment: float
@@ -145,6 +192,14 @@ class LegacyPredictionResult(BaseModel):
     school_rank: Optional[float] = None
     assumptions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def fill_legacy_score_defaults(self) -> "LegacyPredictionResult":
+        if not self.base_applicant_score:
+            self.base_applicant_score = self.weighted_application_strength - self.legacy_contribution
+        if not self.adjusted_applicant_score:
+            self.adjusted_applicant_score = self.weighted_application_strength
+        return self
 
 
 class LegacyHistoricalOutcome(BaseModel):
@@ -159,4 +214,3 @@ class LegacyHistoricalOutcome(BaseModel):
     notes: Optional[str] = None
     source_sheet: Optional[str] = None
     source_row: Optional[int] = None
-

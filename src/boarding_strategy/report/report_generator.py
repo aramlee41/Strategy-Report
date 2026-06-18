@@ -18,8 +18,22 @@ LEGACY_NOTE = (
 
 def render_stage1_report(student: LegacyStage1Input, score: LegacyStage1Score, predictions: list[LegacyPredictionResult], out: str | Path | None = None) -> str:
     rows = "\n".join(
-        f"| {p.school_name} | {p.school_strength:.2f} | {p.compatibility_score:.2f} | {p.prediction_margin:.2f} | {p.category} | TOEFL {p.toefl_detriment:.1f} / GPA {p.gpa_detriment:.1f} |"
+        f"| {p.school_name} | {p.school_strength:.2f} | {p.base_applicant_score:.2f} | {p.legacy_contribution:.2f} | {p.adjusted_applicant_score:.2f} | {p.compatibility_score:.2f} | {p.prediction_margin:.2f} | {p.category} | TOEFL {p.toefl_detriment:.1f} / GPA {p.gpa_detriment:.1f} |"
         for p in predictions[:20]
+    )
+    legacy_sections = "\n".join(
+        f"""### {p.school_name}
+- 관계 유형: `{p.legacy_impact.legacy_relationship_type}`
+- 연결 학교: `{p.legacy_impact.legacy_school_name}`
+- 연결 강도: `{p.legacy_impact.legacy_connection_strength}`
+- Base applicant score: `{p.base_applicant_score}`
+- Legacy contribution: `+{p.legacy_contribution}`
+- Adjusted applicant score: `{p.adjusted_applicant_score}`
+
+학생은 해당 학교와 `{p.legacy_impact.legacy_relationship_type}`을 통한 가족 관계가 있습니다. 이 레거시 요소는 학생이 이미 학업, 영어, 인터뷰, 추천서, 학교 적합성 측면에서 충분히 경쟁력이 있을 때 제한적인 긍정 요소로 작용할 수 있습니다. 다만 레거시는 독립적인 합격 요인이 아니며, 학업력·영어 실력·인터뷰·추천서·학교 적합성의 약점을 대체하지는 않습니다.
+"""
+        for p in predictions
+        if p.legacy_impact.applied and p.legacy_contribution > 0
     )
     text = f"""# Stage 1 기본 분석 리포트
 
@@ -37,9 +51,12 @@ def render_stage1_report(student: LegacyStage1Input, score: LegacyStage1Score, p
 - Weighted Application Strength: `{score.weighted_application_strength}`
 
 ## 3. 학교별 예측 매트릭스
-| School | School Strength | Compatibility | Prediction Margin | Legacy Category | Detriments |
-|---|---:|---:|---:|---|---|
+| School | School Strength | Base Score | Legacy | Adjusted Score | Compatibility | Prediction Margin | Legacy Category | Detriments |
+|---|---:|---:|---:|---:|---:|---:|---|---|
 {rows}
+
+## 3-1. 레거시 / 가족 관계 영향
+{legacy_sections if legacy_sections else "본 평가에서는 별도의 레거시 또는 가족 관계 요소가 반영되지 않았습니다."}
 
 ## 4. 가장 큰 감점 요인
 - TOEFL/GPA detriment가 발생한 학교는 학업 준비도 보완이 우선입니다.
