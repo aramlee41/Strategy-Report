@@ -410,9 +410,23 @@ function v2TermGpa(term) {
   const pts = (term.subjects || []).map(x => v2GradePoint(x.grade)).filter(x => x !== null);
   return pts.length ? Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100 : null;
 }
+function v2TermProvidedGpa(term) {
+  const n = Number(term?.termGpa);
+  return String(term?.termGpa || "").trim() && Number.isFinite(n) ? n : null;
+}
+function v2TermAcademicIndex(term) {
+  const vals = (term?.subjects || []).map(s => Number(s.normalizedGrade)).filter(n => Number.isFinite(n));
+  return vals.length ? v2Round(vals.reduce((a, b) => a + b, 0) / vals.length, 1) : null;
+}
 function v2CumulativeGpa(terms) {
   const pts = (terms || []).map(v2TermGpa).filter(x => x !== null && !Number.isNaN(x));
   return pts.length ? Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 100) / 100 : "";
+}
+function v2AcademicPillText(terms = []) {
+  const gpa = v2CumulativeGpa(terms);
+  if (gpa) return `누적 GPA ${gpa}`;
+  const latest = v2GpaSeries(v2SortTranscriptTerms(terms), "term").values[0]?.value;
+  return `학업 추이 점수 ${latest || "미입력"}`;
 }
 function v2TestOverall(type, details, fallback) {
   const n = k => Number(details?.[k] || 0);
@@ -710,6 +724,7 @@ function V2ClientStrategyReport({ st, schools }) {
   const reportSchools = schools || [];
   const legacy = v2LegacyStage1Score(st);
   const rubrics = v2ClientRubrics(st);
+  const academicTrendMeta = v2AcademicTrendMeta(st.academicTerms || []);
   const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
   const interestPredictions = interestNames.length ? v2LegacyPredictions(st, reportSchools) : [];
   const appliedLegacy = interestPredictions.filter(p => p.legacyImpact?.applied && p.legacyContribution > 0);
@@ -735,8 +750,8 @@ function V2ClientStrategyReport({ st, schools }) {
       <div className="section-title"><span>01-1</span>학업 / 시험 시각 자료</div>
       <div className="grid g2">
         <div className="card" style={{ background: "#ffffff" }}>
-          <h3>학기별 GPA 변화</h3>
-          <p className="small muted">성적표에 입력된 학기 GPA를 기준으로 최근 학업 흐름을 확인합니다. 숫자 GPA가 입력된 학기만 그래프에 반영됩니다.</p>
+          <h3>{academicTrendMeta.valueKey === "gpa" ? "학기별 GPA 변화" : "학기별 학업 추이 점수"}</h3>
+          <p className="small muted">{academicTrendMeta.note}</p>
           <V2GpaLineChart terms={v2SortTranscriptTerms(st.academicTerms || [])} mode="term" />
         </div>
         <div className="card" style={{ background: "#ffffff" }}>
@@ -927,7 +942,7 @@ function V2Students({ students, user, add, setSelected, setView, setStage }) {
   return <div className="grid"><V2Section title="학생 관리"><p className="small muted">담당자로 지정된 학생만 표시됩니다. Admin은 모든 학생을 봅니다.</p><button className="btn primary" onClick={add}>학생 추가</button></V2Section>{students.map(s => <div className="card" key={s.id}><div className="right" style={{ justifyContent: "space-between" }}><div><h3>{s.name || "신규 학생"}</h3><p className="small muted">{s.en} · {s.program || "프로그램 미정"} · {s.school || "학교 미입력"}</p></div><button className="btn ghost" onClick={() => { setSelected(s.id); setStage(s.stage || "stage1"); setView("student"); }}>열기</button></div></div>)}</div>;
 }
 function V2StudentDetail({ st, update, schools, staff, stage, setStage }) {
-  return <div><div className="card" style={{ marginBottom: 14 }}><div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>{st.name || "신규 학생"} <span className="muted">{st.en}</span></h3><p className="small muted">{st.program || "프로그램 미정"} · {st.school || "학교 미입력"} · {st.targetYear || "지원연도 미정"}</p></div><span className="pill p-green">누적 GPA {v2CumulativeGpa(st.academicTerms) || "미입력"}</span></div><div className="grid g5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 12 }}>{V2_STAGE_KEYS.map(([k, label]) => <button key={k} className={"btn " + (stage === k ? "primary" : "ghost")} onClick={() => { setStage(k); update({ stage: k, status: label }); }}>{label}<br /><span className="small">{v2StageCompletion(st, k)}%</span></button>)}</div></div>{stage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{stage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{stage === "stage3" && <V2StageThree st={st} update={update} schools={schools} />}{stage === "stage4" && <V2StageFour st={st} update={update} />}{stage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
+  return <div><div className="card" style={{ marginBottom: 14 }}><div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>{st.name || "신규 학생"} <span className="muted">{st.en}</span></h3><p className="small muted">{st.program || "프로그램 미정"} · {st.school || "학교 미입력"} · {st.targetYear || "지원연도 미정"}</p></div><span className="pill p-green">{v2AcademicPillText(st.academicTerms || [])}</span></div><div className="grid g5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 12 }}>{V2_STAGE_KEYS.map(([k, label]) => <button key={k} className={"btn " + (stage === k ? "primary" : "ghost")} onClick={() => { setStage(k); update({ stage: k, status: label }); }}>{label}<br /><span className="small">{v2StageCompletion(st, k)}%</span></button>)}</div></div>{stage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{stage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{stage === "stage3" && <V2StageThree st={st} update={update} schools={schools} />}{stage === "stage4" && <V2StageFour st={st} update={update} />}{stage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
 }
 
 function V2StageOne({ st, update, schools, staff }) {
@@ -1066,45 +1081,56 @@ function v2TranscriptIsBlank(terms = []) {
     return !hasTermData && !hasSubjectData;
   });
 }
+function v2AcademicTrendMeta(terms = []) {
+  const hasProvidedGpa = (terms || []).some(t => v2TermProvidedGpa(t) !== null);
+  return hasProvidedGpa
+    ? { valueKey: "gpa", valueLabel: "GPA", max: 4.3, ticks: [0, 1, 2, 3, 4], note: "학교에서 제공한 학기 GPA를 기준으로 최근 학업 흐름을 확인합니다. GPA가 입력된 학기만 그래프에 반영됩니다." }
+    : { valueKey: "index", valueLabel: "예스유학 학업 추이 점수", max: 100, ticks: [0, 25, 50, 75, 100], note: "학교에서 GPA를 제공하지 않아, 예스유학이 입력된 성적과 Grading Scale을 기준으로 자체 계산한 학업 추이 점수입니다." };
+}
 function v2GpaSeries(terms, mode) {
-  const rows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), gpa: v2TermGpa(t) })).filter(x => x.gpa !== null && !Number.isNaN(x.gpa));
+  const meta = v2AcademicTrendMeta(terms);
+  const readValue = t => meta.valueKey === "gpa" ? v2TermProvidedGpa(t) : v2TermAcademicIndex(t);
+  const rows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), value: readValue(t) })).filter(x => x.value !== null && !Number.isNaN(x.value));
   if (mode === "grade") {
     const groups = {};
-    rows.forEach(r => { const key = r.gradeLevel || "학년 미입력"; groups[key] = [...(groups[key] || []), r.gpa]; });
-    return Object.entries(groups).sort((a, b) => v2GradeNumber(a[0]) - v2GradeNumber(b[0])).map(([label, values]) => ({ label, gpa: v2Round(values.reduce((a, b) => a + b, 0) / values.length) }));
+    rows.forEach(r => { const key = r.gradeLevel || "학년 미입력"; groups[key] = [...(groups[key] || []), r.value]; });
+    return { meta, values: Object.entries(groups).sort((a, b) => v2GradeNumber(a[0]) - v2GradeNumber(b[0])).map(([label, values]) => ({ label, value: v2Round(values.reduce((a, b) => a + b, 0) / values.length, meta.valueKey === "gpa" ? 2 : 1) })) };
   }
   if (mode === "school") {
     const groups = {};
-    rows.forEach(r => { const key = r.school || "학교 미입력"; groups[key] = [...(groups[key] || []), r.gpa]; });
-    return Object.entries(groups).map(([label, values]) => ({ label, gpa: v2Round(values.reduce((a, b) => a + b, 0) / values.length) }));
+    rows.forEach(r => { const key = r.school || "학교 미입력"; groups[key] = [...(groups[key] || []), r.value]; });
+    return { meta, values: Object.entries(groups).map(([label, values]) => ({ label, value: v2Round(values.reduce((a, b) => a + b, 0) / values.length, meta.valueKey === "gpa" ? 2 : 1) })) };
   }
-  return rows.map(r => ({ label: r.label || "학기", gpa: r.gpa }));
+  return { meta, values: rows.map(r => ({ label: r.label || "학기", value: r.value })) };
 }
 function V2GpaLineChart({ terms, mode = "term" }) {
-  const vals = v2GpaSeries(terms, mode);
-  if (!vals.length) return <p className="small muted">성적을 입력하면 GPA 변화 그래프가 표시됩니다.</p>;
+  const series = v2GpaSeries(terms, mode);
+  const vals = series.values;
+  const meta = series.meta;
+  if (!vals.length) return <p className="small muted">성적을 입력하면 학업 추이 그래프가 표시됩니다.</p>;
   const width = 640;
   const height = 260;
   const left = 48;
   const right = 24;
   const top = 26;
   const bottom = 58;
-  const max = 4.3;
+  const max = meta.max;
   const x = i => vals.length === 1 ? width / 2 : left + i * ((width - left - right) / (vals.length - 1));
-  const y = gpa => top + (max - Math.max(0, Math.min(max, gpa))) / max * (height - top - bottom);
-  const points = vals.map((v, i) => `${x(i)},${y(v.gpa)}`).join(" ");
-  return <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", minHeight: 230, background: "#f8fbfe", border: "1px solid #d7e6f3", borderRadius: 8 }}>
-    {[0, 1, 2, 3, 4].map(g => <g key={g}><line x1={left} y1={y(g)} x2={width - right} y2={y(g)} stroke="#dbeafe" /><text x="14" y={y(g) + 4} fontSize="12" fill="#45627c">{g}.0</text></g>)}
+  const y = value => top + (max - Math.max(0, Math.min(max, value))) / max * (height - top - bottom);
+  const points = vals.map((v, i) => `${x(i)},${y(v.value)}`).join(" ");
+  return <div><svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", minHeight: 230, background: "#f8fbfe", border: "1px solid #d7e6f3", borderRadius: 8 }}>
+    {meta.ticks.map(g => <g key={g}><line x1={left} y1={y(g)} x2={width - right} y2={y(g)} stroke="#dbeafe" /><text x="10" y={y(g) + 4} fontSize="12" fill="#45627c">{meta.valueKey === "gpa" ? `${g}.0` : g}</text></g>)}
     <polyline points={points} fill="none" stroke="#2b7bbb" strokeWidth="3" />
-    {vals.map((v, i) => <g key={`${v.label}-${i}`}><circle cx={x(i)} cy={y(v.gpa)} r="5" fill="#0f5f99" /><text x={x(i)} y={y(v.gpa) - 10} textAnchor="middle" fontSize="12" fill="#12324a">{v.gpa}</text><text x={x(i)} y={height - 28} textAnchor="middle" fontSize="11" fill="#45627c">{String(v.label).slice(0, 16)}</text></g>)}
-  </svg>;
+    {vals.map((v, i) => <g key={`${v.label}-${i}`}><circle cx={x(i)} cy={y(v.value)} r="5" fill="#0f5f99" /><text x={x(i)} y={y(v.value) - 10} textAnchor="middle" fontSize="12" fill="#12324a">{v.value}</text><text x={x(i)} y={height - 28} textAnchor="middle" fontSize="11" fill="#45627c">{String(v.label).slice(0, 16)}</text></g>)}
+  </svg><p className="small muted" style={{ margin: "8px 0 0" }}>{meta.note}</p></div>;
 }
 function V2GpaChartModal({ open, onClose, terms }) {
   const [mode, setMode] = useState("term");
+  const meta = v2AcademicTrendMeta(terms);
   if (!open) return null;
   return <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.38)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
     <div className="card" style={{ width: "min(920px, 96vw)", maxHeight: "90vh", overflow: "auto" }}>
-      <div className="right" style={{ justifyContent: "space-between", marginBottom: 12 }}><h3>GPA 변화 그래프</h3><button type="button" className="btn ghost" onClick={onClose}>닫기</button></div>
+      <div className="right" style={{ justifyContent: "space-between", marginBottom: 12 }}><h3>{meta.valueKey === "gpa" ? "GPA 변화 그래프" : "학업 추이 점수 그래프"}</h3><button type="button" className="btn ghost" onClick={onClose}>닫기</button></div>
       <div className="tabs" style={{ marginBottom: 12 }}>{[["term", "학기별 그래프"], ["grade", "학년별 그래프"], ["school", "학교별 그래프"]].map(([k, label]) => <button type="button" key={k} className={"tab " + (mode === k ? "active" : "")} onClick={() => setMode(k)}>{label}</button>)}</div>
       <V2GpaLineChart terms={terms} mode={mode} />
     </div>
@@ -1171,7 +1197,7 @@ function V2GradingScaleEditor({ scale, setScale, compact = false }) {
       <V2Field label="메모" val={cfg.notes} set={v => edit({ notes: v })} />
     </div>
     {showRows && <table className="table" style={{ marginTop: 10 }}>
-      <thead><tr><th>원성적 라벨</th><th>정규화 점수</th><th>설명</th><th></th></tr></thead>
+      <thead><tr><th>성적 라벨</th><th>정규화 점수</th><th>설명</th><th></th></tr></thead>
       <tbody>{cfg.entries.map((r, i) => <tr key={i}>
         <td><input className="input" value={r.raw_grade_label || ""} onChange={e => editEntry(i, { raw_grade_label: e.target.value })} /></td>
         <td><input className="input" type="number" min="0" max="100" value={r.normalized_score || ""} onChange={e => editEntry(i, { normalized_score: e.target.value })} /></td>
@@ -1250,6 +1276,9 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const schoolOptions = v2StudentSchoolNames(st);
   const transcriptSchools = v2TranscriptSchoolNames(st);
   const defaultSchool = v2AllowedTranscriptSchool(st, st.school);
+  const transcriptTrendMeta = v2AcademicTrendMeta(terms);
+  const transcriptTrendValues = v2GpaSeries(terms, "term").values;
+  const latestTrendValue = transcriptTrendValues[0]?.value || "미입력";
   const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2RecalculateTermsWithScale(terms, schoolName, scale) });
   const normalizeTerms = next => next.map(t => {
     const termInput = v2NormalizePlaceholderTerm(t);
@@ -1297,10 +1326,10 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     else if (schoolOptions.length && terms.some(t => !schoolOptions.includes(t.school))) saveTerms(terms);
   }, [st.school, st.currentGrade, st.grade, JSON.stringify(st.currentSchoolInfo || {}), JSON.stringify(st.previousSchools || []), JSON.stringify(schoolOptions)]);
   return <div className="grid">
-    <V2Section title="GPA 요약">
+    <V2Section title={transcriptTrendMeta.valueKey === "gpa" ? "GPA 요약" : "학업 추이 요약"}>
       <div className="grid g2">
-        <button type="button" className="card" style={{ textAlign: "left", background: "#eef7ff", cursor: "pointer" }} onClick={() => setChartOpen(true)}><span className="label">누적 GPA</span><h2 style={{ margin: "6px 0 0" }}>{v2CumulativeGpa(terms) || "미입력"}</h2><span className="small muted">클릭하면 GPA 변화 그래프를 볼 수 있습니다.</span></button>
-        <Metric title="최근 학기 GPA" val={v2TermGpa(v2SortTranscriptTerms(terms)[0]) || "미입력"} />
+        <button type="button" className="card" style={{ textAlign: "left", background: "#eef7ff", cursor: "pointer" }} onClick={() => setChartOpen(true)}><span className="label">{transcriptTrendMeta.valueKey === "gpa" ? "누적 GPA" : "최근 학업 추이 점수"}</span><h2 style={{ margin: "6px 0 0" }}>{transcriptTrendMeta.valueKey === "gpa" ? (v2CumulativeGpa(terms) || "미입력") : latestTrendValue}</h2><span className="small muted">클릭하면 학업 추이 그래프를 볼 수 있습니다.</span></button>
+        <Metric title={transcriptTrendMeta.valueKey === "gpa" ? "최근 학기 GPA" : "최근 학기 추이 점수"} val={transcriptTrendMeta.valueKey === "gpa" ? (v2TermProvidedGpa(v2SortTranscriptTerms(terms)[0]) || "미입력") : latestTrendValue} />
       </div>
       <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={terms} />
     </V2Section>
@@ -1344,7 +1373,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
             <V2Field label="학기 GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} />
             <V2Field label="Rank" val={t.rank} set={v => editTerm(ti, { rank: v })} />
           </div>
-          <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>원성적</th><th>정규화 점수</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
+          <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>성적</th><th>정규화 점수</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
             <tr>
               <td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">선택</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td>
               <td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td>
@@ -1355,7 +1384,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
             </tr>
             {commentOpen === `${ti}-${si}` && <tr><td colSpan="6"><V2Text label="Teacher's Comment" val={s.comment} set={v => editSubject(ti, si, { comment: v })} minHeight={58} /></td></tr>}
           </React.Fragment>)}</tbody></table>
-          <p className="small muted">원성적은 입력값 그대로 저장하고, 정규화 점수는 Academics 분석을 위한 별도 값으로 저장합니다.</p>
+          <p className="small muted">성적은 입력값 그대로 저장하고, 정규화 점수는 Academics 분석을 위한 별도 값으로 저장합니다.</p>
           <button type="button" className="btn ghost" onClick={() => addSubject(ti)}>과목 추가</button>
         </div>
         }
