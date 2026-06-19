@@ -259,8 +259,7 @@ function v2NormalizeStudent(s) {
   });
   const addresses = v2ApplyAddressLinks(basic.addresses?.length ? basic.addresses : [
     { ...V2_EMPTY_ADDRESS("Permanent Address"), zip: basic.zip || "", searchQuery: basic.addressSearchQuery || "", koreanAddress: basic.koreanAddress || basic.address || "", englishAddress: basic.englishAddress || "" },
-    V2_EMPTY_ADDRESS("Mailing Address"),
-    V2_EMPTY_ADDRESS("Guardian Address")
+    V2_EMPTY_ADDRESS("Mailing Address")
   ]);
   const phones = basic.phones?.length ? basic.phones : [{ ...V2_EMPTY_PHONE(), number: basic.phone || "" }];
   const parents = {
@@ -348,8 +347,8 @@ function v2SchoolPatch(school) {
 function v2EnsureCoreAddresses(addresses = []) {
   const list = Array.isArray(addresses) ? addresses : [];
   const ensure = type => list.find(a => a.type === type) || V2_EMPTY_ADDRESS(type);
-  const core = ["Permanent Address", "Mailing Address", "Guardian Address"].map(ensure);
-  const extras = list.filter(a => !["Permanent Address", "Mailing Address", "Guardian Address"].includes(a.type));
+  const core = ["Permanent Address", "Mailing Address"].map(ensure);
+  const extras = list.filter(a => !["Permanent Address", "Mailing Address"].includes(a.type));
   return [...core, ...extras];
 }
 function v2CopyAddressFrom(source = {}, target = {}) {
@@ -649,11 +648,11 @@ function v2ClientRubrics(st) {
     }
   ];
 }
-function v2RadarPoints(items, center = 150, radius = 105) {
+function v2RadarPoints(items, centerX = 230, centerY = 170, radius = 105, labelRadius = 148) {
   return items.map((item, i) => {
     const angle = -Math.PI / 2 + (Math.PI * 2 * i) / items.length;
     const r = radius * Math.max(0, Math.min(100, item.value)) / 100;
-    return { ...item, x: center + Math.cos(angle) * r, y: center + Math.sin(angle) * r, lx: center + Math.cos(angle) * (radius + 35), ly: center + Math.sin(angle) * (radius + 35) };
+    return { ...item, x: centerX + Math.cos(angle) * r, y: centerY + Math.sin(angle) * r, lx: centerX + Math.cos(angle) * labelRadius, ly: centerY + Math.sin(angle) * labelRadius };
   });
 }
 function V2RadarChart({ st }) {
@@ -672,14 +671,14 @@ function V2RadarChart({ st }) {
   const points = v2RadarPoints(items);
   const polygon = points.map(p => `${p.x},${p.y}`).join(" ");
   const rings = [20, 40, 60, 80, 100].map(level => v2RadarPoints(items.map(x => ({ ...x, value: level }))).map(p => `${p.x},${p.y}`).join(" "));
-  return <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 18, alignItems: "center" }}>
-    <svg viewBox="0 0 300 300" style={{ width: "100%", maxWidth: 360, background: "#f8fafc", border: "1px solid #d9dee8", borderRadius: 8 }}>
+  return <div style={{ display: "grid", gridTemplateColumns: "minmax(430px, 500px) 1fr", gap: 18, alignItems: "center" }}>
+    <svg viewBox="0 0 460 340" style={{ width: "100%", maxWidth: 500, background: "#f8fafc", border: "1px solid #d9dee8", borderRadius: 8, overflow: "visible" }}>
       {rings.map((r, i) => <polygon key={i} points={r} fill="none" stroke={i === 4 ? "#94a3b8" : "#cbd5e1"} strokeWidth={i === 4 ? 1.4 : 1} />)}
-      {points.map((p, i) => <line key={i} x1="150" y1="150" x2={p.lx} y2={p.ly} stroke="#e2e8f0" />)}
+      {points.map((p, i) => <line key={i} x1="230" y1="170" x2={p.lx} y2={p.ly} stroke="#e2e8f0" />)}
       <polygon points={polygon} fill="rgba(37,99,235,.20)" stroke="#2563eb" strokeWidth="3" />
       {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4.5" fill="#dc2626" />)}
-      {points.map((p, i) => <text key={i} x={p.lx} y={p.ly} textAnchor={p.lx > 165 ? "start" : p.lx < 135 ? "end" : "middle"} dominantBaseline="middle" fontSize="10" fill="#111827">{p.label}</text>)}
-      <text x="150" y="153" textAnchor="middle" fontSize="11" fill="#475569">100</text>
+      {points.map((p, i) => <text key={i} x={p.lx} y={p.ly} textAnchor={p.lx > 248 ? "start" : p.lx < 212 ? "end" : "middle"} dominantBaseline="middle" fontSize="11" fill="#111827">{p.label}</text>)}
+      <text x="230" y="173" textAnchor="middle" fontSize="11" fill="#475569">100</text>
     </svg>
     <div>
       <h3 style={{ marginTop: 0 }}>학생 역량 방사형 분석</h3>
@@ -820,10 +819,11 @@ function V2AddressSearchButtons({ address }) {
   return <div className="field"><span className="label">&nbsp;</span><div className="right"><button type="button" className="btn ghost" onClick={openRoad}>도로명주소 검색</button><button type="button" className="btn ghost" onClick={openEnglish}>영문주소 변환</button></div></div>;
 }
 function V2AddressHelper({ basic, setBasic }) {
-  const addresses = v2ApplyAddressLinks(basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address"), V2_EMPTY_ADDRESS("Guardian Address")]);
+  const addresses = v2ApplyAddressLinks(basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address")]);
   const phones = basic.phones || [V2_EMPTY_PHONE()];
   const saveAddresses = next => setBasic("addresses", v2ApplyAddressLinks(next));
   const editAddress = (i, patch) => saveAddresses(v2SetArr(addresses, i, patch));
+  const deleteAddress = i => saveAddresses(addresses.filter((_, x) => x !== i));
   const toggleSameAsPermanent = (i, checked) => {
     const permanent = addresses.find(a => a.type === "Permanent Address") || V2_EMPTY_ADDRESS("Permanent Address");
     const patch = checked ? { ...v2CopyAddressFrom(permanent, addresses[i]), sameAs: "Permanent Address" } : { sameAs: "" };
@@ -833,7 +833,7 @@ function V2AddressHelper({ basic, setBasic }) {
   return <V2Section title="학생 주소/연락처">
     <div className="grid g2"><V2Field label="개인 이메일" val={basic.personalEmail} set={v => setBasic("personalEmail", v)} /><V2Field label="학교 이메일" val={basic.schoolEmail} set={v => setBasic("schoolEmail", v)} /></div>
     <ArrayEditor title="학생 연락처" rows={phones} add={() => setBasic("phones", [...phones, V2_EMPTY_PHONE()])} render={(p, i) => <div className="grid g4"><V2Select label="연락처 구분" val={p.type} set={v => editPhone(i, { type: v })} options={V2_PHONE_TYPES} />{p.type === "기타" && <V2Field label="연락처 구분 직접 입력" val={p.typeOther} set={v => editPhone(i, { typeOther: v })} />}<V2Select label="지역/국가번호" val={p.countryCode} set={v => editPhone(i, { countryCode: v })} options={V2_COUNTRY_CODES} />{p.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={p.countryCodeOther} set={v => editPhone(i, { countryCodeOther: v })} />}<V2Field label="전화번호/ID" val={p.number} set={v => editPhone(i, { number: v })} /><V2Select label="대표 연락처" val={p.preferred} set={v => editPhone(i, { preferred: v })} options={["Yes", "No"]} /></div>} />
-    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div>{a.type !== "Permanent Address" && <label className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 10 }}><input type="checkbox" checked={a.sameAs === "Permanent Address"} onChange={e => toggleSameAsPermanent(i, e.target.checked)} />Permanent Address와 동일</label>}<div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v, sameAs: "" })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v, sameAs: "" })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v, sameAs: "" })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v, sameAs: "" })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
+    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}><div>{a.type !== "Permanent Address" && <label className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={a.sameAs === "Permanent Address"} onChange={e => toggleSameAsPermanent(i, e.target.checked)} />Permanent Address와 동일</label>}</div>{i > 1 && <button type="button" className="btn ghost" onClick={() => deleteAddress(i)}>주소 삭제</button>}</div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v, sameAs: "" })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v, sameAs: "" })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v, sameAs: "" })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v, sameAs: "" })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
     <p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p>
   </V2Section>;
 }
