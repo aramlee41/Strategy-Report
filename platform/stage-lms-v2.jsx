@@ -101,6 +101,7 @@ const V2_EMPTY_PREVIOUS = () => ({
 });
 const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "", has_legacy_connection: "No", legacy_school_name: "", legacy_relationship_type: "", legacy_connection_strength: "", legacy_notes: "" });
 const V2_EMPTY_GRADING_SCALE = () => ({ type: "Letter Grade with Plus/Minus", gradeInputType: "Letter Grade with Plus/Minus", gpaScale: "4.0 GPA Scale", source: "Unknown", confidence: "Low", notes: "", entries: V2_GRADING_SCALE_TEMPLATES["Letter Grade with Plus/Minus"].map(([raw_grade_label, normalized_score]) => ({ raw_grade_label, normalized_score, description: "" })) });
+const V2_EMPTY_ADMIN_SCHOOL = () => ({ name: "", state: "", region: "", town: "", accept: "", ssat: "", boarding: "", intl: "", website: "", programs: "", sports: "", arts: "", fit: "", risk: "", interview: "", grading_scale_config: V2_EMPTY_GRADING_SCALE() });
 function v2DefaultTranscriptSeason(date = new Date()) {
   const month = date.getMonth();
   if (month <= 5) return "Spring";
@@ -115,7 +116,7 @@ const V2_EMPTY_EC = () => ({
   cat: "Sports", status: "진행 중", name: "", team: "", from: "", to: "",
   weeks: "", hours: "", level: "", levelOther: "", position: "", honors: "", impact: "", awards: []
 });
-const V2_EMPTY_ADDRESS = (type = "Permanent Address") => ({ type, typeOther: "", zip: "", searchQuery: "", koreanAddress: "", englishAddress: "", notes: "" });
+const V2_EMPTY_ADDRESS = (type = "Permanent Address") => ({ type, typeOther: "", sameAs: "", zip: "", searchQuery: "", koreanAddress: "", englishAddress: "", notes: "" });
 const V2_EMPTY_PHONE = () => ({ type: "학생 휴대폰", typeOther: "", countryCode: "+82 대한민국", countryCodeOther: "", number: "", preferred: "Yes" });
 const V2_EMPTY_PARENT = relation => ({
   relation,
@@ -256,10 +257,11 @@ function v2NormalizeStudent(s) {
       return { category: sub.category || "English", subject: sub.subject || "", grade: sub.grade || rawGrade, rawGrade, normalizedGrade: sub.normalizedGrade || v2NormalizeGrade(rawGrade, gradingScale), comment: sub.comment || "" };
     }) };
   });
-  const addresses = basic.addresses?.length ? basic.addresses : [
+  const addresses = v2ApplyAddressLinks(basic.addresses?.length ? basic.addresses : [
     { ...V2_EMPTY_ADDRESS("Permanent Address"), zip: basic.zip || "", searchQuery: basic.addressSearchQuery || "", koreanAddress: basic.koreanAddress || basic.address || "", englishAddress: basic.englishAddress || "" },
-    V2_EMPTY_ADDRESS("Mailing Address")
-  ];
+    V2_EMPTY_ADDRESS("Mailing Address"),
+    V2_EMPTY_ADDRESS("Guardian Address")
+  ]);
   const phones = basic.phones?.length ? basic.phones : [{ ...V2_EMPTY_PHONE(), number: basic.phone || "" }];
   const parents = {
     father: { ...V2_EMPTY_PARENT("father"), ...(basic.parents?.father || {}) },
@@ -342,6 +344,27 @@ function v2SchoolPatch(school) {
     website: school.website || "",
     gradingScale: v2NormalizeGradingScale(school.grading_scale_config || school.gradingScaleConfig || V2_EMPTY_GRADING_SCALE())
   };
+}
+function v2EnsureCoreAddresses(addresses = []) {
+  const list = Array.isArray(addresses) ? addresses : [];
+  const ensure = type => list.find(a => a.type === type) || V2_EMPTY_ADDRESS(type);
+  const core = ["Permanent Address", "Mailing Address", "Guardian Address"].map(ensure);
+  const extras = list.filter(a => !["Permanent Address", "Mailing Address", "Guardian Address"].includes(a.type));
+  return [...core, ...extras];
+}
+function v2CopyAddressFrom(source = {}, target = {}) {
+  return {
+    ...target,
+    zip: source.zip || "",
+    searchQuery: source.searchQuery || "",
+    koreanAddress: source.koreanAddress || "",
+    englishAddress: source.englishAddress || ""
+  };
+}
+function v2ApplyAddressLinks(addresses = []) {
+  const list = v2EnsureCoreAddresses(addresses);
+  const permanent = list.find(a => a.type === "Permanent Address") || V2_EMPTY_ADDRESS("Permanent Address");
+  return list.map(a => a.sameAs === "Permanent Address" ? v2CopyAddressFrom(permanent, a) : a);
 }
 function v2ParseDetail(detail) {
   if (!detail) return {};
@@ -797,14 +820,20 @@ function V2AddressSearchButtons({ address }) {
   return <div className="field"><span className="label">&nbsp;</span><div className="right"><button type="button" className="btn ghost" onClick={openRoad}>도로명주소 검색</button><button type="button" className="btn ghost" onClick={openEnglish}>영문주소 변환</button></div></div>;
 }
 function V2AddressHelper({ basic, setBasic }) {
-  const addresses = basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address")];
+  const addresses = v2ApplyAddressLinks(basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address"), V2_EMPTY_ADDRESS("Guardian Address")]);
   const phones = basic.phones || [V2_EMPTY_PHONE()];
-  const editAddress = (i, patch) => setBasic("addresses", v2SetArr(addresses, i, patch));
+  const saveAddresses = next => setBasic("addresses", v2ApplyAddressLinks(next));
+  const editAddress = (i, patch) => saveAddresses(v2SetArr(addresses, i, patch));
+  const toggleSameAsPermanent = (i, checked) => {
+    const permanent = addresses.find(a => a.type === "Permanent Address") || V2_EMPTY_ADDRESS("Permanent Address");
+    const patch = checked ? { ...v2CopyAddressFrom(permanent, addresses[i]), sameAs: "Permanent Address" } : { sameAs: "" };
+    saveAddresses(v2SetArr(addresses, i, patch));
+  };
   const editPhone = (i, patch) => setBasic("phones", v2SetArr(phones, i, patch));
   return <V2Section title="학생 주소/연락처">
     <div className="grid g2"><V2Field label="개인 이메일" val={basic.personalEmail} set={v => setBasic("personalEmail", v)} /><V2Field label="학교 이메일" val={basic.schoolEmail} set={v => setBasic("schoolEmail", v)} /></div>
     <ArrayEditor title="학생 연락처" rows={phones} add={() => setBasic("phones", [...phones, V2_EMPTY_PHONE()])} render={(p, i) => <div className="grid g4"><V2Select label="연락처 구분" val={p.type} set={v => editPhone(i, { type: v })} options={V2_PHONE_TYPES} />{p.type === "기타" && <V2Field label="연락처 구분 직접 입력" val={p.typeOther} set={v => editPhone(i, { typeOther: v })} />}<V2Select label="지역/국가번호" val={p.countryCode} set={v => editPhone(i, { countryCode: v })} options={V2_COUNTRY_CODES} />{p.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={p.countryCodeOther} set={v => editPhone(i, { countryCodeOther: v })} />}<V2Field label="전화번호/ID" val={p.number} set={v => editPhone(i, { number: v })} /><V2Select label="대표 연락처" val={p.preferred} set={v => editPhone(i, { preferred: v })} options={["Yes", "No"]} /></div>} />
-    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
+    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div>{a.type !== "Permanent Address" && <label className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 10 }}><input type="checkbox" checked={a.sameAs === "Permanent Address"} onChange={e => toggleSameAsPermanent(i, e.target.checked)} />Permanent Address와 동일</label>}<div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v, sameAs: "" })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v, sameAs: "" })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v, sameAs: "" })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v, sameAs: "" })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
     <p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p>
   </V2Section>;
 }
@@ -1428,17 +1457,28 @@ function V2Reports({ students, selected, setSelected, schools }) {
 }
 function V2SchoolDataAdmin({ schools = [], updateSchools }) {
   const [selectedName, setSelectedName] = useState(schools[0]?.name || "Phillips Exeter Academy");
+  const [draftSchool, setDraftSchool] = useState(null);
   const idx = schools.findIndex(s => s.name === selectedName);
-  const hasSelection = idx >= 0;
-  const school = hasSelection ? schools[idx] : {};
+  const hasSelection = idx >= 0 && !draftSchool;
+  const isDraft = !!draftSchool;
+  const school = draftSchool || (hasSelection ? schools[idx] : {});
   const config = v2LegacySchoolConfig(school);
   const edit = patch => {
+    if (isDraft) {
+      setDraftSchool({ ...draftSchool, ...patch });
+      return;
+    }
     if (!hasSelection) return;
     if (patch.name) setSelectedName(patch.name);
     updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
   };
   const addSchool = () => {
-    const base = String(selectedName || "New School").trim() || "New School";
+    setDraftSchool(V2_EMPTY_ADMIN_SCHOOL());
+    setSelectedName("");
+  };
+  const saveDraft = () => {
+    if (!isDraft) return;
+    const base = String(draftSchool.name || "New School").trim() || "New School";
     const existing = new Set(v2SchoolNames(schools));
     let name = base;
     let n = 2;
@@ -1446,18 +1486,23 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
       name = `${base} ${n}`;
       n += 1;
     }
-    const nextSchool = { name, state: "", region: "", town: "", accept: "", ssat: "", boarding: "", intl: "", website: "", programs: "", sports: "", arts: "", fit: "", risk: "", interview: "", grading_scale_config: V2_EMPTY_GRADING_SCALE() };
+    const nextSchool = { ...draftSchool, name };
     updateSchools([...schools, nextSchool]);
+    setDraftSchool(null);
     setSelectedName(name);
+  };
+  const selectSchool = name => {
+    setSelectedName(name);
+    if (draftSchool) setDraftSchool(null);
   };
   return <V2Section title="Admin School Data">
     <div className="grid g2">
-      <V2SmartSchool label="School Search / Select" val={selectedName} set={setSelectedName} schools={schools} />
+      <V2SmartSchool label="School Search / Select" val={selectedName} set={selectSchool} schools={schools} />
       <div className="field"><span className="label">&nbsp;</span><button type="button" className="btn primary" onClick={addSchool}>새 학교 추가</button></div>
     </div>
-    {!hasSelection && <p className="small muted" style={{ marginTop: 0 }}>검색어와 정확히 일치하는 학교가 없습니다. 이 이름으로 새 학교를 추가하거나 기존 학교를 선택해 주세요.</p>}
+    {isDraft ? <p className="small muted" style={{ marginTop: 0 }}>새 학교 입력 모드입니다. 아래 빈 입력란을 채운 뒤 저장 버튼을 눌러야 학교 데이터에 추가됩니다.</p> : !hasSelection && <p className="small muted" style={{ marginTop: 0 }}>검색어와 정확히 일치하는 학교가 없습니다. 기존 학교를 선택하거나 새 학교 추가를 눌러 빈 입력폼을 열어 주세요.</p>}
     <div className="grid g4">
-      <V2Field label="School Name" val={hasSelection ? school.name : ""} set={v => edit({ name: v })} />
+      <V2Field label="School Name" val={school.name} set={v => edit({ name: v })} />
       <V2Field label="State" val={school.state} set={v => edit({ state: v })} />
       <V2Field label="Region" val={school.region} set={v => edit({ region: v })} />
       <V2Field label="Town" val={school.town} set={v => edit({ town: v })} />
@@ -1485,6 +1530,7 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
         <V2Field label="legacy_weight" val={school.legacy_weight ?? config.weight} set={v => edit({ legacy_weight: Number(v) })} type="number" />
       </div>
     </div>
+    {isDraft && <div className="right" style={{ justifyContent: "flex-end", marginTop: 14 }}><button type="button" className="btn ghost" onClick={() => setDraftSchool(null)}>취소</button><button type="button" className="btn primary" onClick={saveDraft}>저장</button></div>}
   </V2Section>;
 }
 function V2SchoolGradingScaleAdmin({ schools = [], updateSchools }) {
