@@ -710,6 +710,20 @@ function V2ClientStrategyReport({ st, schools }) {
       <p style={{ lineHeight: 1.8 }}>현재 입력된 자료를 기준으로 보면 {st.name || "학생"} 학생은 <b>{legacy.weighted}점</b> 수준의 종합 준비도를 보입니다. 학업, 영어, 생활 적합도, EC/Hook을 분리해서 보면 강점과 보완점이 비교적 뚜렷하게 나타납니다. 이 점수는 합격을 보장하는 숫자가 아니라, 지원 전략을 세우기 위한 내부 분석 지표입니다.</p>
       <V2RadarChart st={st} />
 
+      <div className="section-title"><span>01-1</span>학업 / 시험 시각 자료</div>
+      <div className="grid g2">
+        <div className="card" style={{ background: "#ffffff" }}>
+          <h3>학기별 GPA 변화</h3>
+          <p className="small muted">성적표에 입력된 학기 GPA를 기준으로 최근 학업 흐름을 확인합니다. 숫자 GPA가 입력된 학기만 그래프에 반영됩니다.</p>
+          <V2GpaLineChart terms={v2SortTranscriptTerms(st.academicTerms || [])} mode="term" />
+        </div>
+        <div className="card" style={{ background: "#ffffff" }}>
+          <h3>시험 점수 그래프</h3>
+          <p className="small muted">SSAT, TOEFL, IELTS, DET 등 입력된 시험 점수를 시험별 스케일에 맞춰 시각화합니다.</p>
+          <V2TestScoreChart st={st} />
+        </div>
+      </div>
+
       <div className="section-title"><span>02</span>Rubric 점수표와 근거</div>
       <div className="rubrics">{rubrics.map(r => <Rub key={r.key} title={r.title} val={v2Round(r.score, 1)} max={100} />)}</div>
       <table className="table" style={{ marginTop: 14 }}><tbody>{rubrics.map(r => <tr key={r.key}><th style={{ width: 150 }}>{r.title}</th><td><p style={{ margin: 0, lineHeight: 1.75 }}>{r.evidence}</p><p style={{ margin: "8px 0 0", lineHeight: 1.75 }}><b>보완 방향:</b> {r.gap}</p></td></tr>)}</tbody></table>
@@ -1067,6 +1081,46 @@ function V2GpaChartModal({ open, onClose, terms }) {
     </div>
   </div>;
 }
+function v2TestMetricMax(type, label, value) {
+  const t = String(type || "").toUpperCase();
+  const l = String(label || "").toLowerCase();
+  const n = Number(value) || 0;
+  if (t === "TOEFL") return /overall|total/.test(l) ? 120 : 30;
+  if (t === "IELTS") return 9;
+  if (t === "DET") return 160;
+  if (t === "SAT") return /overall|total/.test(l) ? 1600 : 800;
+  if (t === "PSAT") return /overall|total/.test(l) ? 1520 : 760;
+  if (t === "ACT") return 36;
+  if (t === "SSAT") return /percentile/.test(l) || n <= 100 ? 100 : (/overall|total/.test(l) ? 2400 : 800);
+  return n > 100 ? Math.max(100, n) : 100;
+}
+function v2TestChartRows(st) {
+  return (st.tests || []).map((test, index) => {
+    const details = test.details || {};
+    const metrics = [];
+    const overall = v2TestOverall(test.type, details, test.overall);
+    if (overall !== "" && overall !== null && Number.isFinite(Number(overall))) metrics.push({ label: "Overall", value: Number(overall), max: v2TestMetricMax(test.type, "Overall", overall) });
+    Object.entries(details).forEach(([label, raw]) => {
+      if (/overall|total/i.test(label) && metrics.some(m => m.label === "Overall")) return;
+      const value = Number(raw);
+      if (Number.isFinite(value)) metrics.push({ label, value, max: v2TestMetricMax(test.type, label, value) });
+    });
+    return { key: `${test.type || "Test"}-${test.date || index}`, type: test.type || "Test", date: test.date || "", metrics };
+  }).filter(row => row.metrics.length);
+}
+function V2TestScoreChart({ st }) {
+  const rows = v2TestChartRows(st);
+  if (!rows.length) return <p className="small muted">시험 점수를 입력하면 SSAT, TOEFL 등 주요 시험 그래프가 표시됩니다.</p>;
+  return <div className="grid g2">
+    {rows.map(row => <div className="card" key={row.key} style={{ background: "#f8fbfe", borderColor: "#d7e6f3" }}>
+      <div className="right" style={{ justifyContent: "space-between", marginBottom: 8 }}><h3 style={{ margin: 0 }}>{row.type}</h3><span className="small muted">{row.date || "시험일 미입력"}</span></div>
+      <table className="table"><tbody>{row.metrics.map(metric => {
+        const pct = Math.max(0, Math.min(100, (metric.value / metric.max) * 100));
+        return <tr key={metric.label}><th style={{ width: 150 }}>{metric.label}</th><td><div className="progress"><div style={{ width: `${pct}%` }} /></div></td><td style={{ width: 88, textAlign: "right" }}>{metric.value}/{metric.max}</td></tr>;
+      })}</tbody></table>
+    </div>)}
+  </div>;
+}
 function V2GradingScaleEditor({ scale, setScale, compact = false }) {
   const cfg = v2NormalizeGradingScale(scale);
   const edit = patch => setScale(v2NormalizeGradingScale({ ...cfg, ...patch }));
@@ -1226,7 +1280,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
         const open = !!scaleOpen[name];
         return <div key={name} className="card" style={{ background: "#f8fbfe", borderColor: "#c3ddf0", marginBottom: 10 }}>
           <div className="right" style={{ justifyContent: "space-between" }}>
-            <h3 style={{ margin: 0 }}>School {name}</h3>
+            <h3 style={{ margin: 0 }}>{name}</h3>
             <button type="button" className="btn ghost" onClick={() => setScaleOpen({ ...scaleOpen, [name]: !open })}>Grading Scale</button>
           </div>
           {open && <V2GradingScaleEditor scale={v2StudentSchoolScale(st, schools, name, V2_EMPTY_GRADING_SCALE())} setScale={scale => setSchoolScale(name, scale)} />}
@@ -1374,15 +1428,36 @@ function V2Reports({ students, selected, setSelected, schools }) {
 }
 function V2SchoolDataAdmin({ schools = [], updateSchools }) {
   const [selectedName, setSelectedName] = useState(schools[0]?.name || "Phillips Exeter Academy");
-  const idx = Math.max(0, schools.findIndex(s => s.name === selectedName));
-  const school = schools[idx] || schools[0] || {};
+  const idx = schools.findIndex(s => s.name === selectedName);
+  const hasSelection = idx >= 0;
+  const school = hasSelection ? schools[idx] : {};
   const config = v2LegacySchoolConfig(school);
-  const edit = patch => updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
-  if (!schools.length) return <V2Section title="School Data">No school data.</V2Section>;
+  const edit = patch => {
+    if (!hasSelection) return;
+    if (patch.name) setSelectedName(patch.name);
+    updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
+  };
+  const addSchool = () => {
+    const base = String(selectedName || "New School").trim() || "New School";
+    const existing = new Set(v2SchoolNames(schools));
+    let name = base;
+    let n = 2;
+    while (existing.has(name)) {
+      name = `${base} ${n}`;
+      n += 1;
+    }
+    const nextSchool = { name, state: "", region: "", town: "", accept: "", ssat: "", boarding: "", intl: "", website: "", programs: "", sports: "", arts: "", fit: "", risk: "", interview: "", grading_scale_config: V2_EMPTY_GRADING_SCALE() };
+    updateSchools([...schools, nextSchool]);
+    setSelectedName(name);
+  };
   return <V2Section title="Admin School Data">
-    <V2SmartSchool label="School Search / Select" val={school.name || selectedName} set={setSelectedName} schools={schools} />
+    <div className="grid g2">
+      <V2SmartSchool label="School Search / Select" val={selectedName} set={setSelectedName} schools={schools} />
+      <div className="field"><span className="label">&nbsp;</span><button type="button" className="btn primary" onClick={addSchool}>새 학교 추가</button></div>
+    </div>
+    {!hasSelection && <p className="small muted" style={{ marginTop: 0 }}>검색어와 정확히 일치하는 학교가 없습니다. 이 이름으로 새 학교를 추가하거나 기존 학교를 선택해 주세요.</p>}
     <div className="grid g4">
-      <V2Field label="School Name" val={school.name} set={v => edit({ name: v })} />
+      <V2Field label="School Name" val={hasSelection ? school.name : ""} set={v => edit({ name: v })} />
       <V2Field label="State" val={school.state} set={v => edit({ state: v })} />
       <V2Field label="Region" val={school.region} set={v => edit({ region: v })} />
       <V2Field label="Town" val={school.town} set={v => edit({ town: v })} />
