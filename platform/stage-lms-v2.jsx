@@ -1245,6 +1245,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [chartOpen, setChartOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
+  const [termOpen, setTermOpen] = useState({});
   const terms = v2SortTranscriptTerms((st.academicTerms || [V2_EMPTY_TERM(st.school)]).map(v2NormalizePlaceholderTerm));
   const schoolOptions = v2StudentSchoolNames(st);
   const transcriptSchools = v2TranscriptSchoolNames(st);
@@ -1322,34 +1323,42 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       const rawOptions = scale.entries.map(e => e.raw_grade_label).filter(Boolean);
       const numericGrade = v2ScaleNeedsNumeric(scale.gradeInputType);
       const header = v2TermLabel(t) || `학기 ${ti + 1}`;
+      const termKey = `${termSchool || ""}|${t.gradeLevel || ""}|${t.year || ""}|${t.season || ""}|${ti}`;
+      const open = termOpen[termKey] !== false;
       return <div className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-        <div style={{ background: "#e8f4fb", borderBottom: "1px solid #b8d8ec", padding: "12px 14px", marginBottom: 14 }}>
-          <h3 style={{ margin: "0 0 4px" }}>{header}</h3>
-          <span className="small muted">{termSchool || "학교 미입력"}</span>
+        <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ width: "100%", border: 0, background: "#e8f4fb", borderBottom: open ? "1px solid #b8d8ec" : 0, padding: "12px 14px", marginBottom: open ? 14 : 0, textAlign: "left", cursor: "pointer" }}>
+          <div className="right" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h3 style={{ margin: "0 0 4px" }}>{header}</h3>
+              <span className="small muted">{termSchool || "학교 미입력"}</span>
+            </div>
+            <span className="pill p-blue">{open ? "접기" : "펼치기"}</span>
+          </div>
+        </button>
+        {open && <div style={{ padding: "0 12px 12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
+            <V2Select label="학교" val={termSchool} set={v => setTermSchool(ti, v)} options={schoolOptions} />
+            <V2Select label="학년" val={t.gradeLevel} set={v => editTerm(ti, { gradeLevel: v })} options={V2_GRADE_OPTIONS} />
+            <V2Select label="연도" val={t.year} set={v => editTerm(ti, { year: v })} options={V2_TRANSCRIPT_YEARS} />
+            <V2Select label="학기" val={t.season} set={v => editTerm(ti, { season: v })} options={V2_TERM_SEASONS} />
+            <V2Field label="학기 GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} />
+            <V2Field label="Rank" val={t.rank} set={v => editTerm(ti, { rank: v })} />
+          </div>
+          <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>원성적</th><th>정규화 점수</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
+            <tr>
+              <td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">선택</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td>
+              <td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td>
+              <td>{numericGrade ? <input className="input" type="number" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} /> : rawOptions.length ? <select className="select" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)}><option value="">선택</option>{rawOptions.map(o => <option key={o} value={o}>{o}</option>)}</select> : <input className="input" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} />}</td>
+              <td><input className="input" type="number" min="0" max="100" value={s.normalizedGrade ?? v2NormalizeGrade(s.rawGrade || s.grade, scale)} onChange={e => editSubject(ti, si, { normalizedGrade: e.target.value })} /></td>
+              <td><button type="button" className="btn ghost" onClick={() => setCommentOpen(commentOpen === `${ti}-${si}` ? "" : `${ti}-${si}`)}>{s.comment ? "보기" : "+"}</button></td>
+              <td><button type="button" className="btn ghost" onClick={() => editTerm(ti, { subjects: (t.subjects || []).filter((_, x) => x !== si) })}>삭제</button></td>
+            </tr>
+            {commentOpen === `${ti}-${si}` && <tr><td colSpan="6"><V2Text label="Teacher's Comment" val={s.comment} set={v => editSubject(ti, si, { comment: v })} minHeight={58} /></td></tr>}
+          </React.Fragment>)}</tbody></table>
+          <p className="small muted">원성적은 입력값 그대로 저장하고, 정규화 점수는 Academics 분석을 위한 별도 값으로 저장합니다.</p>
+          <button type="button" className="btn ghost" onClick={() => addSubject(ti)}>과목 추가</button>
         </div>
-        <div style={{ padding: "0 12px 12px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
-          <V2Select label="학교" val={termSchool} set={v => setTermSchool(ti, v)} options={schoolOptions} />
-          <V2Select label="학년" val={t.gradeLevel} set={v => editTerm(ti, { gradeLevel: v })} options={V2_GRADE_OPTIONS} />
-          <V2Select label="연도" val={t.year} set={v => editTerm(ti, { year: v })} options={V2_TRANSCRIPT_YEARS} />
-          <V2Select label="학기" val={t.season} set={v => editTerm(ti, { season: v })} options={V2_TERM_SEASONS} />
-          <V2Field label="학기 GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} />
-          <V2Field label="Rank" val={t.rank} set={v => editTerm(ti, { rank: v })} />
-        </div>
-        <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>원성적</th><th>정규화 점수</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
-          <tr>
-            <td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">선택</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td>
-            <td><input className="input" value={s.subject || ""} onChange={e => editSubject(ti, si, { subject: e.target.value })} /></td>
-            <td>{numericGrade ? <input className="input" type="number" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} /> : rawOptions.length ? <select className="select" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)}><option value="">선택</option>{rawOptions.map(o => <option key={o} value={o}>{o}</option>)}</select> : <input className="input" value={s.rawGrade || s.grade || ""} onChange={e => setRawGrade(ti, si, e.target.value)} />}</td>
-            <td><input className="input" type="number" min="0" max="100" value={s.normalizedGrade ?? v2NormalizeGrade(s.rawGrade || s.grade, scale)} onChange={e => editSubject(ti, si, { normalizedGrade: e.target.value })} /></td>
-            <td><button type="button" className="btn ghost" onClick={() => setCommentOpen(commentOpen === `${ti}-${si}` ? "" : `${ti}-${si}`)}>{s.comment ? "보기" : "+"}</button></td>
-            <td><button type="button" className="btn ghost" onClick={() => editTerm(ti, { subjects: (t.subjects || []).filter((_, x) => x !== si) })}>삭제</button></td>
-          </tr>
-          {commentOpen === `${ti}-${si}` && <tr><td colSpan="6"><V2Text label="Teacher's Comment" val={s.comment} set={v => editSubject(ti, si, { comment: v })} minHeight={58} /></td></tr>}
-        </React.Fragment>)}</tbody></table>
-        <p className="small muted">원성적은 입력값 그대로 저장하고, 정규화 점수는 Academics 분석을 위한 별도 값으로 저장합니다.</p>
-        <button type="button" className="btn ghost" onClick={() => addSubject(ti)}>과목 추가</button>
-        </div>
+        }
       </div>;
     }} />
   </div>;
