@@ -5,7 +5,7 @@ const V2_STAGE_KEYS = [
   ["stage4", "Stage 4: 원서"],
   ["stage5", "Stage 5: 입학"]
 ];
-const V2_GRADE_OPTIONS = Array.from({ length: 9 }, (_, i) => `${i + 4}학년`);
+const V2_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `${i + 1}학년`);
 const V2_SIBLING_GRADE_OPTIONS = [...V2_GRADE_OPTIONS, "졸업"];
 const V2_TARGET_GRADE_OPTIONS = [...V2_GRADE_OPTIONS, "대학"];
 const V2_YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() + i));
@@ -73,7 +73,7 @@ const V2_SPORTS_LIST = [
 const V2_EC_LEVELS = ["Junior Varsity", "Varsity", "Regional", "National", "기타"];
 const V2_AWARD_LEVELS = ["International", "National", "Regional/Local", "School"];
 const V2_TEST_FIELDS = {
-  SSAT: ["Overall Percentile", "Verbal Raw Score", "Verbal Percentile", "Quantitative Raw Score", "Quantitative Percentile", "Reading Raw Score", "Reading Percentile", "Grade Level", "Test Level"],
+  SSAT: ["Overall Percentile", "Verbal Raw Score", "Verbal Percentile", "Quantitative Raw Score", "Quantitative Percentile", "Reading Raw Score", "Reading Percentile"],
   PSAT: ["Reading and Writing", "Math", "Selection Index", "Percentile"],
   SAT: ["Reading and Writing", "Math", "Percentile"],
   ACT: ["English", "Math", "Reading", "Science", "Writing"],
@@ -463,7 +463,8 @@ function v2LegacyFindTest(st, pattern) {
 function v2LegacyTestOverall(test) {
   if (/SSAT/i.test(String(test?.type || ""))) {
     const d = test?.details || {};
-    return v2Num(d["Overall Percentile"] || d.Percentile || test?.percentile || test?.overall || v2TestOverall(test?.type, d, ""));
+    const hasRaw = ["Verbal Raw Score", "Quantitative Raw Score", "Reading Raw Score"].some(k => v2Num(d[k]));
+    return v2Num(d["Overall Percentile"] || d.Percentile || test?.percentile || (!hasRaw ? test?.overall : ""));
   }
   return v2Num(test.overall || v2TestOverall(test.type, test.details || {}, ""));
 }
@@ -806,7 +807,42 @@ function V2Select({ label, val, set, options }) {
   return <div className="field"><span className="label">{label}</span><select className="select" value={val || ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
 }
 function V2AttachmentField({ label = "Original report link", url, set }) {
-  return <div className="field"><span className="label">{label}</span><div className="right" style={{ alignItems: "stretch" }}><input className="input" value={url || ""} onChange={e => set(e.target.value)} placeholder="Paste file or report URL" />{url && <a className="btn ghost" href={url} target="_blank" rel="noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Open file</a>}</div></div>;
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(url || "");
+  const hasUrl = !!String(url || "").trim();
+  const openLinkedFile = () => {
+    if (!hasUrl) {
+      setDraft("");
+      setOpen(true);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  const editLink = () => {
+    setDraft(url || "");
+    setOpen(true);
+  };
+  const save = () => {
+    set(String(draft || "").trim());
+    setOpen(false);
+  };
+  return <div className="field attachment-field">
+    <span className="label">{label}</span>
+    <div className="right" style={{ justifyContent: "flex-start", gap: 8, flexWrap: "wrap" }}>
+      <button type="button" className={"btn " + (hasUrl ? "primary" : "ghost")} onClick={openLinkedFile}>{hasUrl ? "원본 파일 열기" : "파일 링크 연결"}</button>
+      {hasUrl && <button type="button" className="btn ghost" onClick={editLink}>수정</button>}
+      {hasUrl && <button type="button" className="btn ghost" onClick={() => set("")}>삭제</button>}
+    </div>
+    {open && <div className="modal"><div className="modal-card" style={{ maxWidth: 560 }}>
+      <h3>{label}</h3>
+      <p className="small">Google Drive, Dropbox, OneDrive, 학교 포털 리포트 등 열람 가능한 파일 링크를 연결해 주세요.</p>
+      <input className="input" value={draft} onChange={e => setDraft(e.target.value)} placeholder="https://..." autoFocus />
+      <div className="right" style={{ marginTop: 14 }}>
+        <button type="button" className="btn ghost" onClick={() => setOpen(false)}>취소</button>
+        <button type="button" className="btn primary" onClick={save}>저장</button>
+      </div>
+    </div></div>}
+  </div>;
 }
 function V2Multi({ label, values = [], set, options, otherValue = "", setOther }) {
   const toggle = o => set(values.includes(o) ? values.filter(x => x !== o) : [...values, o]);
@@ -958,7 +994,7 @@ function V2Dashboard({ students, setView, setSelected, setStage }) {
   return <div className="grid"><div className="grid g4"><Metric title="관리 학생" val={students.length} /><Metric title="평균 입력률" val={Math.round(students.reduce((n, s) => n + V2_STAGE_KEYS.reduce((a, [k]) => a + v2StageCompletion(s, k), 0) / 5, 0) / Math.max(students.length, 1)) + "%"} /><Metric title="Stage 1 완료" val={students.filter(s => v2StageCompletion(s, "stage1") >= 80).length} /><Metric title="원서 단계" val={students.filter(s => s.stage === "stage4").length} /></div><V2Section title="학생 Stage 현황">{students.map(s => {
     const currentStage = s.stage || "stage1";
     const pct = v2StageCompletion(s, currentStage);
-    return <div className="student-row" key={s.id}><div><b>{s.name}</b><div className="small muted">{s.program || "프로그램 미정"} · {s.currentGrade || s.grade || "학년 미정"}</div></div><span>{s.school || "학교 미입력"}</span><span>{V2_STAGE_KEYS.find(x => x[0] === currentStage)?.[1]} · {pct}%</span><div><div className="progress"><div style={{ width: pct + "%" }} /></div></div><button className="btn ghost" onClick={() => { setSelected(s.id); setStage(currentStage); setView("student"); }}>상세</button></div>;
+    return <div className="student-row" key={s.id}><div><b>{s.name}</b><div className="small muted">{s.program || "프로그램 미정"} · {s.currentGrade || s.grade || "학년 미정"}</div></div><span>{s.school || "학교 미입력"}</span><span>{V2_STAGE_KEYS.find(x => x[0] === currentStage)?.[1]} · {pct}%</span><div><div className="progress" style={{ width: 140, maxWidth: "100%" }}><div style={{ width: pct + "%" }} /></div></div><button className="btn ghost" onClick={() => { setSelected(s.id); setStage(currentStage); setView("student"); }}>상세</button></div>;
   })}</V2Section></div>;
 }
 function V2Students({ students, user, add, setSelected, setView, setStage }) {
@@ -1242,7 +1278,10 @@ function v2LatestTest(st, pattern) {
 function v2PrimaryTestScore(test) {
   if (!test) return null;
   const d = test.details || {};
-  if (/SSAT/i.test(test.type || "")) return v2Num(d["Overall Percentile"] || d.Percentile || test.percentile || test.overall);
+  if (/SSAT/i.test(test.type || "")) {
+    const hasRaw = ["Verbal Raw Score", "Quantitative Raw Score", "Reading Raw Score"].some(k => v2Num(d[k]));
+    return v2Num(d["Overall Percentile"] || d.Percentile || test.percentile || (!hasRaw ? test.overall : ""));
+  }
   return v2Num(test.overall || v2TestOverall(test.type, d, ""));
 }
 function v2SchoolTestTier(school = {}) {
@@ -1265,8 +1304,8 @@ function v2TestingBenchmark(school = {}, type = "") {
   };
   const key = String(type || "").toUpperCase();
   const vals = table[key]?.[tier];
-  if (!vals) return { tier, status: "unknown", source: "insufficient", note: "이 시험에 대한 학교별 기준 데이터가 부족합니다." };
-  return { tier, status: "internal_benchmark", min: vals[0], recommended: vals[1], competitive: vals[2], source: "internal", note: "공식 점수 기준이 확인되지 않아 학교 selectivity와 기존 학교 데이터 기반 internal benchmark로 해석합니다." };
+  if (!vals) return { tier, status: "unknown", source: "insufficient", note: "학교별 목표 점수를 판단할 추가 자료가 필요합니다." };
+  return { tier, status: "benchmark", min: vals[0], recommended: vals[1], competitive: vals[2], source: "school_context", note: "" };
 }
 function v2TestFit(score, benchmark) {
   if (!score || !benchmark?.recommended) return "Insufficient Data";
@@ -1328,7 +1367,7 @@ function v2SchoolSpecificTestAnalyses(st, schools = []) {
       const d = test.details || {};
       if (type === "TOEFL" && v2Num(d.Speaking) && v2Num(d.Speaking) < 24) extra += " 특히 Speaking 점수는 인터뷰와 토론식 수업 적응성을 추가로 증명해야 하는 신호입니다.";
       if (type === "SSAT" && (v2Num(d["Verbal Percentile"]) < benchmark.recommended || v2Num(d["Reading Percentile"]) < benchmark.recommended)) extra += " Verbal/Reading percentile은 학교 수준 대비 보완 여지가 있으므로 reading-heavy 수업 적응 근거를 함께 제시해 주세요.";
-      return `${test.type} ${score}${type === "SSAT" ? " percentile" : "점"}은 ${school.name} 같은 ${tierText} 학교 기준에서 ${fit}로 해석됩니다. 목표 기준은 recommended ${benchmark.recommended}, competitive ${benchmark.competitive} 수준입니다.${extra} (${benchmark.note})`;
+      return `${school.name}의 경쟁 수준을 고려하면 ${test.type} ${score}${type === "SSAT" ? " percentile" : "점"}은 현재 ${fit} 구간으로 볼 수 있습니다. 보다 안정적인 지원력을 만들기 위해서는 ${benchmark.recommended} 이상을 1차 목표로, ${benchmark.competitive} 이상을 경쟁력 있는 목표로 잡는 것이 좋습니다.${extra}`;
     });
     const firstFit = tests[0] ? v2TestFit(v2PrimaryTestScore(tests[0]), v2TestingBenchmark(school, tests[0].type)) : "Insufficient Data";
     return { school, fit: firstFit, comments };
@@ -1553,7 +1592,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
             <V2Field label="학기 GPA" val={t.termGpa} set={v => editTerm(ti, { termGpa: v })} />
             <V2Field label="Rank" val={t.rank} set={v => editTerm(ti, { rank: v })} />
           </div>
-          <V2AttachmentField label="Transcript/report link" url={t.attachmentUrl} set={v => editTerm(ti, { attachmentUrl: v })} />
+          <V2AttachmentField label="원본 성적표/리포트" url={t.attachmentUrl} set={v => editTerm(ti, { attachmentUrl: v })} />
           <table className="table"><thead><tr><th>과목 분류</th><th>과목명</th><th>성적</th><th>정규화 점수</th><th>Teacher's Comment</th><th></th></tr></thead><tbody>{(t.subjects || []).map((s, si) => <React.Fragment key={si}>
             <tr>
               <td><select className="select" value={s.category || ""} onChange={e => editSubject(ti, si, { category: e.target.value })}><option value="">선택</option>{V2_SUBJECT_CATEGORIES.map(o => <option key={o} value={o}>{o}</option>)}</select></td>
@@ -1584,7 +1623,23 @@ function V2Tests({ st, update }) {
       edit(i, { details: nextDetails, overall: v2TestOverall(r.type, nextDetails, r.overall) });
     };
     const overall = v2TestOverall(r.type, details, r.overall);
-    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} />{isSsat ? <div className="field"><span className="label">총점 (Overall Score)</span><input className="input" value={overall || ""} readOnly /></div> : <V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} />}</div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
+    if (isSsat) {
+      return <div>
+        <div className="grid g4">
+          <V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} />
+          <V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} />
+          <V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} />
+          <V2Select label="Test Level" val={details["Test Level"]} set={v => setDetail("Test Level", v)} options={["Lower", "Upper"]} />
+        </div>
+        <div className="grid g4">
+          <div className="field"><span className="label">총점 (Overall Score)</span><input className="input" value={overall || ""} readOnly /></div>
+          {fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type="number" />)}
+        </div>
+        <V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} />
+        <V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} />
+      </div>;
+    }
+    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
   }} />;
 }
 function v2ActivitySuggestions(cat) {
@@ -1932,9 +1987,9 @@ function V2AdminDashboard({ data, persist, setSelected, setView, setStage }) {
     <button type="button" className="card metric" onClick={() => setManagedOpen(true)} style={{ textAlign: "left" }}><span>관리 학생 전체</span><strong>{students.length}</strong></button>
     <V2ManagedStudentsModal open={managedOpen} onClose={() => setManagedOpen(false)} students={students} staff={staff} setSelected={setSelected} setView={setView} setStage={setStage} />
     <V2SubTabs tabs={[["all", "전체"], ...staff.map(a => [a.id, a.name])]} active={staffTab} set={setStaffTab} />
-    <V2Section title="학생 Stage 현황"><table className="table"><thead><tr><th>학생</th><th>Stage</th><th>담당자</th><th>학교</th><th></th></tr></thead><tbody>{scoped.map(st => { const currentStage = st.stage || "stage1"; const pct = v2StageCompletion(st, currentStage); return <tr key={st.id}><td>{st.name || "신규 학생"}</td><td>{V2_STAGE_KEYS.find(x => x[0] === currentStage)?.[1] || currentStage} · {pct}%<div className="progress" style={{ marginTop: 6 }}><div style={{ width: pct + "%" }} /></div></td><td>{v2OwnerLabel(st, staff)}</td><td>{st.school || "미입력"}</td><td><button className="btn ghost" onClick={() => { setSelected(st.id); setStage(currentStage); setView("student"); }}>상세</button></td></tr>; })}</tbody></table></V2Section>
-    <V2Section title="이번주 할 일"><table className="table"><thead><tr><th>학생</th><th>할 일</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{thisWeek.map((r, i) => <tr key={`${r.student.id}-${r.source}-${i}`} onClick={() => openStudentAction(r.student)} style={{ cursor: "pointer" }}><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline || "미정"}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#1f6fa8", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={e => { e.stopPropagation(); openStudentAction(r.student); }}>수정</button></td></tr>)}</tbody></table></V2Section>
-    <V2Section title="이번주 미완결 업무"><table className="table"><thead><tr><th>학생</th><th>업무</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{overdue.map((r, i) => <tr key={`${r.student.id}-overdue-${i}`}><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#b45309", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={() => openStudentAction(r.student)}>수정</button></td></tr>)}</tbody></table></V2Section>
+    <V2Section title="학생 Stage 현황"><table className="table"><thead><tr><th>담당자</th><th>학생</th><th>Stage</th><th>학교</th><th></th></tr></thead><tbody>{scoped.map(st => { const currentStage = st.stage || "stage1"; const pct = v2StageCompletion(st, currentStage); return <tr key={st.id}><td>{v2OwnerLabel(st, staff)}</td><td>{st.name || "신규 학생"}</td><td>{V2_STAGE_KEYS.find(x => x[0] === currentStage)?.[1] || currentStage} · {pct}%<div className="progress" style={{ marginTop: 6, width: 140, maxWidth: "100%" }}><div style={{ width: pct + "%" }} /></div></td><td>{st.school || "미입력"}</td><td><button className="btn ghost" onClick={() => { setSelected(st.id); setStage(currentStage); setView("student"); }}>상세</button></td></tr>; })}</tbody></table></V2Section>
+    <V2Section title="이번주 할 일"><table className="table"><thead><tr><th>담당자</th><th>학생</th><th>할 일</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{thisWeek.map((r, i) => <tr key={`${r.student.id}-${r.source}-${i}`} onClick={() => openStudentAction(r.student)} style={{ cursor: "pointer" }}><td>{v2OwnerLabel(r.student, staff)}</td><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline || "미정"}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#1f6fa8", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={e => { e.stopPropagation(); openStudentAction(r.student); }}>수정</button></td></tr>)}</tbody></table></V2Section>
+    <V2Section title="이번주 미완결 업무"><table className="table"><thead><tr><th>담당자</th><th>학생</th><th>업무</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{overdue.map((r, i) => <tr key={`${r.student.id}-overdue-${i}`}><td>{v2OwnerLabel(r.student, staff)}</td><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#b45309", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={() => openStudentAction(r.student)}>수정</button></td></tr>)}</tbody></table></V2Section>
     <V2AdminCalendar data={data} persist={persist} staff={staff} students={students} />
   </div>;
 }
