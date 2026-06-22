@@ -414,6 +414,11 @@ function v2TermProvidedGpa(term) {
   const n = Number(term?.termGpa);
   return String(term?.termGpa || "").trim() && Number.isFinite(n) ? n : null;
 }
+function v2TermUsesProvidedGpa(term) {
+  const gpaScale = String(term?.gradingScale?.gpaScale || "").trim();
+  if (gpaScale === "Not provided / Not used") return false;
+  return v2TermProvidedGpa(term) !== null;
+}
 function v2TermAcademicIndex(term) {
   const vals = (term?.subjects || []).map(s => Number(s.normalizedGrade)).filter(n => Number.isFinite(n));
   return vals.length ? v2Round(vals.reduce((a, b) => a + b, 0) / vals.length, 1) : null;
@@ -714,11 +719,16 @@ function v2CustomerSchoolNote(prediction) {
 }
 function v2RecommendedSchools(st, schools) {
   const targetNames = new Set((st.interests || []).map(x => x.school).filter(Boolean));
-  return v2LegacyPredictions({ ...st, interests: [] }, schools || [])
-    .filter(p => !targetNames.has(p.school.name))
-    .filter(p => /Safety|Likely|Competitive/.test(p.category))
-    .sort((a, b) => b.schoolStrength - a.schoolStrength)
+  const predictions = v2LegacyPredictions({ ...st, interests: [] }, schools || [])
+    .filter(p => !targetNames.has(p.school.name));
+  const recommended = predictions.filter(p => /Safety|Likely|Competitive/.test(p.category));
+  const ranked = (recommended.length ? recommended.sort((a, b) => b.schoolStrength - a.schoolStrength) : predictions.sort((a, b) => a.schoolStrength - b.schoolStrength))
     .slice(0, 4);
+  if (ranked.length) return ranked;
+  return (schools || [])
+    .filter(s => s?.name && !targetNames.has(s.name))
+    .slice(0, 4)
+    .map(s => ({ school: s, category: "Competitive Accept", schoolStrength: Number(s.ssat || s.toefl || 0), probability: "검토 필요", legacyImpact: { applied: false }, legacyContribution: 0 }));
 }
 function V2ClientStrategyReport({ st, schools }) {
   const reportSchools = schools || [];
@@ -929,7 +939,7 @@ function V2App() {
     persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
   };
   const updateSchools = schools => persist({ ...data, schools });
-  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} /><main className="main"><Header view={view} />{view === "dashboard" && <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [user.role === "admin" ? "aram" : user.id], owner: user.role === "admin" ? "aram" : user.id }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={stage} setStage={setStage} />}{view === "schedule" && <Schedule students={visible} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} />}</main></div>;
+  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} /><main className="main"><Header view={view} />{view === "dashboard" && (user.role === "admin" ? <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} /> : <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />)}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [user.role === "admin" ? "aram" : user.id], owner: user.role === "admin" ? "aram" : user.id }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={stage} setStage={setStage} />}{view === "schedule" && <Schedule students={visible} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
 }
 function V2Sidebar({ user, view, setView, logout }) {
   const items = [["dashboard", "대시보드"], ["students", "학생 관리"], ["schedule", "주중·방학 일정"], ["reports", "보고서 제작"], ["admin", "어드민"]];
@@ -989,21 +999,66 @@ function V2SchoolInfo({ st, update, schools }) {
     update({ school: name, currentSchoolInfo: { ...current, name, ...v2SchoolPatch(school) } });
   };
   const setCurrentInfo = patch => update({ currentSchoolInfo: { ...current, ...patch } });
-  const setCurrentScale = scale => update({ currentSchoolInfo: { ...current, gradingScale: v2NormalizeGradingScale(scale) }, academicTerms: v2RecalculateTermsWithScale(st.academicTerms || [], st.school, scale) });
   const setPrev = (i, patch) => update({ previousSchools: v2SetArr(prev, i, patch) });
+  const deletePrev = i => update({ previousSchools: prev.filter((_, x) => x !== i) });
   const selectPrev = (i, name) => {
     const school = v2FindSchool(schools, name);
     setPrev(i, { name, _draft: false, ...v2SchoolPatch(school) });
   };
-  const saveCustom = custom => {
-    if (modal === "current") {
-      update({ school: custom.name, currentSchoolInfo: custom });
-    } else if (typeof modal === "number") {
-      setPrev(modal, custom);
-    }
-    setModal(null);
-  };
-  return <div className="grid"><V2Section title="현재 학교"><div className="grid g3"><V2SmartSchool label="현재 학교" val={st.school} set={setCurrentSchool} schools={schools} /><V2Select label="학교 구분" val={current.type} set={v => setCurrentInfo({ type: v })} options={V2_SCHOOL_TYPES} /><V2Field label="Website" val={current.website} set={v => setCurrentInfo({ website: v })} /></div><div className="grid g4"><V2Field label="재학 시작일" type="date" val={current.startDate} set={v => setCurrentInfo({ startDate: v })} /><V2Select label="재학 시작 학년" val={current.gradeFrom} set={v => setCurrentInfo({ gradeFrom: v })} options={V2_GRADE_OPTIONS} /><V2Field label="졸업 예정일" type="date" val={current.endDate} set={v => setCurrentInfo({ endDate: v })} /><V2Select label="현재 학년" val={current.gradeTo} set={v => setCurrentInfo({ gradeTo: v })} options={V2_GRADE_OPTIONS} /></div><div className="grid g3"><V2Field label="학교 이메일" val={current.email} set={v => setCurrentInfo({ email: v })} /><V2Field label="학교 전화번호" val={current.phone} set={v => setCurrentInfo({ phone: v })} /><V2Field label="교장/카운슬러" val={current.counselor} set={v => setCurrentInfo({ counselor: v })} /></div><V2Field label="현재 학교 주소" val={current.address} set={v => setCurrentInfo({ address: v })} /></V2Section><V2Section title="이전 학교"><div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn ghost" onClick={() => update(s0 => ({ previousSchools: [...(s0.previousSchools || [V2_EMPTY_PREVIOUS()]), { ...V2_EMPTY_PREVIOUS(), _draft: true }] }))}>학교 추가</button></div>{prev.map((p, i) => <div key={i} className="card" style={{ marginBottom: 12, background: "#f9fafb" }}><h3>이전 학교 {i + 1}</h3><div className="grid g3"><V2SmartSchool label={`이전 학교 ${i + 1}`} val={p.name} set={v => selectPrev(i, v)} schools={schools} /><V2Select label="학교 구분" val={p.type} set={v => setPrev(i, { type: v })} options={V2_SCHOOL_TYPES} /><V2Field label="Website" val={p.website} set={v => setPrev(i, { website: v })} /></div><div className="grid g4"><V2Field label="재학 시작일" type="date" val={p.startDate} set={v => setPrev(i, { startDate: v })} /><V2Select label="재학 시작 학년" val={p.gradeFrom} set={v => setPrev(i, { gradeFrom: v })} options={V2_GRADE_OPTIONS} /><V2Field label="재학 종료일" type="date" val={p.endDate} set={v => setPrev(i, { endDate: v })} /><V2Select label="재학 종료 학년" val={p.gradeTo} set={v => setPrev(i, { gradeTo: v })} options={V2_GRADE_OPTIONS} /></div><div className="grid g3"><V2Field label="학교 이메일" val={p.email} set={v => setPrev(i, { email: v })} /><V2Field label="학교 전화번호" val={p.phone} set={v => setPrev(i, { phone: v })} /><V2Field label="교장/카운슬러" val={p.counselor} set={v => setPrev(i, { counselor: v })} /><V2Select label="징계/정학" val={p.discipline} set={v => setPrev(i, { discipline: v })} options={["No", "Yes"]} />{p.discipline === "Yes" && <V2Field label="징계 내용 및 사유" val={p.disciplineReason} set={v => setPrev(i, { disciplineReason: v })} />}<V2Select label="자퇴" val={p.withdrawal} set={v => setPrev(i, { withdrawal: v })} options={["No", "Yes"]} />{p.withdrawal === "Yes" && <V2Field label="자퇴 사유" val={p.withdrawalReason} set={v => setPrev(i, { withdrawalReason: v })} />}</div><V2Field label="학교 주소" val={p.address} set={v => setPrev(i, { address: v })} /><V2Field label="설명/메모" val={p.notes} set={v => setPrev(i, { notes: v })} /></div>)}</V2Section></div>;
+  return <div className="grid">
+    <V2Section title="현재 학교">
+      <div className="grid g3">
+        <V2SmartSchool label="현재 학교" val={st.school} set={setCurrentSchool} schools={schools} />
+        <V2Select label="학교 구분" val={current.type} set={v => setCurrentInfo({ type: v })} options={V2_SCHOOL_TYPES} />
+        <V2Field label="Website" val={current.website} set={v => setCurrentInfo({ website: v })} />
+      </div>
+      <div className="grid g4">
+        <V2Field label="재학 시작일" type="date" val={current.startDate} set={v => setCurrentInfo({ startDate: v })} />
+        <V2Select label="재학 시작 학년" val={current.gradeFrom} set={v => setCurrentInfo({ gradeFrom: v })} options={V2_GRADE_OPTIONS} />
+        <V2Field label="졸업 예정일" type="date" val={current.endDate} set={v => setCurrentInfo({ endDate: v })} />
+        <V2Select label="현재 학년" val={current.gradeTo} set={v => setCurrentInfo({ gradeTo: v })} options={V2_GRADE_OPTIONS} />
+      </div>
+      <div className="grid g3">
+        <V2Field label="학교 이메일" val={current.email} set={v => setCurrentInfo({ email: v })} />
+        <V2Field label="학교 전화번호" val={current.phone} set={v => setCurrentInfo({ phone: v })} />
+        <V2Field label="교장/카운슬러" val={current.counselor} set={v => setCurrentInfo({ counselor: v })} />
+      </div>
+      <V2Field label="현재 학교 주소" val={current.address} set={v => setCurrentInfo({ address: v })} />
+    </V2Section>
+    <V2Section title="이전 학교">
+      <div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}>
+        <button type="button" className="btn ghost" onClick={() => update(s0 => ({ previousSchools: [...(s0.previousSchools || [V2_EMPTY_PREVIOUS()]), { ...V2_EMPTY_PREVIOUS(), _draft: true }] }))}>학교 추가</button>
+      </div>
+      {prev.map((p, i) => <div key={i} className="card" style={{ marginBottom: 12, background: "#f9fafb" }}>
+        <div className="right" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>이전 학교 {i + 1}</h3>
+          <button type="button" className="btn ghost" onClick={() => deletePrev(i)}>삭제</button>
+        </div>
+        <div className="grid g3">
+          <V2SmartSchool label={`이전 학교 ${i + 1}`} val={p.name} set={v => selectPrev(i, v)} schools={schools} />
+          <V2Select label="학교 구분" val={p.type} set={v => setPrev(i, { type: v })} options={V2_SCHOOL_TYPES} />
+          <V2Field label="Website" val={p.website} set={v => setPrev(i, { website: v })} />
+        </div>
+        <div className="grid g4">
+          <V2Field label="재학 시작일" type="date" val={p.startDate} set={v => setPrev(i, { startDate: v })} />
+          <V2Select label="재학 시작 학년" val={p.gradeFrom} set={v => setPrev(i, { gradeFrom: v })} options={V2_GRADE_OPTIONS} />
+          <V2Field label="재학 종료일" type="date" val={p.endDate} set={v => setPrev(i, { endDate: v })} />
+          <V2Select label="재학 종료 학년" val={p.gradeTo} set={v => setPrev(i, { gradeTo: v })} options={V2_GRADE_OPTIONS} />
+        </div>
+        <div className="grid g3">
+          <V2Field label="학교 이메일" val={p.email} set={v => setPrev(i, { email: v })} />
+          <V2Field label="학교 전화번호" val={p.phone} set={v => setPrev(i, { phone: v })} />
+          <V2Field label="교장/카운슬러" val={p.counselor} set={v => setPrev(i, { counselor: v })} />
+          <V2Select label="징계/정학" val={p.discipline} set={v => setPrev(i, { discipline: v })} options={["No", "Yes"]} />
+          {p.discipline === "Yes" && <V2Field label="징계 내용 및 사유" val={p.disciplineReason} set={v => setPrev(i, { disciplineReason: v })} />}
+          <V2Select label="자퇴" val={p.withdrawal} set={v => setPrev(i, { withdrawal: v })} options={["No", "Yes"]} />
+          {p.withdrawal === "Yes" && <V2Field label="자퇴 사유" val={p.withdrawalReason} set={v => setPrev(i, { withdrawalReason: v })} />}
+        </div>
+        <V2Field label="학교 주소" val={p.address} set={v => setPrev(i, { address: v })} />
+        <V2Field label="설명/메모" val={p.notes} set={v => setPrev(i, { notes: v })} />
+      </div>)}
+    </V2Section>
+  </div>;
 }
 function V2CustomSchoolModal({ open, onClose, onSave }) {
   const [form, setForm] = useState(V2_EMPTY_PREVIOUS());
@@ -1082,14 +1137,14 @@ function v2TranscriptIsBlank(terms = []) {
   });
 }
 function v2AcademicTrendMeta(terms = []) {
-  const hasProvidedGpa = (terms || []).some(t => v2TermProvidedGpa(t) !== null);
+  const hasProvidedGpa = (terms || []).some(t => v2TermUsesProvidedGpa(t));
   return hasProvidedGpa
     ? { valueKey: "gpa", valueLabel: "GPA", max: 4.3, ticks: [0, 1, 2, 3, 4], note: "학교에서 제공한 학기 GPA를 기준으로 최근 학업 흐름을 확인합니다. GPA가 입력된 학기만 그래프에 반영됩니다." }
-    : { valueKey: "index", valueLabel: "예스유학 학업 추이 점수", max: 100, ticks: [0, 25, 50, 75, 100], note: "학교에서 GPA를 제공하지 않아, 예스유학이 입력된 성적과 Grading Scale을 기준으로 자체 계산한 학업 추이 점수입니다." };
+    : { valueKey: "index", valueLabel: "학업 추이 점수", max: 100, ticks: [0, 25, 50, 75, 100], note: "학교에서 GPA를 제공하지 않아, 입력된 성적과 Grading Scale을 기준으로 자체 계산한 학업 추이 점수입니다." };
 }
 function v2GpaSeries(terms, mode) {
   const meta = v2AcademicTrendMeta(terms);
-  const readValue = t => meta.valueKey === "gpa" ? v2TermProvidedGpa(t) : v2TermAcademicIndex(t);
+  const readValue = t => meta.valueKey === "gpa" ? (v2TermUsesProvidedGpa(t) ? v2TermProvidedGpa(t) : null) : v2TermAcademicIndex(t);
   const rows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), value: readValue(t) })).filter(x => x.value !== null && !Number.isNaN(x.value));
   if (mode === "grade") {
     const groups = {};
@@ -1384,7 +1439,6 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
             </tr>
             {commentOpen === `${ti}-${si}` && <tr><td colSpan="6"><V2Text label="Teacher's Comment" val={s.comment} set={v => editSubject(ti, si, { comment: v })} minHeight={58} /></td></tr>}
           </React.Fragment>)}</tbody></table>
-          <p className="small muted">성적은 입력값 그대로 저장하고, 정규화 점수는 Academics 분석을 위한 별도 값으로 저장합니다.</p>
           <button type="button" className="btn ghost" onClick={() => addSubject(ti)}>과목 추가</button>
         </div>
         }
@@ -1594,12 +1648,127 @@ function V2SchoolLegacyAdmin({ schools = [], updateSchools }) {
   if (!schools.length) return null;
   return <V2Section title="Legacy / Family Connection 학교별 설정"><div className="grid g4"><V2SmartSchool label="학교 검색/선택" val={school.name || selectedName} set={setSelectedName} schools={schools} /><V2Field label="legacy_sensitivity_multiplier" val={school.legacy_sensitivity_multiplier ?? config.sensitivity} set={v => edit({ legacy_sensitivity_multiplier: Number(v) })} type="number" /><V2Select label="sibling_priority_enabled" val={String(school.sibling_priority_enabled ?? config.siblingPriority)} set={v => edit({ sibling_priority_enabled: v === "true" })} options={["false", "true"]} /><V2Field label="max_legacy_contribution" val={school.max_legacy_contribution ?? config.max} set={v => edit({ max_legacy_contribution: Number(v) })} type="number" /><V2Field label="legacy_weight" val={school.legacy_weight ?? config.weight} set={v => edit({ legacy_weight: Number(v) })} type="number" /></div><p className="small muted">레거시는 합격 가능성을 대체하지 않는 작은 맥락 가산점입니다. Phillips Exeter Academy는 기본 제안값으로 sensitivity 0.7, sibling priority true, max 3.0을 사용합니다.</p></V2Section>;
 }
-function V2Admin({ data, persist, updateSchools, setSelected, setView }) {
-  const [tab, setTab] = useState("staff");
+function v2OwnerIds(st) {
+  const ids = st?.owners?.length ? st.owners : [st?.owner].filter(Boolean);
+  return [...new Set(ids.filter(Boolean))];
+}
+function v2StaffName(id, staff = []) {
+  return staff.find(a => a.id === id)?.name || id || "미지정";
+}
+function v2OwnerLabel(st, staff = []) {
+  const owners = v2OwnerIds(st);
+  const names = owners.map(id => v2StaffName(id, staff)).join(", ") || "미지정";
+  return owners.length > 1 ? `${names} (공동 관리 ${owners.length}명)` : names;
+}
+function v2DateOnly(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+function v2DaysUntil(value) {
+  const due = v2DateOnly(value);
+  if (!due) return null;
+  const today = new Date();
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const target = new Date(due + "T00:00:00");
+  return Math.round((target - base) / 86400000);
+}
+function v2Dday(value) {
+  const d = v2DaysUntil(value);
+  if (d === null) return "미정";
+  if (d === 0) return "D-Day";
+  return d > 0 ? `D-${d}` : `D+${Math.abs(d)}`;
+}
+function v2Stars(value) {
+  const n = Math.max(1, Math.min(5, Number(value || 3)));
+  return "★".repeat(n) + "☆".repeat(5 - n);
+}
+function v2StudentActionRows(students = []) {
+  return students.flatMap(st => {
+    const manual = [...(st.actionPlans || []), ...(st.tasks || [])].map((t, i) => ({
+      student: st,
+      source: "task",
+      index: i,
+      title: t.title || t.text || t.task || "액션 플랜",
+      deadline: t.deadline || t.due || t.date || "",
+      done: !!t.done,
+      importance: t.importance || t.priority || 3
+    }));
+    const applications = (st.applications || []).filter(a => a.deadline).map((a, i) => ({
+      student: st,
+      source: "application",
+      index: i,
+      title: `${a.school || "지원학교"} 원서 마감 준비`,
+      deadline: a.deadline,
+      done: /submitted|complete|accepted/i.test(a.status || ""),
+      importance: 5
+    }));
+    const weekly = !manual.length && st.stagePlans?.weeklyPlan ? String(st.stagePlans.weeklyPlan).split(/\n+/).filter(Boolean).slice(0, 6).map((line, i) => ({
+      student: st,
+      source: "weeklyPlan",
+      index: i,
+      title: line.replace(/^[-*]\s*/, ""),
+      deadline: st.programEndDate || st.deadline || "",
+      done: false,
+      importance: 3
+    })) : [];
+    return [...manual, ...applications, ...weekly].filter(r => r.title);
+  });
+}
+function V2AdminCalendar({ data, persist, staff, students }) {
+  const [visibleStaff, setVisibleStaff] = useState(Object.fromEntries((staff || []).map(a => [a.id, true])));
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const teamEvents = data.teamEvents || [];
+  const editTeam = (i, patch) => persist({ ...data, teamEvents: v2SetArr(teamEvents, i, { ...teamEvents[i], ...patch }) });
+  const addTeam = () => persist({ ...data, teamEvents: [...teamEvents, { date: new Date().toISOString().slice(0, 10), title: "팀 전체 일정", notes: "" }] });
+  const deleteTeam = i => persist({ ...data, teamEvents: teamEvents.filter((_, x) => x !== i) });
+  const selectedIds = Object.entries(visibleStaff).filter(([, on]) => on).map(([id]) => id);
+  const studentEvents = students.filter(st => v2OwnerIds(st).some(id => selectedIds.includes(id))).flatMap(st => (st.calendarEvents || []).map(e => ({ ...e, student: st.name, owners: v2OwnerLabel(st, staff), team: false })));
+  const rows = [...studentEvents, ...teamEvents.map((e, teamIndex) => ({ ...e, teamIndex, student: "팀 전체", owners: "Admin", team: true }))].filter(e => !month || String(e.date || "").startsWith(month)).sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  return <V2Section title="주중·방학 일정 / 팀 캘린더">
+    <div className="right" style={{ justifyContent: "space-between", alignItems: "end", gap: 12 }}>
+      <V2Field label="표시 월" type="month" val={month} set={setMonth} />
+      <button className="btn primary" onClick={addTeam}>팀 전체 일정 추가</button>
+    </div>
+    <div className="right" style={{ flexWrap: "wrap", gap: 8, margin: "10px 0" }}>{staff.map(a => <button key={a.id} type="button" className={"btn " + (visibleStaff[a.id] ? "primary" : "ghost")} onClick={() => setVisibleStaff({ ...visibleStaff, [a.id]: !visibleStaff[a.id] })}>{a.name}</button>)}</div>
+    <table className="table"><thead><tr><th>날짜</th><th>학생/범위</th><th>일정</th><th>담당자</th><th>비고</th><th></th></tr></thead><tbody>{rows.map((e, i) => <tr key={`${e.team ? "team" : "student"}-${i}-${e.date}-${e.title}`}>
+      <td>{e.team ? <input className="input" type="date" value={e.date || ""} onChange={ev => editTeam(e.teamIndex, { date: ev.target.value })} /> : e.date}</td>
+      <td>{e.student}</td>
+      <td>{e.team ? <input className="input" value={e.title || ""} onChange={ev => editTeam(e.teamIndex, { title: ev.target.value })} /> : e.title}</td>
+      <td>{e.owners}</td>
+      <td>{e.team ? <input className="input" value={e.notes || ""} onChange={ev => editTeam(e.teamIndex, { notes: ev.target.value })} /> : (e.notes || e.type || "")}</td>
+      <td>{e.team && <button className="btn ghost" onClick={() => deleteTeam(e.teamIndex)}>삭제</button>}</td>
+    </tr>)}</tbody></table>
+  </V2Section>;
+}
+function V2AdminDashboard({ data, persist, setSelected, setView, setStage }) {
+  const staff = data.staffAccounts || [];
+  const students = data.students || [];
+  const [staffTab, setStaffTab] = useState("all");
+  const scoped = staffTab === "all" ? students : students.filter(st => v2OwnerIds(st).includes(staffTab));
+  const rows = v2StudentActionRows(scoped);
+  const thisWeek = rows.filter(r => !r.done && (v2DaysUntil(r.deadline) === null || (v2DaysUntil(r.deadline) >= 0 && v2DaysUntil(r.deadline) <= 7)));
+  const overdue = rows.filter(r => !r.done && v2DaysUntil(r.deadline) !== null && v2DaysUntil(r.deadline) < 0);
+  const openStudentAction = st => { setSelected(st.id); setStage("stage3"); setView("student"); };
+  return <div className="grid">
+    <div className="grid g4"><Metric title="관리 학생 전체" val={students.length} />{staff.slice(0, 3).map(a => <Metric key={a.id} title={`${a.name} 담당`} val={students.filter(st => v2OwnerIds(st).includes(a.id)).length} />)}</div>
+    <V2Section title="담당자별 관리 현황"><table className="table"><thead><tr><th>담당자</th><th>관리 학생</th><th>공동 관리 학생</th></tr></thead><tbody>{staff.map(a => {
+      const mine = students.filter(st => v2OwnerIds(st).includes(a.id));
+      return <tr key={a.id}><td>{a.name}</td><td>{mine.length}</td><td>{mine.filter(st => v2OwnerIds(st).length > 1).length}</td></tr>;
+    })}</tbody></table></V2Section>
+    <V2SubTabs tabs={[["all", "전체"], ...staff.map(a => [a.id, a.name])]} active={staffTab} set={setStaffTab} />
+    <V2Section title="학생 Stage 현황"><table className="table"><thead><tr><th>학생</th><th>Stage</th><th>담당자</th><th>학교</th><th></th></tr></thead><tbody>{scoped.map(st => <tr key={st.id}><td>{st.name || "신규 학생"}</td><td>{V2_STAGE_KEYS.find(x => x[0] === st.stage)?.[1] || st.stage}</td><td>{v2OwnerLabel(st, staff)}</td><td>{st.school || "미입력"}</td><td><button className="btn ghost" onClick={() => { setSelected(st.id); setStage(st.stage || "stage1"); setView("student"); }}>상세</button></td></tr>)}</tbody></table></V2Section>
+    <V2Section title="이번주 할 일"><table className="table"><thead><tr><th>학생</th><th>할 일</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{thisWeek.map((r, i) => <tr key={`${r.student.id}-${r.source}-${i}`} onClick={() => openStudentAction(r.student)} style={{ cursor: "pointer" }}><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline || "미정"}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#1f6fa8", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={e => { e.stopPropagation(); openStudentAction(r.student); }}>수정</button></td></tr>)}</tbody></table></V2Section>
+    <V2Section title="이번주 미완결 업무"><table className="table"><thead><tr><th>학생</th><th>업무</th><th>데드라인</th><th>D-n</th><th>중요도</th><th></th></tr></thead><tbody>{overdue.map((r, i) => <tr key={`${r.student.id}-overdue-${i}`}><td>{r.student.name}</td><td>{r.title}</td><td>{r.deadline}</td><td>{v2Dday(r.deadline)}</td><td style={{ color: "#b45309", letterSpacing: 1 }}>{v2Stars(r.importance)}</td><td><button className="btn ghost" onClick={() => openStudentAction(r.student)}>수정</button></td></tr>)}</tbody></table></V2Section>
+    <V2AdminCalendar data={data} persist={persist} staff={staff} students={students} />
+  </div>;
+}
+function V2Admin({ data, persist, updateSchools, setSelected, setView, setStage }) {
+  const [tab, setTab] = useState("dashboard");
   const staff = data.staffAccounts || [];
   const editStaff = (i, patch) => persist({ ...data, staffAccounts: v2SetArr(staff, i, patch) });
   const addStaff = () => persist({ ...data, staffAccounts: [...staff, { id: "staff" + Date.now(), name: "새 담당자", role: "staff", email: "new@yesuhak.com", password: "prep2026" }] });
-  return <div><V2SubTabs tabs={[["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2Dashboard students={data.students || []} setView={setView} setSelected={setSelected} setStage={() => {}} />}</div>;
+  return <div><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "dashboard" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}</div>;
 }
 
 ReactDOM.render(<V2App />, document.getElementById("root"));
