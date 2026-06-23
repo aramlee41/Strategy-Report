@@ -109,7 +109,7 @@ function v2DefaultTranscriptSeason(date = new Date()) {
   if (month <= 10) return "Fall";
   return "Winter";
 }
-const V2_EMPTY_TERM = school => ({ school: school || "", year: String(new Date().getFullYear()), season: v2DefaultTranscriptSeason(), term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
+const V2_EMPTY_TERM = school => ({ termId: `term-${Date.now()}-${Math.random().toString(36).slice(2)}`, school: school || "", year: String(new Date().getFullYear()), season: v2DefaultTranscriptSeason(), term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
 const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
 const V2_EMPTY_EC = () => ({
@@ -1491,16 +1491,24 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
   const [termOpen, setTermOpen] = useState({});
-  const terms = v2SortTranscriptTerms((st.academicTerms || [V2_EMPTY_TERM(st.school)]).map(v2NormalizePlaceholderTerm));
+  const baseTerms = (st.academicTerms || [V2_EMPTY_TERM(st.school)]).map((term, index) => ({
+    ...v2NormalizePlaceholderTerm(term),
+    termId: term?.termId || `legacy-term-${index}`
+  }));
+  const terms = v2SortTranscriptTerms(baseTerms.map((term, sourceIndex) => ({ ...term, __sourceIndex: sourceIndex })));
   const schoolOptions = v2StudentSchoolNames(st);
   const transcriptSchools = v2TranscriptSchoolNames(st);
   const defaultSchool = v2AllowedTranscriptSchool(st, st.school);
   const transcriptTrendMeta = v2AcademicTrendMeta(terms);
   const transcriptTrendValues = v2GpaSeries(terms, "term").values;
   const latestTrendValue = transcriptTrendValues[0]?.value || "미입력";
-  const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2RecalculateTermsWithScale(terms, schoolName, scale) });
-  const normalizeTerms = next => next.map(t => {
-    const termInput = v2NormalizePlaceholderTerm(t);
+  const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2SortTranscriptTerms(v2RecalculateTermsWithScale(baseTerms, schoolName, scale)) });
+  const normalizeTerms = next => next.map((t, index) => {
+    const { __sourceIndex, ...cleanTerm } = t || {};
+    const termInput = {
+      ...v2NormalizePlaceholderTerm(cleanTerm),
+      termId: cleanTerm.termId || `legacy-term-${index}`
+    };
     const school = v2AllowedTranscriptSchool(st, termInput.school);
     const gradingScale = v2StudentSchoolScale(st, schools, school, termInput.gradingScale);
     return {
@@ -1527,7 +1535,10 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       }))
     });
   };
-  const editTerm = (i, patch) => saveTerms(v2SetArr(terms, i, patch));
+  const editTerm = (i, patch) => {
+    const sourceIndex = Number.isInteger(terms[i]?.__sourceIndex) ? terms[i].__sourceIndex : i;
+    saveTerms(v2SetArr(baseTerms, sourceIndex, patch));
+  };
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
   const setRawGrade = (ti, si, rawGrade) => {
     const school = v2AllowedTranscriptSchool(st, terms[ti].school);
@@ -1571,7 +1582,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       const rawOptions = scale.entries.map(e => e.raw_grade_label).filter(Boolean);
       const numericGrade = v2ScaleNeedsNumeric(scale.gradeInputType);
       const header = v2TermLabel(t) || `학기 ${ti + 1}`;
-      const termKey = `${termSchool || ""}|${t.gradeLevel || ""}|${t.year || ""}|${t.season || ""}|${ti}`;
+      const termKey = t.termId || `${termSchool || ""}|${t.gradeLevel || ""}|${t.year || ""}|${t.season || ""}|${ti}`;
       const open = termOpen[termKey] !== false;
       return <div className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
         <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ width: "100%", border: 0, background: "#e8f4fb", borderBottom: open ? "1px solid #b8d8ec" : 0, padding: "12px 14px", marginBottom: open ? 14 : 0, textAlign: "left", cursor: "pointer" }}>
