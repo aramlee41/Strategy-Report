@@ -1161,6 +1161,15 @@ function v2NormalizePlaceholderTerm(t) {
   }
   return t;
 }
+function v2TermHasSubjectInput(term) {
+  return (term?.subjects || []).some(s => {
+    const subject = String(s.subject || "").trim();
+    const rawGrade = String(s.rawGrade || s.grade || "").trim();
+    const normalized = String(s.normalizedGrade || "").trim();
+    const comment = String(s.comment || "").trim();
+    return !!(subject || rawGrade || normalized || comment);
+  });
+}
 function v2RangeIncludes(record, grade) {
   const from = v2GradeNumber(record?.gradeFrom);
   const to = v2GradeNumber(record?.gradeTo);
@@ -1495,6 +1504,12 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
   const [termOpen, setTermOpen] = useState({});
+  const [dragTermId, setDragTermId] = useState("");
+  const dragTermIdRef = React.useRef("");
+  const setDraggingTerm = termId => {
+    dragTermIdRef.current = termId || "";
+    setDragTermId(termId || "");
+  };
   const seenTermIds = {};
   const baseTerms = (st.academicTerms || [V2_EMPTY_TERM(st.school)]).map((term, index) => {
     const normalizedTerm = v2NormalizePlaceholderTerm(term);
@@ -1553,6 +1568,18 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     if (!targetTermId) return saveTerms(v2SetArr(baseTerms, i, patch));
     saveTerms(terms.map(term => term.termId === targetTermId ? { ...term, ...patch, termId: targetTermId } : term));
   };
+  const moveTerm = (fromTermId, toTermId) => {
+    if (!fromTermId || !toTermId || fromTermId === toTermId) return;
+    const fromIndex = terms.findIndex(term => term.termId === fromTermId);
+    const toIndex = terms.findIndex(term => term.termId === toTermId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...terms];
+    const [moved] = next.splice(fromIndex, 1);
+    const targetIndex = next.findIndex(term => term.termId === toTermId);
+    const insertIndex = fromIndex < toIndex ? targetIndex + 1 : targetIndex;
+    next.splice(Math.max(0, insertIndex), 0, moved);
+    saveTerms(next);
+  };
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
   const setRawGrade = (ti, si, rawGrade) => {
     const school = v2AllowedTranscriptSchool(st, terms[ti].school);
@@ -1598,17 +1625,45 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       const header = v2TermLabel(t) || `학기 ${ti + 1}`;
       const termKey = t.termId || `${termSchool || ""}|${t.gradeLevel || ""}|${t.year || ""}|${t.season || ""}|${ti}`;
       const open = termOpen[termKey] !== false;
-      return <div key={`${t.termId || "term"}-${ti}`} data-term-id={t.termId || ""} className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-        <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ width: "100%", border: 0, background: "#e8f4fb", borderBottom: open ? "1px solid #b8d8ec" : 0, padding: "12px 14px", marginBottom: open ? 14 : 0, textAlign: "left", cursor: "pointer" }}>
-          <div className="right" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <div>
+      const hasSubjectInput = v2TermHasSubjectInput(t);
+      const statusColor = hasSubjectInput ? "#e8f4fb" : "#fff3df";
+      const borderColor = hasSubjectInput ? "#b8d8ec" : "#e7a84b";
+      const activeDrop = dragTermId && dragTermId !== t.termId;
+      return <div
+        key={`${t.termId || "term"}-${ti}`}
+        data-term-id={t.termId || ""}
+        className="term-editor"
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+        onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData("text/plain") || dragTermIdRef.current || dragTermId; moveTerm(from, t.termId); setDraggingTerm(""); }}
+        onMouseUp={() => { const from = dragTermIdRef.current || dragTermId; if (from && from !== t.termId) moveTerm(from, t.termId); setDraggingTerm(""); }}
+        style={{ border: `2px solid ${activeDrop ? "#2b7bbb" : borderColor}`, borderRadius: 8, overflow: "hidden", background: "#fff", boxShadow: activeDrop ? "0 0 0 3px rgba(43,123,187,.14)" : "none" }}>
+        <div style={{ width: "100%", border: 0, background: statusColor, borderBottom: open ? `1px solid ${borderColor}` : 0, padding: "12px 14px", marginBottom: open ? 14 : 0 }}>
+          <div className="right" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ flex: 1, border: 0, background: "transparent", padding: 0, textAlign: "left", cursor: "pointer" }}>
               <h3 style={{ margin: "0 0 4px" }}>{header}</h3>
               <span className="small muted">{termSchool || "학교 미입력"}</span>
+            </button>
+            <div className="right" style={{ gap: 8 }}>
+              <span
+                role="button"
+                tabIndex="0"
+                className="btn ghost"
+                draggable="true"
+                onDragStart={e => { e.stopPropagation(); setDraggingTerm(t.termId); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", t.termId); }}
+                onDragEnd={e => { e.stopPropagation(); setDraggingTerm(""); }}
+                onClick={e => e.stopPropagation()}
+                onMouseDown={e => { e.stopPropagation(); setDraggingTerm(t.termId); }}
+                style={{ cursor: "grab" }}
+              >순서 이동</span>
+              <span className={"pill " + (hasSubjectInput ? "p-green" : "p-amber")}>{hasSubjectInput ? "과목 입력" : "과목 미입력"}</span>
+              <button type="button" className="pill p-blue" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ border: 0, cursor: "pointer" }}>{open ? "접기" : "펼치기"}</button>
             </div>
-            <span className="pill p-blue">{open ? "접기" : "펼치기"}</span>
           </div>
-        </button>
+        </div>
         {open && <div style={{ padding: "0 12px 12px" }}>
+          <div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+            <span className="small muted">헤더의 순서 이동을 드래그해서 다른 학기 카드 위에 놓으면 순서가 바뀝니다.</span>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
             <V2Select label="학교" val={termSchool} set={v => setTermSchool(ti, v)} options={schoolOptions} />
             <V2Select label="학년" val={t.gradeLevel} set={v => editTerm(ti, { gradeLevel: v })} options={V2_GRADE_OPTIONS} />
