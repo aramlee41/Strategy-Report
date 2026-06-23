@@ -321,7 +321,7 @@ function v2NormalizeStudent(s) {
     interests,
     academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
     tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT" })),
-    ecs: (s.ecs || []).length ? s.ecs : [V2_EMPTY_EC()],
+    ecs: Array.isArray(s.ecs) ? s.ecs : [V2_EMPTY_EC()],
     applications: s.applications || [],
     calendarEvents: s.calendarEvents || [],
     enrollmentChecklist: s.enrollmentChecklist || [],
@@ -1677,7 +1677,8 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
 function V2Tests({ st, update }) {
   const tests = st.tests || [];
   const edit = (i, patch) => update({ tests: v2SetArr(tests, i, patch) });
-  return <ArrayEditor title="Standardized / English Tests" rows={tests} add={() => update({ tests: [...tests, V2_EMPTY_TEST()] })} render={(r, i) => {
+  const remove = i => update({ tests: tests.filter((_, x) => x !== i) });
+  return <ArrayEditor title="Standardized / English Tests" rows={tests} add={() => update({ tests: [...tests, V2_EMPTY_TEST()] })} remove={remove} render={(r, i) => {
     const fields = V2_TEST_FIELDS[r.type] || [];
     const details = r.details || {};
     const isSsat = r.type === "SSAT";
@@ -1728,12 +1729,14 @@ function V2AwardEditor({ awards = [], setAwards }) {
 function V2Ecs({ st, update }) {
   const ecs = st.ecs || [];
   const edit = (i, patch) => update({ ecs: v2SetArr(ecs, i, patch) });
+  const remove = i => update({ ecs: ecs.filter((_, x) => x !== i) });
   return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, V2_EMPTY_EC()] })} render={(r, i) => {
     const isSports = r.cat === "Sports";
     const levelOptions = isSports ? V2_EC_LEVELS : ["School", "Regional/Local", "National", "International", "Independent/Personal", "기타"];
     const nameLabel = isSports ? "종목" : "활동명";
     const teamLabel = isSports ? "팀/클럽명" : "기관/클럽/프로젝트명";
     return <div>
+      <div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn warn" onClick={() => remove(i)}>카드 삭제</button></div>
       <div className="grid g4">
         <V2Select label="활동 분류" val={r.cat} set={v => edit(i, { cat: v, name: "", level: "", levelOther: "" })} options={V2_EC_CATEGORIES_CLIENT} />
         <V2Select label="상태" val={r.status} set={v => edit(i, { status: v, to: v === "진행 중" ? "" : r.to })} options={V2_EC_STATUS} />
