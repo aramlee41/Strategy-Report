@@ -249,10 +249,14 @@ function v2NormalizeStudent(s) {
   const previous = meaningfulPrevious.length ? meaningfulPrevious : [V2_EMPTY_PREVIOUS()];
   const mappedInterests = (s.interests || []).map(x => ({ ...V2_EMPTY_INTEREST(), ...x, reason: x.reason || x.note || "", has_legacy_connection: x.has_legacy_connection || "No" }));
   const interests = mappedInterests.length >= 3 ? mappedInterests : [...mappedInterests, V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST(), V2_EMPTY_INTEREST()].slice(0, 3);
-  const terms = (s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ category: "English", subject: "Overall", grade: a.gpa || "", rawGrade: a.gpa || "", comment: a.comment || "" }] }))).map(t => {
+  const seenAcademicTermIds = {};
+  const terms = (s.academicTerms || (s.academics || []).map(a => ({ school: a.school || s.school || "", term: a.term || "", termGpa: a.gpa || "", subjects: [{ category: "English", subject: "Overall", grade: a.gpa || "", rawGrade: a.gpa || "", comment: a.comment || "" }] }))).map((t, index) => {
     const parts = String(t.term || "").split(/\s+/);
     const gradingScale = v2NormalizeGradingScale(t.gradingScale);
-    return { year: t.year || parts.find(x => /^\d{4}$/.test(x)) || String(new Date().getFullYear()), season: t.season || parts.find(x => V2_TERM_SEASONS.includes(x)) || "Fall", ...t, gradingScale, subjects: (t.subjects || []).map(sub => {
+    const rawTermId = t.termId || t.id || `legacy-term-${index}`;
+    const termId = seenAcademicTermIds[rawTermId] ? `${rawTermId}-${index}` : rawTermId;
+    seenAcademicTermIds[rawTermId] = true;
+    return { year: t.year || parts.find(x => /^\d{4}$/.test(x)) || String(new Date().getFullYear()), season: t.season || parts.find(x => V2_TERM_SEASONS.includes(x)) || "Fall", ...t, termId, gradingScale, subjects: (t.subjects || []).map(sub => {
       const rawGrade = sub.rawGrade || sub.grade || "";
       return { category: sub.category || "English", subject: sub.subject || "", grade: sub.grade || rawGrade, rawGrade, normalizedGrade: sub.normalizedGrade || v2NormalizeGrade(rawGrade, gradingScale), comment: sub.comment || "" };
     }) };
@@ -315,7 +319,7 @@ function v2NormalizeStudent(s) {
     currentSchoolInfo: s.currentSchoolInfo || {},
     previousSchools: previous,
     interests,
-    academicTerms: terms.length ? v2SortTranscriptTerms(terms) : [V2_EMPTY_TERM(s.school)],
+    academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
     tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT" })),
     ecs: (s.ecs || []).length ? s.ecs : [V2_EMPTY_EC()],
     applications: s.applications || [],
@@ -1491,39 +1495,48 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
   const [termOpen, setTermOpen] = useState({});
-  const baseTerms = (st.academicTerms || [V2_EMPTY_TERM(st.school)]).map((term, index) => ({
-    ...v2NormalizePlaceholderTerm(term),
-    termId: term?.termId || `legacy-term-${index}`
-  }));
-  const terms = v2SortTranscriptTerms(baseTerms.map((term, sourceIndex) => ({ ...term, __sourceIndex: sourceIndex })));
+  const seenTermIds = {};
+  const baseTerms = (st.academicTerms || [V2_EMPTY_TERM(st.school)]).map((term, index) => {
+    const normalizedTerm = v2NormalizePlaceholderTerm(term);
+    const rawTermId = normalizedTerm.termId || term?.id || `legacy-term-${index}`;
+    const termId = seenTermIds[rawTermId] ? `${rawTermId}-${index}` : rawTermId;
+    seenTermIds[rawTermId] = true;
+    return { ...normalizedTerm, termId };
+  });
+  const terms = baseTerms;
+  const sortedTerms = v2SortTranscriptTerms(terms);
   const schoolOptions = v2StudentSchoolNames(st);
   const transcriptSchools = v2TranscriptSchoolNames(st);
   const defaultSchool = v2AllowedTranscriptSchool(st, st.school);
-  const transcriptTrendMeta = v2AcademicTrendMeta(terms);
-  const transcriptTrendValues = v2GpaSeries(terms, "term").values;
+  const transcriptTrendMeta = v2AcademicTrendMeta(sortedTerms);
+  const transcriptTrendValues = v2GpaSeries(sortedTerms, "term").values;
   const latestTrendValue = transcriptTrendValues[0]?.value || "미입력";
-  const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2SortTranscriptTerms(v2RecalculateTermsWithScale(baseTerms, schoolName, scale)) });
-  const normalizeTerms = next => next.map((t, index) => {
-    const { __sourceIndex, ...cleanTerm } = t || {};
-    const termInput = {
-      ...v2NormalizePlaceholderTerm(cleanTerm),
-      termId: cleanTerm.termId || `legacy-term-${index}`
-    };
-    const school = v2AllowedTranscriptSchool(st, termInput.school);
-    const gradingScale = v2StudentSchoolScale(st, schools, school, termInput.gradingScale);
-    return {
-      ...termInput,
-      school,
-      term: v2TermLabel(termInput),
-      gradingScale,
-      subjects: (termInput.subjects || []).map(s => {
-        const rawGrade = s.rawGrade || s.grade || "";
-        return { ...s, rawGrade, grade: rawGrade, normalizedGrade: s.normalizedGrade || v2NormalizeGrade(rawGrade, gradingScale) };
-      })
-    };
-  });
+  const setSchoolScale = (schoolName, scale) => update({ ...v2PatchStudentSchoolScale(st, schoolName, scale), academicTerms: v2RecalculateTermsWithScale(baseTerms, schoolName, scale) });
+  const normalizeTerms = next => {
+    const usedTermIds = {};
+    return next.map((t, index) => {
+      const cleanTerm = t || {};
+      const normalizedTerm = v2NormalizePlaceholderTerm(cleanTerm);
+      const rawTermId = normalizedTerm.termId || cleanTerm.id || `legacy-term-${index}`;
+      const termId = usedTermIds[rawTermId] ? `${rawTermId}-${index}` : rawTermId;
+      usedTermIds[rawTermId] = true;
+      const termInput = { ...normalizedTerm, termId };
+      const school = v2AllowedTranscriptSchool(st, termInput.school);
+      const gradingScale = v2StudentSchoolScale(st, schools, school, termInput.gradingScale);
+      return {
+        ...termInput,
+        school,
+        term: v2TermLabel(termInput),
+        gradingScale,
+        subjects: (termInput.subjects || []).map(s => {
+          const rawGrade = s.rawGrade || s.grade || "";
+          return { ...s, rawGrade, grade: rawGrade, normalizedGrade: s.normalizedGrade || v2NormalizeGrade(rawGrade, gradingScale) };
+        })
+      };
+    });
+  };
   const saveTerms = next => {
-    const normalized = v2SortTranscriptTerms(normalizeTerms(next));
+    const normalized = normalizeTerms(next);
     update({
       academicTerms: normalized,
       academics: normalized.map(t => ({
@@ -1536,8 +1549,9 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     });
   };
   const editTerm = (i, patch) => {
-    const sourceIndex = Number.isInteger(terms[i]?.__sourceIndex) ? terms[i].__sourceIndex : i;
-    saveTerms(v2SetArr(baseTerms, sourceIndex, patch));
+    const targetTermId = terms[i]?.termId;
+    if (!targetTermId) return saveTerms(v2SetArr(baseTerms, i, patch));
+    saveTerms(terms.map(term => term.termId === targetTermId ? { ...term, ...patch, termId: targetTermId } : term));
   };
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
   const setRawGrade = (ti, si, rawGrade) => {
@@ -1559,9 +1573,9 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     <V2Section title={transcriptTrendMeta.valueKey === "gpa" ? "GPA 요약" : "학업 추이 요약"}>
       <div className="grid g2">
         <button type="button" className="card" style={{ textAlign: "left", background: "#eef7ff", cursor: "pointer" }} onClick={() => setChartOpen(true)}><span className="label">{transcriptTrendMeta.valueKey === "gpa" ? "누적 GPA" : "최근 학업 추이 점수"}</span><h2 style={{ margin: "6px 0 0" }}>{transcriptTrendMeta.valueKey === "gpa" ? (v2CumulativeGpa(terms) || "미입력") : latestTrendValue}</h2><span className="small muted">클릭하면 학업 추이 그래프를 볼 수 있습니다.</span></button>
-        <Metric title={transcriptTrendMeta.valueKey === "gpa" ? "최근 학기 GPA" : "최근 학기 추이 점수"} val={transcriptTrendMeta.valueKey === "gpa" ? (v2TermProvidedGpa(v2SortTranscriptTerms(terms)[0]) || "미입력") : latestTrendValue} />
+        <Metric title={transcriptTrendMeta.valueKey === "gpa" ? "최근 학기 GPA" : "최근 학기 추이 점수"} val={transcriptTrendMeta.valueKey === "gpa" ? (v2TermProvidedGpa(sortedTerms[0]) || "미입력") : latestTrendValue} />
       </div>
-      <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={terms} />
+      <V2GpaChartModal open={chartOpen} onClose={() => setChartOpen(false)} terms={sortedTerms} />
     </V2Section>
     <V2Section title="학교별 Grading Scale">
       <p className="small muted">학교별로 한 번만 설정하면 아래 학기 성적 입력에 자동으로 적용됩니다. 학교가 여러 개인 경우 각 학교별로 별도 설정할 수 있습니다.</p>
@@ -1584,7 +1598,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       const header = v2TermLabel(t) || `학기 ${ti + 1}`;
       const termKey = t.termId || `${termSchool || ""}|${t.gradeLevel || ""}|${t.year || ""}|${t.season || ""}|${ti}`;
       const open = termOpen[termKey] !== false;
-      return <div className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+      return <div key={`${t.termId || "term"}-${ti}`} data-term-id={t.termId || ""} className="term-editor" style={{ border: "2px solid #b8d8ec", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
         <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ width: "100%", border: 0, background: "#e8f4fb", borderBottom: open ? "1px solid #b8d8ec" : 0, padding: "12px 14px", marginBottom: open ? 14 : 0, textAlign: "left", cursor: "pointer" }}>
           <div className="right" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <div>
