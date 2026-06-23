@@ -772,7 +772,7 @@ function V2ClientStrategyReport({ st, schools }) {
         <div className="card" style={{ background: "#ffffff" }}>
           <h3>{academicTrendMeta.valueKey === "gpa" ? "학기별 GPA 변화" : "학기별 학업 추이 점수"}</h3>
           <p className="small muted">{academicTrendMeta.note}</p>
-          <V2GpaLineChart terms={v2SortTranscriptTerms(st.academicTerms || [])} mode="term" />
+          <V2GpaLineChart terms={st.academicTerms || []} mode="term" />
         </div>
         <div className="card" style={{ background: "#ffffff" }}>
           <h3>시험 점수 그래프</h3>
@@ -979,6 +979,11 @@ function V2App() {
   const [login, setLogin] = useState({ email: "admin@yesuhak.com", password: "prep2026" });
   const users = [...accounts, ...(data.staffAccounts || [])].map(a => ({ ...a, password: a.password || "prep2026" }));
   const persist = next => v2Persist(setData, next);
+  const reportStudentId = new URLSearchParams(window.location.search).get("reportStudent");
+  if (reportStudentId) {
+    const reportStudent = data.students.find(s => s.id === reportStudentId) || data.students[0];
+    return <main className="main report-page" style={{ maxWidth: 1180, margin: "0 auto" }}>{reportStudent ? <V2BasicReport st={reportStudent} schools={data.schools} /> : <V2Section title="보고서">학생 데이터를 찾을 수 없습니다.</V2Section>}</main>;
+  }
   if (!user) return <Login login={login} setLogin={setLogin} onLogin={() => { const u = users.find(x => x.email === login.email && x.password === login.password); if (u) setUser(u); else alert("계정을 확인하세요."); }} />;
   const visible = user.role === "admin" ? data.students : data.students.filter(s => (s.owners || [s.owner]).includes(user.id));
   const st = data.students.find(s => s.id === selected) || visible[0];
@@ -1212,7 +1217,8 @@ function v2AcademicTrendMeta(terms = []) {
 function v2GpaSeries(terms, mode) {
   const meta = v2AcademicTrendMeta(terms);
   const readValue = t => meta.valueKey === "gpa" ? (v2TermUsesProvidedGpa(t) ? v2TermProvidedGpa(t) : null) : v2TermAcademicIndex(t);
-  const rows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), value: readValue(t) })).filter(x => x.value !== null && !Number.isNaN(x.value));
+  const allRows = (terms || []).map(t => ({ ...t, label: v2TermLabel(t), value: readValue(t) }));
+  const rows = allRows.filter(x => x.value !== null && !Number.isNaN(x.value));
   if (mode === "grade") {
     const groups = {};
     rows.forEach(r => { const key = r.gradeLevel || "학년 미입력"; groups[key] = [...(groups[key] || []), r.value]; });
@@ -1223,13 +1229,14 @@ function v2GpaSeries(terms, mode) {
     rows.forEach(r => { const key = r.school || "학교 미입력"; groups[key] = [...(groups[key] || []), r.value]; });
     return { meta, values: Object.entries(groups).map(([label, values]) => ({ label, value: v2Round(values.reduce((a, b) => a + b, 0) / values.length, meta.valueKey === "gpa" ? 2 : 1) })) };
   }
-  return { meta, values: rows.map(r => ({ label: r.label || "학기", value: r.value })) };
+  return { meta, values: allRows.slice().reverse().map(r => ({ label: r.label || "학기", value: r.value, missing: r.value === null || Number.isNaN(r.value) })) };
 }
 function V2GpaLineChart({ terms, mode = "term" }) {
   const series = v2GpaSeries(terms, mode);
   const vals = series.values;
   const meta = series.meta;
-  if (!vals.length) return <p className="small muted">성적을 입력하면 학업 추이 그래프가 표시됩니다.</p>;
+  const plotted = vals.map((v, i) => ({ ...v, index: i, numericValue: Number(v.value) })).filter(v => Number.isFinite(v.numericValue));
+  if (!vals.length || !plotted.length) return <p className="small muted">성적을 입력하면 학업 추이 그래프가 표시됩니다.</p>;
   const width = 640;
   const height = 260;
   const left = 48;
@@ -1239,11 +1246,11 @@ function V2GpaLineChart({ terms, mode = "term" }) {
   const max = meta.max;
   const x = i => vals.length === 1 ? width / 2 : left + i * ((width - left - right) / (vals.length - 1));
   const y = value => top + (max - Math.max(0, Math.min(max, value))) / max * (height - top - bottom);
-  const points = vals.map((v, i) => `${x(i)},${y(v.value)}`).join(" ");
+  const points = plotted.map(v => `${x(v.index)},${y(v.numericValue)}`).join(" ");
   return <div><svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", minHeight: 230, background: "#f8fbfe", border: "1px solid #d7e6f3", borderRadius: 8 }}>
     {meta.ticks.map(g => <g key={g}><line x1={left} y1={y(g)} x2={width - right} y2={y(g)} stroke="#dbeafe" /><text x="10" y={y(g) + 4} fontSize="12" fill="#45627c">{meta.valueKey === "gpa" ? `${g}.0` : g}</text></g>)}
     <polyline points={points} fill="none" stroke="#2b7bbb" strokeWidth="3" />
-    {vals.map((v, i) => <g key={`${v.label}-${i}`}><circle cx={x(i)} cy={y(v.value)} r="5" fill="#0f5f99" /><text x={x(i)} y={y(v.value) - 10} textAnchor="middle" fontSize="12" fill="#12324a">{v.value}</text><text x={x(i)} y={height - 28} textAnchor="middle" fontSize="11" fill="#45627c">{String(v.label).slice(0, 16)}</text></g>)}
+    {vals.map((v, i) => { const value = Number(v.value); const hasValue = Number.isFinite(value); return <g key={`${v.label}-${i}`}>{hasValue && <><circle cx={x(i)} cy={y(value)} r="5" fill="#0f5f99" /><text x={x(i)} y={y(value) - 10} textAnchor="middle" fontSize="12" fill="#12324a">{v.value}</text></>} {!hasValue && <text x={x(i)} y={top + 16} textAnchor="middle" fontSize="10" fill="#9a3412">미입력</text>}<text x={x(i)} y={height - 28} textAnchor="middle" fontSize="11" fill="#45627c">{String(v.label).slice(0, 16)}</text></g>; })}
   </svg><p className="small muted" style={{ margin: "8px 0 0" }}>{meta.note}</p></div>;
 }
 function V2GpaChartModal({ open, onClose, terms }) {
@@ -1504,12 +1511,6 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
   const [commentOpen, setCommentOpen] = useState("");
   const [scaleOpen, setScaleOpen] = useState({});
   const [termOpen, setTermOpen] = useState({});
-  const [dragTermId, setDragTermId] = useState("");
-  const dragTermIdRef = React.useRef("");
-  const setDraggingTerm = termId => {
-    dragTermIdRef.current = termId || "";
-    setDragTermId(termId || "");
-  };
   const seenTermIds = {};
   const baseTerms = (st.academicTerms || [V2_EMPTY_TERM(st.school)]).map((term, index) => {
     const normalizedTerm = v2NormalizePlaceholderTerm(term);
@@ -1568,16 +1569,11 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
     if (!targetTermId) return saveTerms(v2SetArr(baseTerms, i, patch));
     saveTerms(terms.map(term => term.termId === targetTermId ? { ...term, ...patch, termId: targetTermId } : term));
   };
-  const moveTerm = (fromTermId, toTermId) => {
-    if (!fromTermId || !toTermId || fromTermId === toTermId) return;
-    const fromIndex = terms.findIndex(term => term.termId === fromTermId);
-    const toIndex = terms.findIndex(term => term.termId === toTermId);
-    if (fromIndex < 0 || toIndex < 0) return;
+  const moveTermByIndex = (fromIndex, toIndex) => {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= terms.length || toIndex >= terms.length || fromIndex === toIndex) return;
     const next = [...terms];
     const [moved] = next.splice(fromIndex, 1);
-    const targetIndex = next.findIndex(term => term.termId === toTermId);
-    const insertIndex = fromIndex < toIndex ? targetIndex + 1 : targetIndex;
-    next.splice(Math.max(0, insertIndex), 0, moved);
+    next.splice(toIndex, 0, moved);
     saveTerms(next);
   };
   const editSubject = (ti, si, patch) => editTerm(ti, { subjects: v2SetArr(terms[ti].subjects || [], si, patch) });
@@ -1628,15 +1624,11 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
       const hasSubjectInput = v2TermHasSubjectInput(t);
       const statusColor = hasSubjectInput ? "#e8f4fb" : "#fff3df";
       const borderColor = hasSubjectInput ? "#b8d8ec" : "#e7a84b";
-      const activeDrop = dragTermId && dragTermId !== t.termId;
       return <div
         key={`${t.termId || "term"}-${ti}`}
         data-term-id={t.termId || ""}
         className="term-editor"
-        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
-        onDrop={e => { e.preventDefault(); const from = e.dataTransfer.getData("text/plain") || dragTermIdRef.current || dragTermId; moveTerm(from, t.termId); setDraggingTerm(""); }}
-        onMouseUp={() => { const from = dragTermIdRef.current || dragTermId; if (from && from !== t.termId) moveTerm(from, t.termId); setDraggingTerm(""); }}
-        style={{ border: `2px solid ${activeDrop ? "#2b7bbb" : borderColor}`, borderRadius: 8, overflow: "hidden", background: "#fff", boxShadow: activeDrop ? "0 0 0 3px rgba(43,123,187,.14)" : "none" }}>
+        style={{ border: `2px solid ${borderColor}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>
         <div style={{ width: "100%", border: 0, background: statusColor, borderBottom: open ? `1px solid ${borderColor}` : 0, padding: "12px 14px", marginBottom: open ? 14 : 0 }}>
           <div className="right" style={{ justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <button type="button" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ flex: 1, border: 0, background: "transparent", padding: 0, textAlign: "left", cursor: "pointer" }}>
@@ -1644,17 +1636,8 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
               <span className="small muted">{termSchool || "학교 미입력"}</span>
             </button>
             <div className="right" style={{ gap: 8 }}>
-              <span
-                role="button"
-                tabIndex="0"
-                className="btn ghost"
-                draggable="true"
-                onDragStart={e => { e.stopPropagation(); setDraggingTerm(t.termId); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", t.termId); }}
-                onDragEnd={e => { e.stopPropagation(); setDraggingTerm(""); }}
-                onClick={e => e.stopPropagation()}
-                onMouseDown={e => { e.stopPropagation(); setDraggingTerm(t.termId); }}
-                style={{ cursor: "grab" }}
-              >순서 이동</span>
+              <button type="button" className="btn ghost" onClick={() => moveTermByIndex(ti, ti - 1)} disabled={ti === 0} title="위로 이동" style={{ padding: "7px 10px", opacity: ti === 0 ? .45 : 1 }}>↑</button>
+              <button type="button" className="btn ghost" onClick={() => moveTermByIndex(ti, ti + 1)} disabled={ti === terms.length - 1} title="아래로 이동" style={{ padding: "7px 10px", opacity: ti === terms.length - 1 ? .45 : 1 }}>↓</button>
               <span className={"pill " + (hasSubjectInput ? "p-green" : "p-amber")}>{hasSubjectInput ? "과목 입력" : "과목 미입력"}</span>
               <button type="button" className="pill p-blue" onClick={() => setTermOpen({ ...termOpen, [termKey]: !open })} style={{ border: 0, cursor: "pointer" }}>{open ? "접기" : "펼치기"}</button>
             </div>
@@ -1662,7 +1645,7 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
         </div>
         {open && <div style={{ padding: "0 12px 12px" }}>
           <div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-            <span className="small muted">헤더의 순서 이동을 드래그해서 다른 학기 카드 위에 놓으면 순서가 바뀝니다.</span>
+            <span className="small muted">헤더의 ↑ / ↓ 버튼으로 성적표 카드 순서를 바꿀 수 있습니다.</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(160px,1.5fr) repeat(5,minmax(105px,1fr))", gap: 12 }}>
             <V2Select label="학교" val={termSchool} set={v => setTermSchool(ti, v)} options={schoolOptions} />
@@ -1769,10 +1752,31 @@ function V2Ecs({ st, update }) {
     </div>;
   }} />;
 }
+function V2ReportActions({ st }) {
+  const openReportPage = () => {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("reportStudent", st.id);
+    window.open(url.toString(), "_blank");
+  };
+  return <div className="card report-actions" style={{ marginBottom: 14 }}>
+    <div className="right" style={{ justifyContent: "space-between" }}>
+      <div>
+        <h3 style={{ marginBottom: 4 }}>보고서 저장 / 공유</h3>
+        <p className="small muted" style={{ margin: 0 }}>PDF 저장은 브라우저 인쇄 창에서 “PDF로 저장”을 선택하면 됩니다.</p>
+      </div>
+      <div className="right">
+        <button type="button" className="btn ghost" onClick={openReportPage}>별도 웹페이지 열기</button>
+        <button type="button" className="btn primary" onClick={() => window.print()}>PDF 저장</button>
+      </div>
+    </div>
+  </div>;
+}
 function V2BasicReport({ st, schools }) {
   const recs = (st.interests || []).map(x => x.school).filter(Boolean).map(name => v2FindSchool(schools, name)).filter(Boolean);
   const reportSchools = recs.length ? recs : schools;
-  return <V2ClientStrategyReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} />;
+  return <><V2ReportActions st={st} /><V2ClientStrategyReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} /></>;
 }
 function V2StageTwo({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
@@ -1808,7 +1812,7 @@ function V2StageFive({ st, update }) {
 }
 function V2Reports({ students, selected, setSelected, schools }) {
   const st = selected || students[0];
-  return <div><div className="card" style={{ marginBottom: 14 }}><span className="label">보고서 학생 선택</span><select className="select" value={st?.id || ""} onChange={e => setSelected(e.target.value)}>{students.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>{st && <V2BasicReport st={st} schools={schools} />}</div>;
+  return <div><div className="card report-selector" style={{ marginBottom: 14 }}><span className="label">보고서 학생 선택</span><select className="select" value={st?.id || ""} onChange={e => setSelected(e.target.value)}>{students.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></div>{st && <V2BasicReport st={st} schools={schools} />}</div>;
 }
 function V2SchoolDataAdmin({ schools = [], updateSchools }) {
   const [selectedName, setSelectedName] = useState(schools[0]?.name || "Phillips Exeter Academy");
