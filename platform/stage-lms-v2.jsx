@@ -114,7 +114,7 @@ const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
 const V2_EMPTY_EC = () => ({
   cat: "Sports", status: "진행 중", name: "", team: "", from: "", to: "",
-  weeks: "", hours: "", level: "", levelOther: "", position: "", honors: "", impact: "", awards: []
+  weeks: "", hours: "", level: "", levelOther: "", position: "", honors: "", impact: "", awards: [], core: false
 });
 const V2_EMPTY_ADDRESS = (type = "Permanent Address") => ({ type, typeOther: "", sameAs: "", zip: "", searchQuery: "", koreanAddress: "", englishAddress: "", notes: "" });
 const V2_EMPTY_PHONE = () => ({ type: "학생 휴대폰", typeOther: "", countryCode: "+82 대한민국", countryCodeOther: "", number: "", preferred: "Yes" });
@@ -134,6 +134,21 @@ const V2_EMPTY_FAMILY_STATUS = () => ({
   fatherDeceased: "No", motherDeceased: "No", divorced: "No", separated: "No",
   custodyHolder: "", custodyHolderOther: "", fatherRemarried: "No", motherRemarried: "No"
 });
+
+function v2EcStrength(ec = {}) {
+  const awardCount = (ec.awards || []).filter(a => a.awardName || a.competition).length;
+  const levelText = `${ec.level || ""} ${ec.levelOther || ""}`;
+  const levelScore = /International|National/i.test(levelText) ? 8 : /Regional|Varsity/i.test(levelText) ? 5 : /School|Junior Varsity/i.test(levelText) ? 3 : 0;
+  const timeScore = Math.min(6, (Number(ec.hours) || 0) / 2) + Math.min(4, (Number(ec.weeks) || 0) / 12);
+  const storyScore = (ec.description || ec.position || ec.team) ? 2 : 0;
+  return (ec.core ? 100 : 0) + awardCount * 6 + levelScore + timeScore + storyScore;
+}
+function v2OrderCoreEcs(ecs = []) {
+  return [...ecs].sort((a, b) => Number(!!b.core) - Number(!!a.core) || v2EcStrength(b) - v2EcStrength(a));
+}
+function v2EcName(ec = {}) {
+  return ec.name || ec.team || ec.description || "활동명 미입력";
+}
 
 function v2TemplateEntries(type) {
   return (V2_GRADING_SCALE_TEMPLATES[type] || []).map(([raw_grade_label, normalized_score]) => ({
@@ -321,7 +336,7 @@ function v2NormalizeStudent(s) {
     interests,
     academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
     tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT" })),
-    ecs: Array.isArray(s.ecs) ? s.ecs : [V2_EMPTY_EC()],
+    ecs: Array.isArray(s.ecs) ? v2OrderCoreEcs(s.ecs) : [V2_EMPTY_EC()],
     applications: s.applications || [],
     calendarEvents: s.calendarEvents || [],
     enrollmentChecklist: s.enrollmentChecklist || [],
@@ -809,6 +824,20 @@ function V2Text({ label, val, set, minHeight }) { return <div className="field">
 function V2Select({ label, val, set, options }) {
   const display = o => label === "Stage" ? (V2_STAGE_KEYS.find(x => x[0] === o)?.[1] || o) : o;
   return <div className="field"><span className="label">{label}</span><select className="select" value={val || ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
+}
+function V2SearchSelect({ label, val, set, options = [] }) {
+  const [open, setOpen] = useState(false);
+  const query = String(val || "").toLowerCase();
+  const ranked = options
+    .filter(o => !query || String(o).toLowerCase().includes(query))
+    .slice(0, 12);
+  return <div className="field" style={{ position: "relative" }}>
+    <span className="label">{label}</span>
+    <input className="input" value={val || ""} onFocus={() => setOpen(true)} onChange={e => { set(e.target.value); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 130)} placeholder="검색 후 선택" />
+    {open && <div style={{ position: "absolute", zIndex: 35, left: 0, right: 0, top: "100%", background: "white", border: "1px solid #c5d9e8", borderRadius: 10, boxShadow: "0 16px 32px rgba(30,72,102,.16)", maxHeight: 260, overflow: "auto", padding: 6 }}>
+      {(ranked.length ? ranked : options.slice(0, 12)).map(o => <button type="button" key={o} onMouseDown={() => { set(o); setOpen(false); }} style={{ width: "100%", border: 0, background: o === val ? "#eaf4fa" : "white", color: "#18324a", textAlign: "left", padding: "10px 12px", borderRadius: 8, fontSize: 14 }}>{o}</button>)}
+    </div>}
+  </div>;
 }
 function V2AttachmentField({ label = "Original report link", url, set }) {
   const [open, setOpen] = useState(false);
@@ -1728,19 +1757,30 @@ function V2AwardEditor({ awards = [], setAwards }) {
 }
 function V2Ecs({ st, update }) {
   const ecs = st.ecs || [];
-  const edit = (i, patch) => update({ ecs: v2SetArr(ecs, i, patch) });
-  const remove = i => update({ ecs: ecs.filter((_, x) => x !== i) });
+  const edit = (i, patch) => update({ ecs: v2OrderCoreEcs(v2SetArr(ecs, i, patch)) });
+  const remove = i => update({ ecs: v2OrderCoreEcs(ecs.filter((_, x) => x !== i)) });
+  const toggleCore = i => {
+    const nextValue = !ecs[i]?.core;
+    if (nextValue && ecs.filter(e => e.core).length >= 3) {
+      alert("핵심 활동은 최대 3개까지 선택할 수 있습니다.");
+      return;
+    }
+    edit(i, { core: nextValue });
+  };
   return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, V2_EMPTY_EC()] })} render={(r, i) => {
     const isSports = r.cat === "Sports";
     const levelOptions = isSports ? V2_EC_LEVELS : ["School", "Regional/Local", "National", "International", "Independent/Personal", "기타"];
     const nameLabel = isSports ? "종목" : "활동명";
     const teamLabel = isSports ? "팀/클럽명" : "기관/클럽/프로젝트명";
     return <div>
-      <div className="right" style={{ justifyContent: "flex-end", marginBottom: 10 }}><button type="button" className="btn warn" onClick={() => remove(i)}>카드 삭제</button></div>
+      <div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+        <button type="button" className={"btn " + (r.core ? "primary" : "ghost")} onClick={() => toggleCore(i)}>{r.core ? "★ 핵심 활동" : "☆ 핵심 활동"}</button>
+        <button type="button" className="btn warn" onClick={() => remove(i)}>카드 삭제</button>
+      </div>
       <div className="grid g4">
         <V2Select label="활동 분류" val={r.cat} set={v => edit(i, { cat: v, name: "", level: "", levelOther: "" })} options={V2_EC_CATEGORIES_CLIENT} />
         <V2Select label="상태" val={r.status} set={v => edit(i, { status: v, to: v === "진행 중" ? "" : r.to })} options={V2_EC_STATUS} />
-        <V2Field label={nameLabel} val={r.name} set={v => edit(i, { name: v })} list={isSports ? V2_SPORTS_LIST : v2ActivitySuggestions(r.cat)} />
+        {isSports ? <V2SearchSelect label={nameLabel} val={r.name} set={v => edit(i, { name: v })} options={V2_SPORTS_LIST} /> : <V2Field label={nameLabel} val={r.name} set={v => edit(i, { name: v })} list={v2ActivitySuggestions(r.cat)} />}
         <V2Field label={teamLabel} val={r.team} set={v => edit(i, { team: v })} />
         <MonthField label="시작" val={r.from} set={v => edit(i, { from: v })} />
         {r.status === "완료" && <MonthField label="종료" val={r.to} set={v => edit(i, { to: v })} />}
@@ -1781,11 +1821,56 @@ function V2BasicReport({ st, schools }) {
   const reportSchools = recs.length ? recs : schools;
   return <><V2ReportActions st={st} /><V2ClientStrategyReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} /></>;
 }
-function V2StageTwo({ st, update, schools }) {
+function V2StageTwoLegacyManual({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
   return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}</div>;
+}
+function v2StageTwoPositioning(st) {
+  const entered = v2OrderCoreEcs(st.ecs || []).filter(e => v2EcName(e) !== "활동명 미입력" || e.cat || e.team || e.position);
+  const selected = entered.filter(e => e.core).slice(0, 3);
+  const top = [...selected, ...entered.filter(e => !e.core)].slice(0, 3);
+  const supporting = entered.filter(e => !top.includes(e)).slice(0, 4);
+  const cats = top.map(e => e.cat).filter(Boolean);
+  const hasSports = cats.includes("Sports");
+  const hasStem = cats.includes("STEM") || cats.includes("Academic & Intellectual");
+  const hasArts = cats.includes("Music") || cats.includes("Arts");
+  const hasService = cats.includes("Community Services");
+  const mainNames = top.map(v2EcName).join(", ");
+  const character = hasSports && (hasStem || hasArts) ? "활동성과 꾸준함이 함께 보이는 균형형 학생" : hasSports ? "규율, 팀워크, 지속성을 보여주는 활동 중심 학생" : hasStem ? "지적 호기심과 탐구성이 먼저 보이는 학생" : hasArts ? "표현력과 창의성이 강점으로 보이는 학생" : hasService ? "공동체 기여와 성실성이 드러나는 학생" : "아직 뚜렷한 한 축을 더 선명하게 만들어야 하는 학생";
+  const hook = top.length ? `${st.name || "학생"} 학생은 ${mainNames}를 중심으로 보면 ${character}으로 읽힙니다. 입학사정관 입장에서는 단순히 활동 개수가 많은 학생보다, 한두 개의 활동에서 얼마나 오래 지속했고 어떤 역할을 맡았으며 그 경험이 학교 공동체에 어떤 기여로 이어질 수 있는지가 더 중요합니다. 따라서 Stage 1에서 별표로 지정한 핵심 활동 3개를 지원서의 맨 앞에 두고, 나머지 활동은 이 주제를 보강하는 증거로 정리하는 방향이 적절합니다.` : "아직 핵심 활동이 충분히 입력되지 않았습니다. Stage 1의 EC 기본에서 지원서에 가장 먼저 보여주고 싶은 활동 3개를 별표로 지정하면, 학생 Hook과 활동 간 연결성을 더 정확하게 구성할 수 있습니다.";
+  const connection = top.length > 1 ? `현재 핵심 활동들은 ${cats.join(", ")} 영역으로 연결됩니다. 이 조합은 학생이 어떤 환경에서 에너지를 내는지 보여주는 단서입니다. 서로 다른 활동처럼 보이더라도 역할, 지속기간, 수상, 팀/클럽 안에서의 기여를 한 문장으로 묶어 주면 지원서에서 훨씬 설득력 있게 읽힙니다.` : "핵심 활동이 1개 이하이면 학생의 캐릭터가 좁게 보일 수 있습니다. 두 번째, 세 번째 축을 추가로 정리해야 지원서 전체의 균형이 좋아집니다.";
+  const gaps = [];
+  if (!top.some(e => e.position)) gaps.push("핵심 활동에 포지션/역할이 부족합니다. 원서에서는 활동명보다 맡은 역할이 먼저 읽히므로 각 활동별 역할을 구체화해 주세요.");
+  if (!top.some(e => (e.awards || []).length)) gaps.push("수상 또는 외부 성과가 아직 약합니다. 수상이 없더라도 팀 내 기여, 선발 기준, 공연/대회/프로젝트 결과처럼 검증 가능한 근거를 추가해야 합니다.");
+  if (!hasService) gaps.push("공동체 기여 축이 약하게 보일 수 있습니다. 보딩스쿨은 생활공동체 적합성을 보므로 봉사, 멘토링, 팀 기여 경험을 하나의 증거로 보완하는 것이 좋습니다.");
+  if (!hasStem && !hasArts && !hasSports) gaps.push("현재 활동 카테고리만으로는 학생의 뚜렷한 색깔이 약합니다. Academic, Sports, Arts/Music 중 하나의 중심축을 정해 산출물이나 성과를 만들어야 합니다.");
+  return { top, supporting, hook, character, connection, gaps: gaps.length ? gaps : ["현재 핵심 활동의 방향성은 잡혀 있습니다. 다음 단계에서는 각 활동별 구체 사례, 숫자, 결과물을 보강해 원서 문장으로 전환하는 것이 중요합니다."] };
+}
+function V2StageTwo({ st, update, schools }) {
+  const [sub, setSub] = useState("profile");
+  const plan = st.stagePlans || {};
+  const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
+  const positioning = v2StageTwoPositioning(st);
+  return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />
+    {sub === "profile" && <div className="grid">
+      <V2Section title="지원 전략 핵심">
+        <div className="grid g2">
+          <div className="card" style={{ background: "#f8fbfe" }}><h3>학생 Hook</h3><p style={{ lineHeight: 1.8 }}>{positioning.hook}</p></div>
+          <div className="card" style={{ background: "#f8fbfe" }}><h3>입학사정관에게 보이는 캐릭터</h3><p style={{ lineHeight: 1.8 }}>{positioning.connection}</p></div>
+        </div>
+        <table className="table" style={{ marginTop: 14 }}><thead><tr><th>우선순위</th><th>핵심 활동</th><th>분류</th><th>전략적 의미</th></tr></thead><tbody>{positioning.top.length ? positioning.top.map((e, i) => <tr key={`${v2EcName(e)}-${i}`}><td>{i + 1}</td><td><b>{v2EcName(e)}</b><br /><span className="small muted">{e.team || ""} {e.position ? `· ${e.position}` : ""}</span></td><td>{e.cat || "-"}</td><td style={{ lineHeight: 1.7 }}>{e.core ? "Stage 1에서 핵심 활동으로 지정되어 지원서 상단에 배치할 활동입니다." : "핵심 활동 3개가 모두 지정되지 않아 현재 입력값 기준으로 우선순위가 높은 활동입니다."} {e.awards?.length ? `관련 수상 ${e.awards.length}건이 있어 성과 근거로 활용할 수 있습니다.` : "수상이나 결과물이 추가되면 설득력이 더 좋아집니다."}</td></tr>) : <tr><td colSpan="4">Stage 1의 EC 기본에서 활동을 입력하고 별표를 지정해 주세요.</td></tr>}</tbody></table>
+      </V2Section>
+      <V2Section title="추가 보완이 필요한 활동 방향">
+        {positioning.gaps.map((x, i) => <p key={i} style={{ lineHeight: 1.8 }}><b>{i + 1}.</b> {x}</p>)}
+        {positioning.supporting.length > 0 && <div><h3>보조 활동으로 연결할 수 있는 자료</h3><p style={{ lineHeight: 1.8 }}>{positioning.supporting.map(v2EcName).join(", ")} 활동은 핵심 Hook을 뒷받침하는 보조 증거로 사용할 수 있습니다. 단, 원서에서는 모든 활동을 같은 비중으로 펼치기보다 핵심 3개를 먼저 보여주고 나머지는 맥락을 보강하는 방식이 좋습니다.</p></div>}
+      </V2Section>
+    </div>}
+    {sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}
+    {sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}
+    {sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}
+  </div>;
 }
 function V2StageThree({ st, update, schools }) {
   const [sub, setSub] = useState("actions");
