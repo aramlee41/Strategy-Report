@@ -102,7 +102,8 @@ const V2_EMPTY_PREVIOUS = () => ({
 });
 const V2_EMPTY_INTEREST = () => ({ school: "", reason: "", note: "", has_legacy_connection: "No", legacy_school_name: "", legacy_relationship_type: "", legacy_connection_strength: "", legacy_notes: "" });
 const V2_EMPTY_GRADING_SCALE = () => ({ type: "Letter Grade with Plus/Minus", gradeInputType: "Letter Grade with Plus/Minus", gpaScale: "4.0 GPA Scale", source: "Unknown", confidence: "Low", notes: "", entries: V2_GRADING_SCALE_TEMPLATES["Letter Grade with Plus/Minus"].map(([raw_grade_label, normalized_score]) => ({ raw_grade_label, normalized_score, description: "" })) });
-const V2_EMPTY_ADMIN_SCHOOL = () => ({ name: "", state: "", region: "", town: "", accept: "", ssat: "", boarding: "", intl: "", website: "", programs: "", sports: "", arts: "", fit: "", risk: "", interview: "", grading_scale_config: V2_EMPTY_GRADING_SCALE() });
+const V2_EMPTY_ENGLISH_REQUIREMENTS = () => ({ waiverRequirements: "", toeflMinimum: "", toeflCompetitive: "", toeflJrMinimum: "", toeflJrCompetitive: "", ieltsMinimum: "", ieltsCompetitive: "", detMinimum: "", detCompetitive: "", ssatRecommended: "", ssatCompetitive: "", ssatSectionTargets: "", englishSectionTargets: "" });
+const V2_EMPTY_ADMIN_SCHOOL = () => ({ name: "", state: "", region: "", town: "", accept: "", ssat: "", boarding: "", intl: "", website: "", programs: "", sports: "", arts: "", fit: "", risk: "", interview: "", grading_scale_config: V2_EMPTY_GRADING_SCALE(), english_requirement_waiver_requirements: "", englishRequirements: V2_EMPTY_ENGLISH_REQUIREMENTS() });
 function v2DefaultTranscriptSeason(date = new Date()) {
   const month = date.getMonth();
   if (month <= 5) return "Spring";
@@ -111,7 +112,7 @@ function v2DefaultTranscriptSeason(date = new Date()) {
   return "Winter";
 }
 const V2_EMPTY_TERM = school => ({ termId: `term-${Date.now()}-${Math.random().toString(36).slice(2)}`, school: school || "", year: String(new Date().getFullYear()), season: v2DefaultTranscriptSeason(), term: "", gradeLevel: "", gradingScale: V2_EMPTY_GRADING_SCALE(), subjects: [{ category: "English", subject: "", grade: "", rawGrade: "", normalizedGrade: "", comment: "" }], termGpa: "", rank: "" });
-const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", details: {}, overall: "", note: "" });
+const V2_EMPTY_TEST = () => ({ type: "SSAT", date: "", nextDate: "", finalSubmission: "미정", details: {}, overall: "", note: "" });
 const V2_EMPTY_AWARD = () => ({ level: "School", competition: "", awardName: "", date: "", position: "", notes: "" });
 const V2_EMPTY_EC = () => ({
   cat: "Sports", status: "진행 중", name: "", team: "", from: "", to: "",
@@ -135,6 +136,13 @@ const V2_EMPTY_FAMILY_STATUS = () => ({
   fatherDeceased: "No", motherDeceased: "No", divorced: "No", separated: "No",
   custodyHolder: "", custodyHolderOther: "", fatherRemarried: "No", motherRemarried: "No"
 });
+const V2_APPLICATION_PLATFORMS = ["Ravenna", "SAO", "Gateway", "Common App", "Coalition", "UC App", "기타"];
+const V2_APPLICATION_RESULTS = ["미입력", "Accepted", "Waitlisted", "Denied", "Withdrawn", "Not Submitted", "Deferred", "기타"];
+const V2_RECOMMENDER_ROLES = ["Math Teacher", "English Teacher", "Science Teacher", "History/Social Studies Teacher", "World Language Teacher", "Dorm Advisor", "Coach", "Arts/Music Teacher", "Research Mentor", "Professor", "Counselor", "기타"];
+const V2_RELATION_STRENGTH = ["Weak", "Developing", "Good", "Strong", "Excellent"];
+const V2_RECOMMENDER_STATUS = ["Not Requested", "Requested", "Materials Sent", "Submitted", "Thank-you Sent"];
+const V2_EMPTY_PREVIOUS_APPLICATION = () => ({ school: "", gradeApplied: "", platform: "", platformOtherUrl: "", account: "", submittedDate: "", result: "", notes: "" });
+const V2_EMPTY_RECOMMENDATION = () => ({ candidate: "", role: "", roleOther: "", currentStrength: "", targetStrength: "", evidence: "", currentTeacher: "No", specialtyRecommendation: "No", status: "Not Requested", notes: "" });
 
 function v2EcStrength(ec = {}) {
   const awardCount = (ec.awards || []).filter(a => a.awardName || a.competition).length;
@@ -243,15 +251,43 @@ function v2PatchStudentSchoolScale(st, schoolName, scale) {
       : [...previous, { ...V2_EMPTY_PREVIOUS(), name: schoolName, gradingScale, _draft: true }]
   };
 }
+function v2DefaultEnglishRequirements(school = {}) {
+  const accept = Number(school.accept || 50);
+  const ssat = Number(school.ssat || 0);
+  const top = accept <= 15 || ssat >= 94;
+  const selective = !top && (accept <= 25 || ssat >= 88);
+  const waiverRequirements = "공식 정책 확인 필요: 시민권/영주권만으로 자동 면제되지 않을 수 있으며, 최근 3년 이상 English-medium school 재학, 영어 성적표, 인터뷰 결과, 또는 입학처 승인에 따라 TOEFL/IELTS/DET 제출 면제가 달라질 수 있습니다. Admin에서 학교 공식 요구사항 확인 후 수정하세요.";
+  if (top) return { waiverRequirements, toeflMinimum: 100, toeflCompetitive: 110, toeflJrMinimum: 850, toeflJrCompetitive: 880, ieltsMinimum: 7, ieltsCompetitive: 7.5, detMinimum: 130, detCompetitive: 145, ssatRecommended: Math.max(90, ssat || 94), ssatCompetitive: Math.max(95, ssat || 96), ssatSectionTargets: "Verbal/Reading 90%+ 이상, Quantitative 95%+ 이상을 경쟁력 있는 목표로 설정", englishSectionTargets: "TOEFL Speaking/Writing 25+ 및 Reading/Listening 27+ 수준이면 상위권 학교에서 영어 준비도 설명이 쉬워짐" };
+  if (selective) return { waiverRequirements, toeflMinimum: 90, toeflCompetitive: 100, toeflJrMinimum: 820, toeflJrCompetitive: 850, ieltsMinimum: 6.5, ieltsCompetitive: 7, detMinimum: 120, detCompetitive: 135, ssatRecommended: Math.max(80, ssat || 88), ssatCompetitive: Math.max(90, ssat || 92), ssatSectionTargets: "Verbal/Reading 85%+ 이상, Quantitative 90%+ 이상이면 안정적으로 설명 가능", englishSectionTargets: "TOEFL 각 영역 24+ 이상, 특히 Speaking/Writing 보완 여부를 함께 확인" };
+  return { waiverRequirements, toeflMinimum: 80, toeflCompetitive: 92, toeflJrMinimum: 780, toeflJrCompetitive: 820, ieltsMinimum: 6, ieltsCompetitive: 6.5, detMinimum: 110, detCompetitive: 125, ssatRecommended: Math.max(70, ssat || 80), ssatCompetitive: Math.max(82, ssat || 86), ssatSectionTargets: "전체 percentile과 함께 Reading/Verbal 약점 여부를 확인", englishSectionTargets: "TOEFL 각 영역 22+ 이상을 기본 안정권으로 보고 Speaking/Writing 약점 여부를 확인" };
+}
+function v2NormalizeEnglishRequirements(school = {}) {
+  const defaults = v2DefaultEnglishRequirements(school);
+  const saved = school.englishRequirements || {};
+  const waiver = school.english_requirement_waiver_requirements || saved.waiverRequirements || defaults.waiverRequirements;
+  return { ...V2_EMPTY_ENGLISH_REQUIREMENTS(), ...defaults, ...saved, waiverRequirements: waiver };
+}
+function v2NormalizeSchool(school = {}) {
+  const englishRequirements = v2NormalizeEnglishRequirements(school);
+  return {
+    ...school,
+    english_requirement_waiver_requirements: school.english_requirement_waiver_requirements || englishRequirements.waiverRequirements,
+    englishRequirements,
+    grading_scale_config: v2NormalizeGradingScale(school.grading_scale_config || school.gradingScaleConfig || V2_EMPTY_GRADING_SCALE())
+  };
+}
 
 function v2BaseData() {
   const raw = typeof load === "function" ? load() : {};
-  const schools = Array.isArray(raw.schools) && raw.schools.length >= 90 ? raw.schools : (window.PREP_SCHOOLS || DEFAULT_SCHOOLS || []);
+  const schoolDataVersion = window.PREP_SCHOOL_DATA_VERSION || "local";
+  const shouldUseBundledSchools = raw.schoolDataVersion && raw.schoolDataVersion !== schoolDataVersion;
+  const schools = (!shouldUseBundledSchools && Array.isArray(raw.schools) && raw.schools.length >= 90 ? raw.schools : (window.PREP_SCHOOLS || DEFAULT_SCHOOLS || [])).map(v2NormalizeSchool);
   const baseStaff = accounts.filter(a => a.role === "staff").map(a => ({ ...a, password: a.password || "prep2026" }));
   const extraStaff = (raw.staffAccounts || []).filter(a => !baseStaff.some(b => b.id === a.id));
   return {
     ...raw,
     schools,
+    schoolDataVersion,
     staffAccounts: [...baseStaff, ...extraStaff],
     students: (raw.students || []).map(v2NormalizeStudent)
   };
@@ -336,9 +372,12 @@ function v2NormalizeStudent(s) {
     previousSchools: previous,
     interests,
     academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
-    tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT" })),
+    tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT", finalSubmission: t.finalSubmission || "미정" })),
     ecs: Array.isArray(s.ecs) ? v2OrderCoreEcs(s.ecs) : [V2_EMPTY_EC()],
+    awards: Array.isArray(s.awards) ? s.awards.map(a => ({ ...V2_EMPTY_AWARD(), ...a })) : [],
     applications: s.applications || [],
+    previousApplications: Array.isArray(s.previousApplications) ? s.previousApplications.map(a => ({ ...V2_EMPTY_PREVIOUS_APPLICATION(), ...a })) : [],
+    recommendations: Array.isArray(s.recommendations) ? s.recommendations.map(r => ({ ...V2_EMPTY_RECOMMENDATION(), ...r })) : [],
     calendarEvents: s.calendarEvents || [],
     enrollmentChecklist: s.enrollmentChecklist || [],
     stagePlans: s.stagePlans || {}
@@ -410,7 +449,7 @@ function v2StageCompletion(st, stage) {
     stage1: [st.name, st.en, st.program, st.currentGrade, st.school, st.targetYear, st.targetGrade, st.basic?.dob, st.basic?.gender, st.basic?.birthCountry, st.currentSchoolInfo?.type, terms[0]?.term, terms[0]?.subjects?.[0]?.grade, st.tests?.[0]?.overall || st.tests?.[0]?.details?.Total, st.ecs?.[0]?.name],
     stage2: [st.profile, st.testPlan, st.projectPlan, st.stagePlans?.schoolList, st.stagePlans?.ecRoadmap],
     stage3: [st.stagePlans?.weeklyPlan, st.stagePlans?.parentMeeting, st.calendarEvents?.[0]?.title],
-    stage4: [st.applications?.[0]?.school, st.stagePlans?.essayThemes, st.stagePlans?.recommenders],
+    stage4: [st.applications?.[0]?.school, st.previousApplications?.[0]?.school, st.stagePlans?.essayThemes, st.recommendations?.[0]?.candidate || st.stagePlans?.recommenders],
     stage5: [st.stagePlans?.enrollmentSchool, st.enrollmentChecklist?.[0]?.done]
   }[stage] || [];
   return Math.round(req.filter(v2Filled).length / Math.max(req.length, 1) * 100);
@@ -656,6 +695,7 @@ function v2LegacyPredictions(st, schools) {
 function v2ClientRubrics(st) {
   const legacy = v2LegacyStage1Score(st);
   const ecNames = (st.ecs || []).map(e => e.name).filter(Boolean).slice(0, 3).join(", ");
+  const awardNames = (st.awards || []).map(a => a.awardName || a.competition).filter(Boolean).slice(0, 3).join(", ");
   const comments = v2AcademicSummary(st).flatMap(a => String(a.comment || "").split("/").map(x => x.trim()).filter(Boolean));
   return [
     {
@@ -683,7 +723,7 @@ function v2ClientRubrics(st) {
       key: "ec",
       title: "EC 깊이/다양성",
       score: legacy.cocurricularC,
-      evidence: `EC 평가는 활동 개수만 보지 않고, 기간·역할·성과·스토리로 이어지는지를 보았습니다. 현재 입력된 대표 활동은 ${ecNames || "아직 충분히 정리되지 않았습니다"}이며, 이 근거로 ${legacy.cocurricularC}점입니다.`,
+      evidence: `EC 평가는 활동 개수만 보지 않고, 기간·역할·성과·스토리로 이어지는지를 보았습니다. 현재 입력된 대표 활동은 ${ecNames || "아직 충분히 정리되지 않았습니다"}이며${awardNames ? `, 별도 수상/ Honor로는 ${awardNames}가 확인됩니다` : ""}. 이 근거로 ${legacy.cocurricularC}점입니다.`,
       gap: legacy.cocurricularC >= 80 ? "EC는 지원서에서 핵심 차별점으로 사용할 수 있습니다. 이제 활동별 성과를 숫자, 수상, 포트폴리오, 추천서 문장으로 증빙하는 작업이 필요합니다." : "EC는 단순 참여보다 리더십과 결과물이 더 필요합니다. 한두 개 활동을 깊게 발전시켜 팀 내 역할, 외부 성과, 지속 기간, 학생만의 관점을 분명히 만들어야 합니다."
     },
     {
@@ -768,6 +808,8 @@ function V2ClientStrategyReport({ st, schools }) {
   const appliedLegacy = interestPredictions.filter(p => p.legacyImpact?.applied && p.legacyContribution > 0);
   const recommended = v2RecommendedSchools(st, window.PREP_SCHOOLS || reportSchools);
   const lowest = [...rubrics].sort((a, b) => a.score - b.score).slice(0, 2);
+  const previousApplications = (st.previousApplications || []).filter(a => a.school || a.platform || a.result);
+  const recommendations = (st.recommendations || []).filter(r => r.candidate || r.role || r.evidence);
   return <div className="report">
     <div className="report-cover">
       <div className="brand">YES Boarding Prep</div>
@@ -808,6 +850,11 @@ function V2ClientStrategyReport({ st, schools }) {
       {interestPredictions.length ? <table className="table"><thead><tr><th>학교</th><th>Base</th><th>Legacy</th><th>Adjusted</th><th>현재 판정</th><th>해석 및 보완 방향</th></tr></thead><tbody>{interestPredictions.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">Yes Rank {p.school.yesRank || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td>{p.baseApplicantScore}</td><td>{p.legacyContribution ? `+${p.legacyContribution}` : "-"}</td><td>{p.adjustedApplicantScore}</td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>{v2CustomerSchoolNote(p)}</td></tr>)}</tbody></table> : <p className="small">관심/희망학교가 아직 지정되지 않았습니다. 학생 상세의 관심학교 3개를 입력하면 해당 학교만 대상으로 판정이 표시됩니다.</p>}
 
       {appliedLegacy.length > 0 && <><div className="section-title"><span>03-1</span>레거시 / 가족 관계 영향</div>{appliedLegacy.map(p => <p key={p.school.name} style={{ lineHeight: 1.8 }}><b>{p.school.name}</b><br />학생은 해당 학교와 <b>{p.legacyImpact.relationship}</b> 관계가 있으며, 연결 강도는 <b>{p.legacyImpact.strength}</b>로 입력되었습니다. 이 요소는 현재 점수에 <b>+{p.legacyContribution}</b>점의 제한적인 맥락 가산점으로 반영되어 adjusted score가 {p.adjustedApplicantScore}점으로 계산되었습니다. 다만 레거시는 독립적인 합격 요인이 아니며, 학업력·영어 실력·인터뷰·추천서·학교 적합성의 약점을 대체하지는 않습니다.</p>)}</>}
+
+      {(previousApplications.length > 0 || recommendations.length > 0) && <><div className="section-title"><span>03-2</span>지원 이력 / 추천서 전략 메모</div>
+        {previousApplications.length > 0 && <table className="table" style={{ marginBottom: 14 }}><thead><tr><th>이전 지원 학교</th><th>지원 학년</th><th>플랫폼</th><th>결과</th><th>전략적 의미</th></tr></thead><tbody>{previousApplications.map((a, i) => <tr key={i}><td><b>{a.school || "-"}</b></td><td>{a.gradeApplied || "-"}</td><td>{a.platform || "-"}</td><td>{a.result || "-"}</td><td style={{ lineHeight: 1.7 }}>이전 지원 이력이 있는 경우에는 같은 학교 재지원 여부, 결과 이후 보완된 성적·시험·활동 근거, 그리고 원서 플랫폼 계정 이력을 함께 확인해 지원 전략에 반영합니다.</td></tr>)}</tbody></table>}
+        {recommendations.length > 0 && <table className="table"><thead><tr><th>추천서 후보자</th><th>역할</th><th>관계 강도</th><th>추천서에 담을 핵심 증거</th></tr></thead><tbody>{recommendations.map((r, i) => <tr key={i}><td><b>{r.candidate || "-"}</b></td><td>{r.role === "기타" ? r.roleOther : r.role || "-"}</td><td>{r.currentStrength || "-"} → {r.targetStrength || "-"}</td><td style={{ lineHeight: 1.7 }}>{r.evidence || "추천서에서 보여주어야 할 구체 사례를 추가로 정리해야 합니다."}</td></tr>)}</tbody></table>}
+      </>}
 
       <div className="section-title"><span>04</span>현재 점수 기준 추천 학교 4개</div>
       <table className="table"><thead><tr><th>추천 학교</th><th>추천 구간</th><th>추천 이유</th><th>다음 액션</th></tr></thead><tbody>{recommended.map(p => <tr key={p.school.name}><td><b>{p.school.name}</b><br /><span className="small muted">{p.school.state || ""} · SSAT 기준 {p.school.ssat || "-"} · 합격률 {p.school.accept || "-"}%</span></td><td><V2ClientCategoryPill category={p.category} /></td><td style={{ lineHeight: 1.7 }}>현재 준비도에서 현실적으로 검토할 수 있는 학교입니다. {p.school.fit || "학업 적합도, 보딩 준비도, EC 깊이를 함께 검토해야 합니다."}</td><td style={{ lineHeight: 1.7 }}>{p.school.name}의 프로그램 중 학생의 Hook과 연결되는 지점을 2개 이상 찾고, 인터뷰와 에세이에서 사용할 구체 사례를 준비해 주세요.</td></tr>)}</tbody></table>
@@ -1024,7 +1071,7 @@ function V2App() {
     const nextPatch = typeof patch === "function" ? patch(st) : patch;
     persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
   };
-  const updateSchools = schools => persist({ ...data, schools });
+  const updateSchools = schools => persist({ ...data, schools: (schools || []).map(v2NormalizeSchool), schoolDataVersion: window.PREP_SCHOOL_DATA_VERSION || data.schoolDataVersion });
   return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} /><main className="main"><Header view={view} />{view === "dashboard" && (user.role === "admin" ? <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} /> : <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />)}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [user.role === "admin" ? "aram" : user.id], owner: user.role === "admin" ? "aram" : user.id }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <V2Schedule data={data} persist={persist} students={visible} staff={data.staffAccounts || []} user={user} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
 }
 function V2Sidebar({ user, view, setView, logout }) {
@@ -1057,8 +1104,8 @@ function V2StageOne({ st, update, schools, staff }) {
     const nb = typeof k === "object" ? { ...basic, ...k } : { ...basic, [k]: v };
     update({ basic: nb, ...v2NamePatch(nb) });
   };
-  const tabs = [["identity", "기본 정보"], ["program", "프로그램/목표"], ["schools", "학교 정보"], ["grades", "성적표"], ["tests", "시험"], ["ecs", "EC 기본"], ["report", "기초 보고서"]];
-  return <div><V2SubTabs tabs={tabs} active={sub} set={setSub} />{sub === "identity" && <V2Identity st={st} basic={basic} setBasic={setBasic} update={update} staff={staff} />}{sub === "program" && <V2Program st={st} update={update} schools={schools} />}{sub === "schools" && <V2SchoolInfo st={st} update={update} schools={schools} />}{sub === "grades" && <V2TranscriptWithScale st={st} update={update} schools={schools} />}{sub === "tests" && <V2Tests st={st} update={update} />}{sub === "ecs" && <V2Ecs st={st} update={update} />}{sub === "report" && <V2BasicReport st={st} schools={schools} />}</div>;
+  const tabs = [["identity", "기본 정보"], ["program", "프로그램/목표"], ["schools", "학교 정보"], ["grades", "성적표"], ["tests", "시험"], ["ecs", "EC 기본"], ["awards", "수상내역"], ["report", "기초 보고서"]];
+  return <div><V2SubTabs tabs={tabs} active={sub} set={setSub} />{sub === "identity" && <V2Identity st={st} basic={basic} setBasic={setBasic} update={update} staff={staff} />}{sub === "program" && <V2Program st={st} update={update} schools={schools} />}{sub === "schools" && <V2SchoolInfo st={st} update={update} schools={schools} />}{sub === "grades" && <V2TranscriptWithScale st={st} update={update} schools={schools} />}{sub === "tests" && <V2Tests st={st} update={update} />}{sub === "ecs" && <V2Ecs st={st} update={update} />}{sub === "awards" && <V2StandaloneAwards st={st} update={update} />}{sub === "report" && <V2BasicReport st={st} schools={schools} />}</div>;
 }
 function V2Identity({ st, basic, setBasic, update, staff }) {
   const setOwners = owners => update({ owners, owner: owners[0] || "" });
@@ -1347,15 +1394,23 @@ function v2SchoolTestTier(school = {}) {
 }
 function v2TestingBenchmark(school = {}, type = "") {
   const tier = v2SchoolTestTier(school);
+  const req = v2NormalizeEnglishRequirements(school);
+  const key = String(type || "").toUpperCase();
+  const fromReq = (min, recommended, competitive, note = "") => ({ tier, status: "school_data", min, recommended: recommended || min, competitive: competitive || recommended || min, source: "admin_school_data", note });
+  if (key === "TOEFL" && (req.toeflMinimum || req.toeflCompetitive)) return fromReq(Number(req.toeflMinimum || req.toeflCompetitive), Number(req.toeflMinimum || req.toeflCompetitive), Number(req.toeflCompetitive || req.toeflMinimum), req.englishSectionTargets);
+  if (key === "TOEFL JR" && (req.toeflJrMinimum || req.toeflJrCompetitive)) return fromReq(Number(req.toeflJrMinimum || req.toeflJrCompetitive), Number(req.toeflJrMinimum || req.toeflJrCompetitive), Number(req.toeflJrCompetitive || req.toeflJrMinimum), req.englishSectionTargets);
+  if (key === "IELTS" && (req.ieltsMinimum || req.ieltsCompetitive)) return fromReq(Number(req.ieltsMinimum || req.ieltsCompetitive), Number(req.ieltsMinimum || req.ieltsCompetitive), Number(req.ieltsCompetitive || req.ieltsMinimum), req.englishSectionTargets);
+  if (key === "DET" && (req.detMinimum || req.detCompetitive)) return fromReq(Number(req.detMinimum || req.detCompetitive), Number(req.detMinimum || req.detCompetitive), Number(req.detCompetitive || req.detMinimum), req.englishSectionTargets);
+  if (key === "SSAT" && (req.ssatRecommended || req.ssatCompetitive)) return fromReq(Number(req.ssatRecommended || req.ssatCompetitive) - 8, Number(req.ssatRecommended || req.ssatCompetitive), Number(req.ssatCompetitive || req.ssatRecommended), req.ssatSectionTargets);
   const table = {
     TOEFL: { top: [100, 108, 112], selective: [90, 100, 105], balanced: [80, 92, 100] },
+    "TOEFL JR": { top: [850, 870, 885], selective: [820, 845, 865], balanced: [780, 815, 840] },
     SSAT: { top: [90, 95, 97], selective: [80, 88, 92], balanced: [70, 80, 86] },
     SAT: { top: [1450, 1500, 1550], selective: [1350, 1450, 1500], balanced: [1250, 1350, 1450] },
     ACT: { top: [33, 35, 36], selective: [30, 33, 35], balanced: [27, 30, 33] },
     IELTS: { top: [7, 7.5, 8], selective: [6.5, 7, 7.5], balanced: [6, 6.5, 7] },
     DET: { top: [135, 145, 150], selective: [125, 135, 145], balanced: [115, 125, 135] }
   };
-  const key = String(type || "").toUpperCase();
   const vals = table[key]?.[tier];
   if (!vals) return { tier, status: "unknown", source: "insufficient", note: "학교별 목표 점수를 판단할 추가 자료가 필요합니다." };
   return { tier, status: "benchmark", min: vals[0], recommended: vals[1], competitive: vals[2], source: "school_context", note: "" };
@@ -1714,6 +1769,10 @@ function V2TranscriptWithScale({ st, update, schools = [] }) {
 function V2Tests({ st, update }) {
   const tests = st.tests || [];
   const edit = (i, patch) => update({ tests: v2SetArr(tests, i, patch) });
+  const setFinalSubmission = (i, value) => {
+    if (value === "Yes") update({ tests: tests.map((t, idx) => ({ ...t, finalSubmission: idx === i ? "Yes" : "No" })) });
+    else edit(i, { finalSubmission: value });
+  };
   const remove = i => update({ tests: tests.filter((_, x) => x !== i) });
   return <ArrayEditor title="Standardized / English Tests" rows={tests} add={() => update({ tests: [...tests, V2_EMPTY_TEST()] })} remove={remove} render={(r, i) => {
     const fields = V2_TEST_FIELDS[r.type] || [];
@@ -1731,6 +1790,7 @@ function V2Tests({ st, update }) {
           <V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} />
           <V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} />
           <V2Select label="Test Level" val={details["Test Level"]} set={v => setDetail("Test Level", v)} options={["Lower", "Upper"]} />
+          <V2Select label="최종 제출용 회차" val={r.finalSubmission || "미정"} set={v => setFinalSubmission(i, v)} options={["미정", "Yes", "No"]} />
         </div>
         <div className="grid g4">
           <div className="field"><span className="label">총점 (Overall Score)</span><input className="input" value={overall || ""} readOnly /></div>
@@ -1740,7 +1800,7 @@ function V2Tests({ st, update }) {
         <V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} />
       </div>;
     }
-    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production|Language Form/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
+    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Select label="최종 제출용 회차" val={r.finalSubmission || "미정"} set={v => setFinalSubmission(i, v)} options={["미정", "Yes", "No"]} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production|Language Form/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
   }} />;
 }
 function v2ActivitySuggestions(cat) {
@@ -1762,6 +1822,12 @@ function V2AwardEditor({ awards = [], setAwards }) {
   return <div style={{ marginTop: 12 }}><div className="right" style={{ justifyContent: "space-between", marginBottom: 8 }}><b>관련 수상내역</b><button type="button" className="btn ghost" onClick={() => setAwards([...rows, V2_EMPTY_AWARD()])}>수상 추가</button></div>
     {rows.length ? <table className="table"><thead><tr><th>레벨</th><th>대회명</th><th>상 이름</th><th>수상 연월</th><th>포지션</th><th>비고</th><th></th></tr></thead><tbody>{rows.map((a, i) => <tr key={i}><td><select className="select" value={a.level || ""} onChange={e => edit(i, { level: e.target.value })}><option value="">선택</option>{V2_AWARD_LEVELS.map(o => <option key={o} value={o}>{o}</option>)}</select></td><td><input className="input" value={a.competition || ""} onChange={e => edit(i, { competition: e.target.value })} /></td><td><input className="input" value={a.awardName || ""} onChange={e => edit(i, { awardName: e.target.value })} /></td><td><input className="input" type="month" value={a.date || ""} onChange={e => edit(i, { date: e.target.value })} /></td><td><input className="input" value={a.position || ""} onChange={e => edit(i, { position: e.target.value })} /></td><td><input className="input" value={a.notes || ""} onChange={e => edit(i, { notes: e.target.value })} /></td><td><button type="button" className="btn ghost" onClick={() => setAwards(rows.filter((_, x) => x !== i))}>삭제</button></td></tr>)}</tbody></table> : <p className="small muted">수상내역이 있으면 추가해 주세요. 없으면 비워두면 됩니다.</p>}
   </div>;
+}
+function V2StandaloneAwards({ st, update }) {
+  return <V2Section title="수상내역 / Honors">
+    <p className="small muted">EC 활동 카드에 연결되지 않는 독립 수상, Honor, 학교 내외부 표창을 입력합니다. 입력된 내용은 Stage 2 전략보고서에서 학생의 성취 근거로 함께 활용됩니다.</p>
+    <V2AwardEditor awards={st.awards || []} setAwards={awards => update({ awards })} />
+  </V2Section>;
 }
 function V2Ecs({ st, update }) {
   const ecs = st.ecs || [];
@@ -1891,12 +1957,60 @@ function V2StageThree({ st, update, schools }) {
   };
   return <div><V2SubTabs tabs={[["actions", "액션 플랜"], ["calendar", "캘린더"], ["meetings", "미팅/커뮤니케이션"]]} active={sub} set={setSub} />{sub === "actions" && <V2Section title="Stage 2 전략 실행 관리"><V2Text label="주간 액션 플랜" val={plan.weeklyPlan} set={v => setPlan({ weeklyPlan: v })} /><EnhancedRoadmap st={st} update={update} schools={schools} /></V2Section>}{sub === "calendar" && <div className="grid"><V2Section title="학교 기본 일정 가져오기"><button className="btn primary" onClick={importSchoolCalendar}>학교 학사일정 복사</button><p className="small muted">복사된 일정은 이 학생 캘린더에서만 수정/삭제됩니다.</p></V2Section><StudentCalendar st={st} update={update} schools={schools} /></div>}{sub === "meetings" && <V2Section title="학부모/학생 미팅"><V2Text label="학부모 미팅 기록" val={plan.parentMeeting} set={v => setPlan({ parentMeeting: v })} /><V2Text label="학생 코칭 기록" val={plan.studentCoaching} set={v => setPlan({ studentCoaching: v })} /></V2Section>}</div>;
 }
+function V2PreviousApplicationHistory({ st, update }) {
+  const rows = st.previousApplications || [];
+  const accountForPlatform = platform => (rows.find(r => r.platform === platform && r.account)?.account || "");
+  const edit = (i, patch) => {
+    let next = v2SetArr(rows, i, patch);
+    const updated = next[i] || {};
+    if (patch.platform && !updated.account) next = v2SetArr(next, i, { account: accountForPlatform(patch.platform) });
+    if (patch.account && updated.platform) next = next.map((r, idx) => idx !== i && r.platform === updated.platform && !r.account ? { ...r, account: patch.account } : r);
+    update({ previousApplications: next });
+  };
+  return <ArrayEditor title="이전 지원 이력" rows={rows} add={() => update({ previousApplications: [...rows, V2_EMPTY_PREVIOUS_APPLICATION()] })} remove={i => update({ previousApplications: rows.filter((_, x) => x !== i) })} render={(r, i) => <div>
+    <div className="grid g4">
+      <V2Field label="지원 학교" val={r.school} set={v => edit(i, { school: v })} />
+      <V2Select label="지원한 학년" val={r.gradeApplied} set={v => edit(i, { gradeApplied: v })} options={V2_TARGET_GRADE_OPTIONS} />
+      <V2Select label="원서 플랫폼" val={r.platform} set={v => edit(i, { platform: v })} options={V2_APPLICATION_PLATFORMS} />
+      <V2Field label="계정" val={r.account} set={v => edit(i, { account: v })} />
+      <V2Field label="원서 제출일" type="date" val={r.submittedDate} set={v => edit(i, { submittedDate: v })} />
+      <V2Select label="지원 결과" val={r.result} set={v => edit(i, { result: v })} options={V2_APPLICATION_RESULTS} />
+    </div>
+    {r.platform === "기타" && <div className="grid g2"><V2Field label="기타 플랫폼 URL" val={r.platformOtherUrl} set={v => edit(i, { platformOtherUrl: v })} />{r.platformOtherUrl && <div className="field"><span className="label">플랫폼 바로가기</span><button type="button" className="pill p-blue" style={{ border: 0, padding: "8px 12px" }} onClick={() => window.open(r.platformOtherUrl, "_blank", "noopener,noreferrer")}>사이트 열기</button></div>}</div>}
+    <V2Text label="메모" val={r.notes} set={v => edit(i, { notes: v })} minHeight={48} />
+  </div>} />;
+}
+function V2RecommendationEditor({ st, update }) {
+  const rows = st.recommendations || [];
+  const edit = (i, patch) => update({ recommendations: v2SetArr(rows, i, patch) });
+  return <ArrayEditor title="추천서 전략 데이터" rows={rows} add={() => update({ recommendations: [...rows, V2_EMPTY_RECOMMENDATION()] })} remove={i => update({ recommendations: rows.filter((_, x) => x !== i) })} render={(r, i) => <div>
+    <div className="grid g4">
+      <V2Field label="추천서 후보자" val={r.candidate} set={v => edit(i, { candidate: v })} />
+      <V2Select label="과목/역할" val={r.role} set={v => edit(i, { role: v })} options={V2_RECOMMENDER_ROLES} />
+      {r.role === "기타" && <V2Field label="역할 직접 입력" val={r.roleOther} set={v => edit(i, { roleOther: v })} />}
+      <V2Select label="현재 관계 강도" val={r.currentStrength} set={v => edit(i, { currentStrength: v })} options={V2_RELATION_STRENGTH} />
+      <V2Select label="목표 관계 강도" val={r.targetStrength} set={v => edit(i, { targetStrength: v })} options={V2_RELATION_STRENGTH} />
+      <V2Select label="Current Teacher 여부" val={r.currentTeacher} set={v => edit(i, { currentTeacher: v })} options={["No", "Yes"]} />
+      <V2Select label="특기 추천서 가능 여부" val={r.specialtyRecommendation} set={v => edit(i, { specialtyRecommendation: v })} options={["No", "Yes", "미정"]} />
+      <V2Select label="진행 상태" val={r.status} set={v => edit(i, { status: v })} options={V2_RECOMMENDER_STATUS} />
+    </div>
+    <V2Text label="추천서에 담겨야 할 증거" val={r.evidence} set={v => edit(i, { evidence: v })} minHeight={64} />
+    <V2Text label="메모" val={r.notes} set={v => edit(i, { notes: v })} minHeight={48} />
+  </div>} />;
+}
 function V2StageFour({ st, update }) {
   const [sub, setSub] = useState("tracker");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
   const makeCore = () => update({ applications: (st.ecs || []).slice(0, 5).map(e => ({ school: "", activity: e.name, role: e.position, description: e.impact })) });
-  return <div><V2SubTabs tabs={[["tracker", "Application Tracker"], ["essays", "에세이"], ["activities", "핵심 액티비티"], ["recommendations", "추천서/계정"]]} active={sub} set={setSub} />{sub === "tracker" && <ArrayEditor title="지원학교 리스트 / 원서 현황" rows={st.applications || []} add={() => update({ applications: [...(st.applications || []), { school: "", portal: "", deadline: "", status: "", essay: "", activity: "" }] })} render={(r, i) => <div className="grid g4"><V2Field label="학교" val={r.school} set={v => editArr(st, update, "applications", i, { school: v })} /><V2Field label="원서 계정/Portal" val={r.portal} set={v => editArr(st, update, "applications", i, { portal: v })} /><V2Field label="마감일" type="date" val={r.deadline} set={v => editArr(st, update, "applications", i, { deadline: v })} /><V2Field label="상태" val={r.status} set={v => editArr(st, update, "applications", i, { status: v })} list={["Not Started", "In Progress", "Submitted", "Interview", "Accepted", "Waitlisted", "Denied"]} /></div>} />}{sub === "essays" && <V2Section title="학교별 에세이 주제"><V2Text label="에세이 주제 / 소재 매칭" val={plan.essayThemes} set={v => setPlan({ essayThemes: v })} /></V2Section>}{sub === "activities" && <V2Section title="원서용 핵심 액티비티 5개"><button className="btn primary" onClick={makeCore}>EC 데이터로 5개 생성</button><table className="table"><tbody>{(st.applications || []).slice(0, 5).map((a, i) => <tr key={i}><th>{i + 1}</th><td>{a.activity || a.school}<br /><span className="small muted">{a.description}</span></td></tr>)}</tbody></table></V2Section>}{sub === "recommendations" && <V2Section title="추천서 / 원서 계정"><V2Text label="추천인 / 추천서 요청 현황" val={plan.recommenders} set={v => setPlan({ recommenders: v })} /><V2Text label="원서 계정 / 로그인 / 제출 유의사항" val={plan.applicationAccounts} set={v => setPlan({ applicationAccounts: v })} /></V2Section>}</div>;
+  return <div>
+    <V2SubTabs tabs={[["tracker", "Application Tracker"], ["history", "이전 지원 이력"], ["essays", "에세이"], ["activities", "핵심 액티비티"], ["recommendations", "추천서/계정"]]} active={sub} set={setSub} />
+    {sub === "tracker" && <ArrayEditor title="지원학교 리스트 / 원서 현황" rows={st.applications || []} add={() => update({ applications: [...(st.applications || []), { school: "", portal: "", deadline: "", status: "", essay: "", activity: "" }] })} render={(r, i) => <div className="grid g4"><V2Field label="학교" val={r.school} set={v => editArr(st, update, "applications", i, { school: v })} /><V2Field label="원서 계정/Portal" val={r.portal} set={v => editArr(st, update, "applications", i, { portal: v })} /><V2Field label="마감일" type="date" val={r.deadline} set={v => editArr(st, update, "applications", i, { deadline: v })} /><V2Field label="상태" val={r.status} set={v => editArr(st, update, "applications", i, { status: v })} list={["Not Started", "In Progress", "Submitted", "Interview", "Accepted", "Waitlisted", "Denied"]} /></div>} />}
+    {sub === "history" && <V2PreviousApplicationHistory st={st} update={update} />}
+    {sub === "essays" && <V2Section title="학교별 에세이 주제"><V2Text label="에세이 주제 / 소재 매칭" val={plan.essayThemes} set={v => setPlan({ essayThemes: v })} /></V2Section>}
+    {sub === "activities" && <V2Section title="원서용 핵심 액티비티 5개"><button className="btn primary" onClick={makeCore}>EC 데이터로 5개 생성</button><table className="table"><tbody>{(st.applications || []).slice(0, 5).map((a, i) => <tr key={i}><th>{i + 1}</th><td>{a.activity || a.school}<br /><span className="small muted">{a.description}</span></td></tr>)}</tbody></table></V2Section>}
+    {sub === "recommendations" && <div className="grid"><V2RecommendationEditor st={st} update={update} /><V2Section title="원서 계정 / 제출 유의사항"><V2Text label="원서 계정 / 로그인 / 제출 유의사항" val={plan.applicationAccounts} set={v => setPlan({ applicationAccounts: v })} /></V2Section></div>}
+  </div>;
 }
 function V2StageFive({ st, update }) {
   const [sub, setSub] = useState("checklist");
@@ -1917,6 +2031,7 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
   const hasSelection = idx >= 0 && !draftSchool;
   const isDraft = !!draftSchool;
   const school = draftSchool || (hasSelection ? schools[idx] : {});
+  const englishRequirements = v2NormalizeEnglishRequirements(school);
   const config = v2LegacySchoolConfig(school);
   const edit = patch => {
     if (isDraft) {
@@ -1950,6 +2065,10 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
     setSelectedName(name);
     if (draftSchool) setDraftSchool(null);
   };
+  const editEnglish = patch => {
+    const next = { ...englishRequirements, ...patch };
+    edit({ englishRequirements: next, english_requirement_waiver_requirements: next.waiverRequirements });
+  };
   return <V2Section title="Admin School Data">
     <div className="grid g2">
       <V2SmartSchool label="School Search / Select" val={selectedName} set={selectSchool} schools={schools} />
@@ -1974,6 +2093,26 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
       <V2Text label="Fit" val={school.fit} set={v => edit({ fit: v })} />
       <V2Text label="Risk" val={school.risk} set={v => edit({ risk: v })} />
       <V2Text label="Interview / Essay Signal" val={school.interview} set={v => edit({ interview: v })} />
+    </div>
+    <div className="card" style={{ background: "#f8fbfe", marginTop: 12 }}>
+      <h3>English Requirement / Test Benchmarks</h3>
+      <V2Text label="English Requirement Waiver Requirements" val={englishRequirements.waiverRequirements} set={v => editEnglish({ waiverRequirements: v })} minHeight={58} />
+      <div className="grid g4">
+        <V2Field label="TOEFL Minimum" val={englishRequirements.toeflMinimum} set={v => editEnglish({ toeflMinimum: v })} type="number" />
+        <V2Field label="TOEFL Competitive" val={englishRequirements.toeflCompetitive} set={v => editEnglish({ toeflCompetitive: v })} type="number" />
+        <V2Field label="TOEFL Jr Minimum" val={englishRequirements.toeflJrMinimum} set={v => editEnglish({ toeflJrMinimum: v })} type="number" />
+        <V2Field label="TOEFL Jr Competitive" val={englishRequirements.toeflJrCompetitive} set={v => editEnglish({ toeflJrCompetitive: v })} type="number" />
+        <V2Field label="IELTS Minimum" val={englishRequirements.ieltsMinimum} set={v => editEnglish({ ieltsMinimum: v })} type="number" />
+        <V2Field label="IELTS Competitive" val={englishRequirements.ieltsCompetitive} set={v => editEnglish({ ieltsCompetitive: v })} type="number" />
+        <V2Field label="DET Minimum" val={englishRequirements.detMinimum} set={v => editEnglish({ detMinimum: v })} type="number" />
+        <V2Field label="DET Competitive" val={englishRequirements.detCompetitive} set={v => editEnglish({ detCompetitive: v })} type="number" />
+        <V2Field label="SSAT Recommended" val={englishRequirements.ssatRecommended} set={v => editEnglish({ ssatRecommended: v })} type="number" />
+        <V2Field label="SSAT Competitive" val={englishRequirements.ssatCompetitive} set={v => editEnglish({ ssatCompetitive: v })} type="number" />
+      </div>
+      <div className="grid g2">
+        <V2Text label="SSAT Section Targets" val={englishRequirements.ssatSectionTargets} set={v => editEnglish({ ssatSectionTargets: v })} minHeight={58} />
+        <V2Text label="English Test Section Targets" val={englishRequirements.englishSectionTargets} set={v => editEnglish({ englishSectionTargets: v })} minHeight={58} />
+      </div>
     </div>
     <V2GradingScaleEditor scale={school.grading_scale_config || school.gradingScaleConfig || V2_EMPTY_GRADING_SCALE()} setScale={scale => edit({ grading_scale_config: v2NormalizeGradingScale(scale) })} />
     <div className="card" style={{ background: "#f8fbfe", marginTop: 12 }}>
