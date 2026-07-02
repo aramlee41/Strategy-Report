@@ -78,6 +78,7 @@ const V2_TEST_FIELDS = {
   SAT: ["Reading and Writing", "Math", "Percentile"],
   ACT: ["English", "Math", "Reading", "Science", "Writing"],
   TOEFL: ["Reading", "Listening", "Speaking", "Writing"],
+  "TOEFL Jr": ["Listening Comprehension", "Language Form and Meaning", "Reading Comprehension"],
   IELTS: ["Listening", "Reading", "Writing", "Speaking"],
   DET: ["Literacy", "Comprehension", "Conversation", "Production"]
 };
@@ -455,6 +456,7 @@ function v2AcademicPillText(terms = []) {
 function v2TestOverall(type, details, fallback) {
   const n = k => Number(details?.[k] || 0);
   if (type === "SSAT") return n("Verbal Raw Score") + n("Quantitative Raw Score") + n("Reading Raw Score") || fallback || details?.Total || "";
+  if (type === "TOEFL Jr") return n("Listening Comprehension") + n("Language Form and Meaning") + n("Reading Comprehension") || fallback || "";
   if (type === "TOEFL") return n("Reading") + n("Listening") + n("Speaking") + n("Writing") || fallback || "";
   if (type === "SAT" || type === "PSAT") return n("Reading and Writing") + n("Math") || details?.Total || fallback || "";
   if (type === "IELTS") {
@@ -491,7 +493,8 @@ function v2LegacyToeflEval(st) {
   const test = v2LegacyFindTest(st, /TOEFL|IELTS|DET/i);
   const type = String(test.type || "");
   const raw = v2LegacyTestOverall(test);
-  if (!raw) return { raw: "", eval: null, label: "English Test missing", warning: "TOEFL/IELTS/DET 점수가 없어 Stage 1 English conversion을 비워두었습니다." };
+  if (!raw) return { raw: "", eval: null, label: "English Test missing", warning: "TOEFL/TOEFL Jr/IELTS/DET 점수가 없어 Stage 1 English conversion을 비워두었습니다." };
+  if (/TOEFL JR/i.test(type)) return { raw, eval: Math.max(0, Math.min(100, v2Round(raw / 9, 1))), label: `TOEFL Jr ${raw}/900` };
   if (/TOEFL/i.test(type)) {
     const tableValue = raw >= 110 ? 95 + (raw - 110) * 0.5 : raw >= 100 ? 80 + (raw - 100) * 1.5 : raw >= 60 ? raw - 20 : raw;
     return { raw, eval: Math.max(0, Math.min(100, v2Round(tableValue, 1))), label: `TOEFL ${raw}` };
@@ -1298,6 +1301,7 @@ function v2TestMetricMax(type, label, value) {
   const t = String(type || "").toUpperCase();
   const l = String(label || "").toLowerCase();
   const n = Number(value) || 0;
+  if (t === "TOEFL JR") return /overall|total/.test(l) ? 900 : 300;
   if (t === "TOEFL") return /overall|total/.test(l) ? 120 : 30;
   if (t === "IELTS") return 9;
   if (t === "DET") return 160;
@@ -1369,7 +1373,7 @@ function v2GeneralTestAnalysis(st) {
   const tests = st.tests || [];
   if (!tests.length) return { summary: "아직 입력된 시험 점수가 없어 시험 기반 분석은 보류합니다.", strengths: [], weaknesses: ["SSAT 또는 영어 공인시험 점수를 입력하면 학교별 해석이 가능해집니다."], next: ["가장 최근 공식 리포트의 총점, 세부 점수, 응시일을 먼저 입력해 주세요."] };
   const ssat = v2LatestTest(st, /SSAT/i);
-  const english = v2LatestTest(st, /TOEFL|IELTS|DET/i);
+  const english = v2LatestTest(st, /TOEFL|TOEFL Jr|IELTS|DET/i);
   const sat = v2LatestTest(st, /^(SAT|ACT|PSAT)$/i);
   const strengths = [];
   const weaknesses = [];
@@ -1386,7 +1390,9 @@ function v2GeneralTestAnalysis(st) {
     const d = english.details || {};
     const score = v2PrimaryTestScore(english);
     strengths.push(`${english.type} ${score}점은 영어 공인시험 기반의 기본 학업 적응력을 보여주는 자료입니다.`);
-    if (/TOEFL/i.test(english.type || "")) {
+    if (/TOEFL JR/i.test(english.type || "")) {
+      next.push("TOEFL Jr는 Listening, Language Form and Meaning, Reading 세 영역의 균형을 확인해 보딩 수업 적응 가능성을 설명하는 자료로 활용해 주세요.");
+    } else if (/TOEFL/i.test(english.type || "")) {
       if (v2Num(d.Speaking) < 24) weaknesses.push("TOEFL Speaking이 낮으면 인터뷰 유창성과 수업 토론 참여 가능성을 별도 자료로 보완해야 합니다.");
       if (v2Num(d.Writing) < 25) weaknesses.push("TOEFL Writing이 낮으면 English/History 등 writing-heavy 과목 적응성을 에세이 샘플과 교사 코멘트로 보완하는 것이 좋습니다.");
       next.push("TOEFL은 총점뿐 아니라 Speaking/Writing을 같이 끌어올리는 전략이 필요합니다.");
@@ -1409,7 +1415,9 @@ function v2SchoolSpecificTestAnalyses(st, schools = []) {
       const type = String(test.type || "").toUpperCase();
       const score = v2PrimaryTestScore(test);
       const benchmark = v2TestingBenchmark(school, type);
+      if (type === "TOEFL JR") return `${test.type} ${score}/900점은 Listening Comprehension, Language Form and Meaning, Reading Comprehension을 함께 보여주는 영어 준비도 자료입니다. ${school.name} 지원에서는 TOEFL Jr 인정 여부와 TOEFL iBT/IELTS 등 선호 시험 조건을 별도로 확인한 뒤, 현재 점수를 보조 자료로 활용하는 것이 좋습니다.`;
       if (type === "DET" && benchmark.source !== "official") return `${test.type} ${score}점은 참고 자료로 볼 수 있으나, ${school.name}의 DET 인정 여부와 선호 시험을 먼저 확인해야 합니다. 불확실한 경우 TOEFL 또는 IELTS 제출을 권장합니다.`;
+      if (!benchmark.recommended) return `${test.type} ${score}점은 현재 입력된 학교 데이터만으로는 학교별 목표 점수와 직접 비교하기 어렵습니다. ${school.name}의 공식 시험 요구사항을 확인한 뒤, 이 점수를 보조 자료로 해석해 주세요.`;
       const fit = v2TestFit(score, benchmark);
       const tierText = benchmark.tier === "top" ? "최상위권" : benchmark.tier === "selective" ? "상위권" : "중상위권";
       let extra = "";
@@ -1732,7 +1740,7 @@ function V2Tests({ st, update }) {
         <V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} />
       </div>;
     }
-    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
+    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production|Language Form/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
   }} />;
 }
 function v2ActivitySuggestions(cat) {
