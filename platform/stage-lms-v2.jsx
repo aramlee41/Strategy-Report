@@ -143,6 +143,7 @@ const V2_RELATION_STRENGTH = ["Weak", "Developing", "Good", "Strong", "Excellent
 const V2_RECOMMENDER_STATUS = ["Not Requested", "Requested", "Materials Sent", "Submitted", "Thank-you Sent"];
 const V2_EMPTY_PREVIOUS_APPLICATION = () => ({ school: "", gradeApplied: "", platform: "", platformOtherUrl: "", account: "", submittedDate: "", result: "", notes: "" });
 const V2_EMPTY_RECOMMENDATION = () => ({ candidate: "", role: "", roleOther: "", currentStrength: "", targetStrength: "", evidence: "", currentTeacher: "No", specialtyRecommendation: "No", status: "Not Requested", notes: "" });
+const V2_DATA_MODEL_VERSION = "prep-lms-separated-analysis-v1";
 
 function v2EcStrength(ec = {}) {
   const awardCount = (ec.awards || []).filter(a => a.awardName || a.competition).length;
@@ -289,7 +290,8 @@ function v2BaseData() {
     schools,
     schoolDataVersion,
     staffAccounts: [...baseStaff, ...extraStaff],
-    students: (raw.students || []).map(v2NormalizeStudent)
+    schoolDataset: v2BuildSchoolDataset(schools),
+    students: (raw.students || []).map(v2NormalizeStudent).map(st => v2AttachAnalysis(st, schools))
   };
 }
 function v2NormalizeStudent(s) {
@@ -380,11 +382,13 @@ function v2NormalizeStudent(s) {
     recommendations: Array.isArray(s.recommendations) ? s.recommendations.map(r => ({ ...V2_EMPTY_RECOMMENDATION(), ...r })) : [],
     calendarEvents: s.calendarEvents || [],
     enrollmentChecklist: s.enrollmentChecklist || [],
-    stagePlans: s.stagePlans || {}
+    stagePlans: s.stagePlans || {},
+    reportSnapshots: Array.isArray(s.reportSnapshots) ? s.reportSnapshots : (s.reportSnapshot ? [s.reportSnapshot] : [])
   };
 }
 function v2Persist(setData, next) {
-  const fixed = { ...next, students: next.students.map(v2NormalizeStudent) };
+  const schools = (next.schools || []).map(v2NormalizeSchool);
+  const fixed = { ...next, schools, schoolDataset: v2BuildSchoolDataset(schools), students: next.students.map(v2NormalizeStudent).map(st => v2AttachAnalysis(st, schools)) };
   setData(fixed);
   save(fixed);
 }
@@ -505,6 +509,320 @@ function v2TestOverall(type, details, fallback) {
   if (type === "ACT") return fallback || "";
   if (type === "DET") return details?.Overall || fallback || "";
   return details?.Total || fallback || "";
+}
+function v2BuildSchoolDataset(schools = []) {
+  return {
+    version: window.PREP_SCHOOL_DATA_VERSION || "local",
+    generatedAt: new Date().toISOString(),
+    schools: (schools || []).map(v2NormalizeSchool)
+  };
+}
+function v2BuildStudentProfile(st = {}) {
+  return {
+    version: V2_DATA_MODEL_VERSION,
+    studentId: st.id || "",
+    name: st.name || "",
+    englishName: st.en || "",
+    owners: st.owners || [st.owner].filter(Boolean),
+    program: st.program || "",
+    stage: st.stage || "stage1",
+    currentGrade: st.currentGrade || st.grade || "",
+    targetYear: st.targetYear || "",
+    targetGrade: st.targetGrade || "",
+    programEndDate: st.programEndDate || st.deadline || "",
+    basic: st.basic || {},
+    schoolProfile: {
+      currentSchool: st.school || "",
+      currentSchoolInfo: st.currentSchoolInfo || {},
+      previousSchools: st.previousSchools || [],
+      interests: st.interests || []
+    },
+    academics: {
+      terms: st.academicTerms || [],
+      summary: v2AcademicSummary(st)
+    },
+    testing: st.tests || [],
+    ecs: st.ecs || [],
+    awards: st.awards || [],
+    applications: {
+      current: st.applications || [],
+      previous: st.previousApplications || []
+    },
+    recommendations: st.recommendations || [],
+    calendarEvents: st.calendarEvents || [],
+    actionPlans: st.actionPlans || st.tasks || [],
+    stagePlans: st.stagePlans || {}
+  };
+}
+function v2Evidence({ claim, category, evidenceData, confidence = "Medium", gap = "", reportUsage = true }) {
+  return {
+    id: `ev-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    claim,
+    category,
+    evidenceData,
+    confidence,
+    gap,
+    reportUsage
+  };
+}
+function v2BuildEvaluationResult(st = {}, schools = []) {
+  const legacy = v2LegacyStage1Score(st);
+  const rubrics = v2ClientRubrics(st);
+  const academicTrendMeta = v2AcademicTrendMeta(st.academicTerms || []);
+  const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
+  const interestSchools = interestNames.map(name => v2FindSchool(schools, name)).filter(Boolean);
+  const predictions = interestSchools.length ? v2LegacyPredictions(st, interestSchools) : [];
+  return {
+    version: V2_DATA_MODEL_VERSION,
+    generatedAt: new Date().toISOString(),
+    legacyStage1: legacy,
+    rubrics,
+    academicTrendMeta,
+    interestPredictions: predictions,
+    recommendedSchools: v2RecommendedSchools(st, schools || []),
+    stageCompletion: Object.fromEntries(V2_STAGE_KEYS.map(([k]) => [k, v2StageCompletion(st, k)]))
+  };
+}
+function v2TestGapEngine(st = {}, schools = []) {
+  const tests = (st.tests || []).filter(t => v2PrimaryTestScore(t));
+  const interestSchools = (st.interests || []).map(x => v2FindSchool(schools, x.school)).filter(Boolean);
+  return interestSchools.map(school => {
+    const gaps = tests.map(test => {
+      const type = String(test.type || "");
+      const score = v2PrimaryTestScore(test);
+      const benchmark = v2TestingBenchmark(school, type);
+      const gapToRecommended = benchmark.recommended ? v2Round(benchmark.recommended - score, 1) : null;
+      const gapToCompetitive = benchmark.competitive ? v2Round(benchmark.competitive - score, 1) : null;
+      const weakest = v2WeakestTestSection(test);
+      return {
+        type,
+        score,
+        targetRecommended: benchmark.recommended || "",
+        targetCompetitive: benchmark.competitive || "",
+        gapToRecommended,
+        gapToCompetitive,
+        weakestSection: weakest,
+        fit: v2TestFit(score, benchmark),
+        comment: gapToCompetitive !== null && gapToCompetitive > 0
+          ? `${school.name} 기준으로 ${type}는 경쟁력 있는 목표까지 약 ${gapToCompetitive}점 보완이 필요합니다. 특히 ${weakest || "세부 영역"}을 먼저 점검하는 것이 좋습니다.`
+          : `${school.name} 기준으로 ${type}는 현재 점수만으로도 비교적 안정적으로 설명할 수 있습니다. 다만 학교별 에세이와 인터뷰에서 점수 이상의 준비도를 함께 보여주어야 합니다.`
+      };
+    });
+    return { school: school.name, gaps };
+  });
+}
+function v2WeakestTestSection(test = {}) {
+  const details = test.details || {};
+  const entries = Object.entries(details)
+    .filter(([k, v]) => !/Level|Total|Overall/i.test(k) && Number(v))
+    .map(([label, value]) => ({ label, value: Number(value) }));
+  if (!entries.length) return "";
+  return entries.sort((a, b) => a.value - b.value)[0].label;
+}
+function v2CoreEcStrategyEngine(st = {}) {
+  const ordered = v2OrderCoreEcs(st.ecs || []);
+  const core = ordered.filter(e => e.core).slice(0, 3);
+  const fallback = core.length ? core : ordered.filter(e => v2EcName(e) !== "활동명 미입력").slice(0, 3);
+  const standaloneAwards = st.awards || [];
+  return fallback.map((ec, index) => {
+    const name = v2EcName(ec);
+    const awards = [...(ec.awards || []), ...standaloneAwards.filter(a => String(a.notes || a.competition || "").toLowerCase().includes(String(name || "").toLowerCase()))];
+    const months = [ec.from, ec.to || "현재"].filter(Boolean).join(" - ");
+    const intensity = [ec.weeks ? `${ec.weeks}주` : "", ec.hours ? `주당 ${ec.hours}시간` : ""].filter(Boolean).join(", ");
+    const isSports = ec.cat === "Sports";
+    const isAcademic = /STEM|Academic|Intellectual|Debate|Journalism/i.test(ec.cat || "");
+    const isArts = /Music|Arts/i.test(ec.cat || "");
+    const character = isSports ? "꾸준한 훈련과 경쟁 경험을 통해 자기관리와 팀 기여를 보여주는 학생" : isAcademic ? "지적 호기심과 탐구 성향을 활동으로 확장할 수 있는 학생" : isArts ? "표현력과 창의성을 학교 공동체에 기여로 연결할 수 있는 학생" : "공동체 안에서 역할을 찾아 꾸준히 기여할 수 있는 학생";
+    const strengths = [
+      ec.core ? "Stage 1에서 핵심 활동으로 별표 지정되어 지원서 상단에 둘 수 있습니다." : "입력된 활동 중 전략적 우선순위가 높은 활동입니다.",
+      months ? `활동 기간이 ${months}로 확인됩니다.` : "활동 기간을 추가하면 지속성을 더 명확히 설명할 수 있습니다.",
+      intensity ? `참여 강도는 ${intensity}로 정리됩니다.` : "주당 시간과 참여 주수를 입력하면 활동의 깊이가 더 선명해집니다.",
+      ec.position ? `${ec.position} 역할을 통해 학생의 책임 범위를 설명할 수 있습니다.` : "포지션/역할이 아직 약해 보이므로 학생이 실제로 맡은 책임을 정리해야 합니다.",
+      awards.length ? `관련 수상 또는 Honor ${awards.length}건이 성과 근거로 활용될 수 있습니다.` : "수상이나 산출물이 부족해 보일 수 있어 결과물 또는 외부 평가 근거를 보강하는 것이 좋습니다."
+    ];
+    const gaps = [];
+    if (!ec.position) gaps.push("활동 안에서 맡은 역할이 충분히 드러나지 않습니다.");
+    if (!awards.length) gaps.push("성과를 입증할 수 있는 수상, 선발, 공연, 대회, 프로젝트 결과가 더 필요합니다.");
+    if (!ec.hours || !ec.weeks) gaps.push("활동 강도를 보여줄 수 있는 시간 정보가 부족합니다.");
+    return {
+      rank: index + 1,
+      activityName: name,
+      category: ec.cat || "",
+      whyCore: `${name}은 학생의 활동 목록 중 ${ec.core ? "직접 핵심으로 지정된 활동" : "현재 입력값 기준 우선순위가 높은 활동"}입니다. ${months ? `지속 기간(${months})` : "지속 기간"}과 ${ec.position || "역할"}, ${awards.length ? "성과 근거" : "보완 가능한 성과 근거"}를 함께 보면 지원서에서 학생의 방향성을 보여주는 축으로 활용할 수 있습니다.`,
+      admissionsCharacter: character,
+      strengths,
+      gaps: gaps.length ? gaps : ["현재 입력된 정보 기준으로 핵심 활동의 방향성은 좋습니다. 다음 단계에서는 이 활동이 학교 공동체에 어떤 기여로 이어질지 문장화하는 것이 중요합니다."],
+      nextGoal: isSports ? "지원 전까지 경기/팀 기여/코치 피드백 중 하나를 구체적인 결과로 정리해 주세요." : isAcademic ? "결과물, 발표, 연구 노트, 대회/프로젝트 성과 중 하나를 지원서에 넣을 수 있는 형태로 완성해 주세요." : isArts ? "포트폴리오, 공연/전시 기록, 지도교사 코멘트를 정리해 활동의 수준을 보여주는 것이 좋습니다." : "활동의 목적, 학생 역할, 결과를 한 문단으로 정리해 원서와 인터뷰에서 바로 사용할 수 있게 만들어 주세요.",
+      applicationAngle: `${name}은 단순 참여보다 학생이 맡은 역할과 변화 과정을 중심으로 설명해야 합니다. 인터뷰에서는 왜 이 활동을 오래 했는지, 그 과정에서 배운 점이 보딩스쿨 공동체에 어떻게 이어지는지 존댓말이 아닌 학생 본인의 자연스러운 영어 답변으로 준비하는 것이 좋습니다.`
+    };
+  });
+}
+function v2StudentHookEngine(st = {}) {
+  const core = v2CoreEcStrategyEngine(st);
+  const cats = core.map(x => x.category).filter(Boolean);
+  const names = core.map(x => x.activityName).filter(Boolean).join(", ");
+  const hasSports = cats.includes("Sports");
+  const hasAcademic = cats.some(c => /STEM|Academic|Debate|Journalism/i.test(c));
+  const hasArts = cats.some(c => /Music|Arts/i.test(c));
+  const character = hasSports && hasAcademic ? "운동의 지속성과 학업적 호기심을 함께 보여주는 균형형 지원자" : hasSports ? "훈련, 규율, 팀 기여가 먼저 보이는 활동 중심 지원자" : hasAcademic ? "학업적 탐구와 지적 호기심이 먼저 읽히는 지원자" : hasArts ? "표현력과 창의성을 학교 공동체에 더할 수 있는 지원자" : "아직 대표 캐릭터를 더 선명하게 만들어야 하는 지원자";
+  return {
+    character,
+    summary: core.length ? `${st.name || "학생"} 학생은 ${names}을 중심으로 볼 때 ${character}로 읽힙니다. Stage 2 전략보고서에서는 이 활동들을 단순 나열하지 않고, 학생이 어떤 환경에서 성과를 만들고 어떤 방식으로 학교 공동체에 기여할 수 있는지를 하나의 이야기로 묶어야 합니다.` : "핵심 EC가 아직 충분히 지정되지 않았습니다. Stage 1의 EC 기본에서 별표 활동을 지정하면 학생 Hook을 더 정확히 생성할 수 있습니다.",
+    gaps: core.flatMap(x => x.gaps).slice(0, 4)
+  };
+}
+function v2SchoolFitEngine(st = {}, schools = []) {
+  const evaluation = v2BuildEvaluationResult(st, schools);
+  const core = v2CoreEcStrategyEngine(st);
+  const hook = v2StudentHookEngine(st);
+  const recommendations = st.recommendations || [];
+  return (st.interests || []).filter(x => x.school).map(interest => {
+    const school = v2FindSchool(schools, interest.school) || { name: interest.school };
+    const prediction = evaluation.interestPredictions.find(p => p.school.name === school.name) || v2LegacyPredictions(st, [school])[0];
+    const testGaps = v2TestGapEngine(st, [school])[0]?.gaps || [];
+    const req = v2NormalizeEnglishRequirements(school);
+    const programText = [school.programs, school.sports, school.arts].filter(Boolean).join(" / ");
+    const matchedPrograms = core.filter(ec => programText.toLowerCase().includes(String(ec.activityName || "").split(" ")[0].toLowerCase()) || programText.toLowerCase().includes(String(ec.category || "").toLowerCase()));
+    const risks = [];
+    if (prediction && /Dream|Goal|Below|Unlikely/i.test(prediction.category)) risks.push("현재 점수 기준으로는 도전 구간에 가까우므로 시험·성적·Hook 근거를 더 강하게 보완해야 합니다.");
+    testGaps.filter(g => Number(g.gapToCompetitive) > 0).slice(0, 2).forEach(g => risks.push(`${g.type}는 경쟁력 있는 목표까지 약 ${g.gapToCompetitive}점 보완이 필요합니다.`));
+    if (!matchedPrograms.length) risks.push("학생의 핵심 활동과 학교 프로그램 연결이 아직 명확하지 않습니다.");
+    if (!recommendations.length) risks.push("추천서 후보자 데이터가 부족해 학교별 설득 근거가 약할 수 있습니다.");
+    return {
+      school: school.name,
+      category: prediction?.category || "검토 필요",
+      reasonFromUser: interest.reason || interest.note || "",
+      schoolValues: school.fit || school.interview || "학업 적합도, 보딩 준비도, 공동체 기여 가능성을 함께 봐야 합니다.",
+      connectedPrograms: matchedPrograms.length ? matchedPrograms.map(x => `${x.activityName} ↔ ${school.programs || school.sports || school.arts || "학교 프로그램"}`) : [`${school.name}의 ${school.programs || school.sports || school.arts || "주요 프로그램"}과 학생의 핵심 활동을 더 구체적으로 연결해야 합니다.`],
+      riskFactors: risks.length ? risks : ["현재 입력 기준으로 큰 단일 리스크보다는 학교별 에세이와 인터뷰 완성도가 중요합니다."],
+      admissionConditions: `${school.name} 지원에서는 ${req.ssatCompetitive ? `SSAT ${req.ssatCompetitive}+ 수준` : "학교별 시험 기준"}과 ${req.toeflCompetitive ? `TOEFL ${req.toeflCompetitive}+ 또는 이에 준하는 영어 준비도` : "영어 준비도"}를 목표로 두고, ${hook.character}라는 학생 이미지를 추천서와 에세이에서 일관되게 보여주는 것이 중요합니다.`,
+      strategyPoint: `${interest.reason ? `관심학교 이유로 입력된 "${interest.reason}"을 출발점으로 삼되, ` : ""}${school.interview || "Why School, 공동체 기여, 학업 호기심"}를 학생의 핵심 EC와 연결해 인터뷰/에세이 소재로 정리해야 합니다.`,
+      requiredImprovements: risks.slice(0, 3)
+    };
+  });
+}
+function v2RecommendationStrategyEngine(st = {}, schools = []) {
+  const recs = st.recommendations || [];
+  const rubrics = v2ClientRubrics(st);
+  const academics = rubrics.find(r => r.key === "academics")?.score || 0;
+  const core = v2CoreEcStrategyEngine(st);
+  const schoolFits = v2SchoolFitEngine(st, schools);
+  const rows = recs.map((r, i) => {
+    const role = r.role === "기타" ? r.roleOther : r.role;
+    const priority = /Math|English|Science|History|Teacher/i.test(role || "") && academics < 85 ? 1 : r.specialtyRecommendation === "Yes" ? 2 : i + 3;
+    const strategicRole = /Coach/i.test(role || "") ? "핵심 EC의 지속성과 훈련 태도를 증명하는 추천서" : /Teacher|Math|English|Science|History/i.test(role || "") ? "학업 준비도와 수업 태도를 증명하는 추천서" : /Dorm|Counselor/i.test(role || "") ? "보딩 생활 적합도와 성숙도를 보여주는 추천서" : "학생의 특정 강점을 보완적으로 설명하는 추천서";
+    const gaps = [];
+    if (!r.evidence) gaps.push("추천서에 들어갈 구체 증거가 아직 부족합니다.");
+    if (!r.currentStrength || !r.targetStrength) gaps.push("현재/목표 관계 강도를 입력하면 관리 액션이 더 명확해집니다.");
+    if (r.currentTeacher !== "Yes" && /Teacher/i.test(role || "")) gaps.push("Current Teacher 여부를 확인해 학교별 추천서 요구조건과 맞춰야 합니다.");
+    return {
+      candidate: r.candidate || `추천 후보 ${i + 1}`,
+      role,
+      priority,
+      strategicRole,
+      relationshipGap: `${r.currentStrength || "미입력"} → ${r.targetStrength || "미입력"}`,
+      requiredEvidence: r.evidence || "수업/활동에서 관찰된 구체 사례, 학생의 태도 변화, 결과물을 추가로 정리해야 합니다.",
+      gaps,
+      nextAction: gaps.length ? "추천인에게 전달할 evidence sheet를 먼저 정리하고, 학생의 핵심 활동/학업 보완점과 연결되는 사례를 2-3개 준비해 주세요." : "추천서 요청 전, 해당 추천인이 강조해야 할 학생의 핵심 메시지를 1문단으로 정리해 공유하는 것이 좋습니다."
+    };
+  }).sort((a, b) => a.priority - b.priority);
+  const schoolSpecific = schoolFits.map(fit => ({
+    school: fit.school,
+    note: `${fit.school}에서는 ${fit.riskFactors[0] || "학교별 적합성"}을 보완할 수 있는 추천서가 중요합니다. 학업 리스크가 있으면 과목 교사, EC Hook이 강하면 코치/멘토 추천서의 전략적 가치가 커집니다.`
+  }));
+  return {
+    rows,
+    schoolSpecific,
+    summary: rows.length ? `현재 추천서 후보 ${rows.length}명이 입력되어 있습니다. 우선순위는 학업 리스크, 핵심 EC Hook, 보딩 적합도 보완 필요성을 기준으로 정렬했습니다.` : "추천서 후보자 데이터가 아직 입력되지 않았습니다. Stage 4 > 추천서/계정에서 후보자와 증거를 입력하면 학교별 추천서 전략이 생성됩니다."
+  };
+}
+function v2ActionPlanEngine(st = {}, schools = []) {
+  const strategy = v2StudentHookEngine(st);
+  const schoolFits = v2SchoolFitEngine(st, schools);
+  const testing = v2TestGapEngine(st, schools);
+  const actions = [];
+  strategy.gaps.slice(0, 2).forEach((gap, i) => actions.push({ priority: i + 1, area: "EC/Hook", action: gap, deadline: st.programEndDate || "", importance: 5 }));
+  testing.flatMap(x => x.gaps).filter(g => Number(g.gapToCompetitive) > 0).slice(0, 2).forEach((gap, i) => actions.push({ priority: actions.length + 1, area: "Testing", action: gap.comment, deadline: st.programEndDate || "", importance: 4 }));
+  schoolFits.slice(0, 3).forEach(fit => actions.push({ priority: actions.length + 1, area: "School Fit", action: `${fit.school}: ${fit.strategyPoint}`, deadline: st.programEndDate || "", importance: 4 }));
+  return actions.slice(0, 8);
+}
+function v2BuildEvidenceMatrix(st = {}, schools = []) {
+  const evaluation = v2BuildEvaluationResult(st, schools);
+  const core = v2CoreEcStrategyEngine(st);
+  const hook = v2StudentHookEngine(st);
+  const schoolFits = v2SchoolFitEngine(st, schools);
+  const recommendation = v2RecommendationStrategyEngine(st, schools);
+  const matrix = [];
+  evaluation.rubrics.forEach(r => matrix.push(v2Evidence({ claim: `${r.title}는 ${v2Round(r.score, 1)}점으로 평가됩니다.`, category: r.key === "academics" ? "Academics" : r.key === "english" ? "Testing" : r.key === "ec" ? "EC" : r.key === "boarding" ? "Boarding Fit" : "Recommendation", evidenceData: r.evidence, confidence: r.score >= 75 ? "High" : "Medium", gap: r.gap, reportUsage: true })));
+  core.forEach(ec => matrix.push(v2Evidence({ claim: `${ec.activityName}은 핵심 EC로 활용할 수 있습니다.`, category: "EC", evidenceData: ec.strengths.join(" "), confidence: ec.gaps.length > 1 ? "Medium" : "High", gap: ec.gaps.join(" "), reportUsage: true })));
+  matrix.push(v2Evidence({ claim: hook.character, category: "Hook", evidenceData: hook.summary, confidence: core.length >= 2 ? "High" : "Low", gap: hook.gaps.join(" "), reportUsage: true }));
+  schoolFits.forEach(fit => matrix.push(v2Evidence({ claim: `${fit.school}는 현재 ${fit.category} 구간으로 분석됩니다.`, category: "School Fit", evidenceData: [fit.reasonFromUser, fit.schoolValues, fit.connectedPrograms.join(" / ")].filter(Boolean).join(" | "), confidence: fit.category === "검토 필요" ? "Low" : "Medium", gap: fit.riskFactors.join(" "), reportUsage: true })));
+  recommendation.rows.forEach(row => matrix.push(v2Evidence({ claim: `${row.candidate} 추천서는 ${row.strategicRole}로 활용할 수 있습니다.`, category: "Recommendation", evidenceData: row.requiredEvidence, confidence: row.gaps.length ? "Medium" : "High", gap: row.gaps.join(" "), reportUsage: true })));
+  return matrix;
+}
+function v2BuildStrategyResult(st = {}, schools = []) {
+  const coreEcAnalyses = v2CoreEcStrategyEngine(st);
+  const hookAnalysis = v2StudentHookEngine(st);
+  const schoolFitAnalyses = v2SchoolFitEngine(st, schools);
+  const testGapAnalyses = v2TestGapEngine(st, schools);
+  const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
+  const actionPlan = v2ActionPlanEngine(st, schools);
+  const evidenceMatrix = v2BuildEvidenceMatrixShallow(st, schools, { coreEcAnalyses, hookAnalysis, schoolFitAnalyses, recommendationStrategy });
+  return {
+    version: V2_DATA_MODEL_VERSION,
+    generatedAt: new Date().toISOString(),
+    positioning: hookAnalysis,
+    coreEcAnalyses,
+    testGapAnalyses,
+    schoolFitAnalyses,
+    recommendationStrategy,
+    actionPlan,
+    evidenceMatrix,
+    parentSummary: `${st.name || "학생"} 학생의 전략은 ${hookAnalysis.character}라는 이미지를 중심으로 구성하는 것이 좋습니다. Stage 1의 수치 진단은 유지하되, Stage 2에서는 핵심 EC, 학교별 Fit, 추천서 증거를 연결해 지원서에서 일관된 설득 구조를 만드는 데 초점을 둡니다.`
+  };
+}
+function v2BuildEvidenceMatrixShallow(st = {}, schools = [], built = {}) {
+  const evaluation = v2BuildEvaluationResult(st, schools);
+  const core = built.coreEcAnalyses || v2CoreEcStrategyEngine(st);
+  const hook = built.hookAnalysis || v2StudentHookEngine(st);
+  const schoolFits = built.schoolFitAnalyses || v2SchoolFitEngine(st, schools);
+  const recommendation = built.recommendationStrategy || v2RecommendationStrategyEngine(st, schools);
+  const matrix = [];
+  evaluation.rubrics.forEach(r => matrix.push(v2Evidence({ claim: `${r.title}는 ${v2Round(r.score, 1)}점으로 평가됩니다.`, category: r.key === "academics" ? "Academics" : r.key === "english" ? "Testing" : r.key === "ec" ? "EC" : r.key === "boarding" ? "Boarding Fit" : "Recommendation", evidenceData: r.evidence, confidence: r.score >= 75 ? "High" : "Medium", gap: r.gap, reportUsage: true })));
+  core.forEach(ec => matrix.push(v2Evidence({ claim: `${ec.activityName}은 핵심 EC로 활용할 수 있습니다.`, category: "EC", evidenceData: ec.strengths.join(" "), confidence: ec.gaps.length > 1 ? "Medium" : "High", gap: ec.gaps.join(" "), reportUsage: true })));
+  matrix.push(v2Evidence({ claim: hook.character, category: "Hook", evidenceData: hook.summary, confidence: core.length >= 2 ? "High" : "Low", gap: hook.gaps.join(" "), reportUsage: true }));
+  schoolFits.forEach(fit => matrix.push(v2Evidence({ claim: `${fit.school}는 현재 ${fit.category} 구간으로 분석됩니다.`, category: "School Fit", evidenceData: [fit.reasonFromUser, fit.schoolValues, fit.connectedPrograms.join(" / ")].filter(Boolean).join(" | "), confidence: fit.category === "검토 필요" ? "Low" : "Medium", gap: fit.riskFactors.join(" "), reportUsage: true })));
+  recommendation.rows.forEach(row => matrix.push(v2Evidence({ claim: `${row.candidate} 추천서는 ${row.strategicRole}로 활용할 수 있습니다.`, category: "Recommendation", evidenceData: row.requiredEvidence, confidence: row.gaps.length ? "Medium" : "High", gap: row.gaps.join(" "), reportUsage: true })));
+  return matrix;
+}
+function v2AttachAnalysis(st = {}, schools = []) {
+  const studentProfile = v2BuildStudentProfile(st);
+  const evaluationResult = v2BuildEvaluationResult(st, schools);
+  const strategyResult = v2BuildStrategyResult(st, schools);
+  const reportSnapshots = Array.isArray(st.reportSnapshots) ? st.reportSnapshots : (st.reportSnapshot ? [st.reportSnapshot] : []);
+  return { ...st, dataModelVersion: V2_DATA_MODEL_VERSION, studentProfile, evaluationResult, strategyResult, reportSnapshots, reportSnapshot: reportSnapshots[0] || null };
+}
+function v2CreateReportSnapshot(st = {}, schools = [], creator = "Admin") {
+  const profile = v2BuildStudentProfile(st);
+  const evaluationResult = v2BuildEvaluationResult(st, schools);
+  const strategyResult = v2BuildStrategyResult(st, schools);
+  return {
+    id: `snapshot-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    type: "stage2-strategy",
+    createdAt: new Date().toISOString(),
+    createdBy: creator,
+    studentId: st.id || "",
+    studentName: st.name || "",
+    dataVersion: {
+      model: V2_DATA_MODEL_VERSION,
+      schoolDataset: window.PREP_SCHOOL_DATA_VERSION || "local"
+    },
+    studentProfile: profile,
+    evaluationResult,
+    strategyResult,
+    title: `${st.name || "학생"} Stage 2 전략보고서`,
+    summary: strategyResult.parentSummary
+  };
 }
 function v2AcademicSummary(st) {
   return (st.academicTerms || []).map(t => ({ term: v2TermLabel(t), school: t.school, gpa: v2TermGpa(t), comment: (t.subjects || []).map(s => `${s.subject}: ${s.comment}`).join(" / ") }));
@@ -1895,6 +2213,107 @@ function V2BasicReport({ st, schools }) {
   const reportSchools = recs.length ? recs : schools;
   return <><V2ReportActions st={st} /><V2ClientStrategyReport st={{ ...st, academics: v2AcademicSummary(st) }} schools={reportSchools} /></>;
 }
+function V2StrategyEngineReport({ st, schools, snapshot }) {
+  const result = snapshot?.strategyResult || st.strategyResult || v2BuildStrategyResult(st, schools);
+  const evaluation = snapshot?.evaluationResult || st.evaluationResult || v2BuildEvaluationResult(st, schools);
+  return <div className="report" style={{ marginTop: 14 }}>
+    <div className="report-cover">
+      <div className="brand">YES Boarding Prep</div>
+      <h2>{snapshot?.title || `${st.name || "학생"} Stage 2 전략보고서`}</h2>
+      <p>{snapshot ? `저장본 생성일 ${snapshot.createdAt?.slice(0, 10) || ""} · 생성자 ${snapshot.createdBy || ""}` : "현재 입력값 기준 실시간 전략 분석"}</p>
+    </div>
+    <div className="report-body">
+      <div className="section-title"><span>S2-01</span>학생 종합 포지셔닝</div>
+      <div className="card" style={{ background: "#f8fbfe" }}>
+        <h3>{result.positioning?.character || "학생 캐릭터 분석"}</h3>
+        <p style={{ lineHeight: 1.85 }}>{result.positioning?.summary || result.parentSummary}</p>
+        {(result.positioning?.gaps || []).length > 0 && <div><b>우선 보완점</b>{result.positioning.gaps.slice(0, 4).map((x, i) => <p key={i} style={{ lineHeight: 1.75 }}>{i + 1}. {x}</p>)}</div>}
+      </div>
+
+      <div className="section-title"><span>S2-02</span>핵심 EC 3개 분석</div>
+      <div className="grid g3">{(result.coreEcAnalyses || []).length ? result.coreEcAnalyses.map(ec => <div className="card" key={`${ec.rank}-${ec.activityName}`} style={{ background: "#ffffff" }}>
+        <span className="pill p-blue">Core EC {ec.rank}</span>
+        <h3>{ec.activityName}</h3>
+        <p className="small muted">{ec.category}</p>
+        <p style={{ lineHeight: 1.8 }}><b>핵심으로 보는 이유</b><br />{ec.whyCore}</p>
+        <p style={{ lineHeight: 1.8 }}><b>입학사정관에게 보이는 캐릭터</b><br />{ec.admissionsCharacter}</p>
+        <p style={{ lineHeight: 1.8 }}><b>다음 성과 목표</b><br />{ec.nextGoal}</p>
+        <p style={{ lineHeight: 1.8 }}><b>원서/인터뷰 방향</b><br />{ec.applicationAngle}</p>
+        <b>부족한 점</b>{ec.gaps.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
+      </div>) : <div className="card"><p className="small muted">Stage 1 > EC 기본에서 별표 핵심 활동을 지정하면 자동 분석이 생성됩니다.</p></div>}</div>
+
+      <div className="section-title"><span>S2-03</span>시험 Gap 및 학교별 상대 평가</div>
+      {(result.testGapAnalyses || []).length ? result.testGapAnalyses.map(row => <div className="card" key={row.school} style={{ marginBottom: 10 }}>
+        <h3>{row.school}</h3>
+        <table className="table"><thead><tr><th>시험</th><th>현재</th><th>추천 목표</th><th>경쟁 목표</th><th>가장 약한 영역</th><th>해석</th></tr></thead><tbody>{row.gaps.map(g => <tr key={`${row.school}-${g.type}`}><td>{g.type}</td><td>{g.score}</td><td>{g.targetRecommended || "-"}</td><td>{g.targetCompetitive || "-"}</td><td>{g.weakestSection || "-"}</td><td style={{ lineHeight: 1.7 }}>{g.comment}</td></tr>)}</tbody></table>
+      </div>) : <p className="small muted">관심학교와 시험 점수를 입력하면 학교별 시험 Gap이 표시됩니다.</p>}
+
+      <div className="section-title"><span>S2-04</span>학교별 Fit 전략</div>
+      {(result.schoolFitAnalyses || []).length ? result.schoolFitAnalyses.map(fit => <div className="card" key={fit.school} style={{ marginBottom: 12 }}>
+        <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start" }}><h3 style={{ marginTop: 0 }}>{fit.school}</h3><V2ClientCategoryPill category={fit.category} /></div>
+        {fit.reasonFromUser && <p style={{ lineHeight: 1.8 }}><b>이 학교를 넣은 이유</b><br />{fit.reasonFromUser}</p>}
+        <p style={{ lineHeight: 1.8 }}><b>학교가 중요하게 보는 요소</b><br />{fit.schoolValues}</p>
+        <p style={{ lineHeight: 1.8 }}><b>학생과 연결되는 프로그램</b><br />{fit.connectedPrograms.join(" / ")}</p>
+        <p style={{ lineHeight: 1.8 }}><b>합격 조건</b><br />{fit.admissionConditions}</p>
+        <p style={{ lineHeight: 1.8 }}><b>전략 포인트</b><br />{fit.strategyPoint}</p>
+        <b>학교별 필수 보완점</b>{fit.riskFactors.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
+      </div>) : <p className="small muted">프로그램/목표 > 관심학교를 입력하면 학교별 Fit 전략이 생성됩니다.</p>}
+
+      <div className="section-title"><span>S2-05</span>추천서 전략</div>
+      <div className="card" style={{ background: "#f8fbfe" }}>
+        <p style={{ lineHeight: 1.8 }}>{result.recommendationStrategy?.summary}</p>
+        {(result.recommendationStrategy?.rows || []).length ? <table className="table"><thead><tr><th>우선순위</th><th>후보자</th><th>역할</th><th>관계 강도</th><th>전략적 역할</th><th>다음 액션</th></tr></thead><tbody>{result.recommendationStrategy.rows.map((r, i) => <tr key={`${r.candidate}-${i}`}><td>{i + 1}</td><td><b>{r.candidate}</b></td><td>{r.role || "-"}</td><td>{r.relationshipGap}</td><td style={{ lineHeight: 1.7 }}>{r.strategicRole}<br /><span className="small muted">{r.requiredEvidence}</span></td><td style={{ lineHeight: 1.7 }}>{r.nextAction}</td></tr>)}</tbody></table> : <p className="small muted">Stage 4 > 추천서/계정에서 후보자를 입력하면 추천서 전략이 생성됩니다.</p>}
+      </div>
+
+      <div className="section-title"><span>S2-06</span>남은 기간 액션 플랜</div>
+      <table className="table"><thead><tr><th>우선순위</th><th>영역</th><th>액션</th><th>중요도</th></tr></thead><tbody>{(result.actionPlan || []).map(a => <tr key={`${a.priority}-${a.area}`}><td>{a.priority}</td><td>{a.area}</td><td style={{ lineHeight: 1.7 }}>{a.action}</td><td>{v2Stars(a.importance)}</td></tr>)}</tbody></table>
+
+      <div className="section-title"><span>S2-07</span>학부모용 요약</div>
+      <p style={{ lineHeight: 1.9 }}>{result.parentSummary}</p>
+      <p className="small muted">분석 기준: 데이터 모델 {snapshot?.dataVersion?.model || V2_DATA_MODEL_VERSION} · 학교 데이터 {snapshot?.dataVersion?.schoolDataset || window.PREP_SCHOOL_DATA_VERSION || "local"} · Stage 1 총점 {evaluation.legacyStage1?.total || "-"}</p>
+    </div>
+  </div>;
+}
+function V2EvidenceMatrixDebug({ result }) {
+  const [open, setOpen] = useState(false);
+  const rows = result?.evidenceMatrix || [];
+  return <div className="card" style={{ marginTop: 14 }}>
+    <div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>Evidence Matrix Debug View</h3><p className="small muted" style={{ margin: 0 }}>전략 문장이 어떤 입력 근거에서 나왔는지 내부 확인용으로 보는 영역입니다.</p></div><button type="button" className="btn ghost" onClick={() => setOpen(!open)}>{open ? "닫기" : "열기"}</button></div>
+    {open && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>Category</th><th>Claim</th><th>Confidence</th><th>Gap</th><th>Report</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.category}</td><td style={{ lineHeight: 1.6 }}>{r.claim}<br /><span className="small muted">{String(r.evidenceData || "").slice(0, 180)}</span></td><td>{r.confidence}</td><td style={{ lineHeight: 1.6 }}>{r.gap || "-"}</td><td>{r.reportUsage ? "Yes" : "No"}</td></tr>)}</tbody></table>}
+  </div>;
+}
+function V2StageTwoReportManager({ st, update, schools }) {
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
+  const snapshots = st.reportSnapshots || [];
+  const selectedSnapshot = snapshots.find(s => s.id === selectedSnapshotId);
+  const generateSnapshot = () => {
+    const snapshot = v2CreateReportSnapshot(st, schools, "Admin");
+    update({ reportSnapshots: [snapshot, ...snapshots], reportSnapshot: snapshot });
+    setSelectedSnapshotId(snapshot.id);
+  };
+  const activeResult = selectedSnapshot?.strategyResult || st.strategyResult || v2BuildStrategyResult(st, schools);
+  return <div>
+    <V2ReportActions st={st} />
+    <V2Section title="Stage 2 전략보고서 생성 / 저장본">
+      <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div>
+          <p className="small muted" style={{ marginTop: 0 }}>현재 입력값 기준으로 전략보고서를 생성하면 그 시점의 입력값, Stage 1 계산 결과, Stage 2 전략 분석 결과가 저장본으로 고정됩니다.</p>
+          <button type="button" className="btn primary" onClick={generateSnapshot}>전략보고서 생성</button>
+        </div>
+        <div className="field" style={{ minWidth: 280 }}>
+          <span className="label">저장된 보고서 열기</span>
+          <select className="select" value={selectedSnapshotId} onChange={e => setSelectedSnapshotId(e.target.value)}>
+            <option value="">현재 입력값 기준 보기</option>
+            {snapshots.map(s => <option key={s.id} value={s.id}>{(s.createdAt || "").slice(0, 10)} · {s.title || s.studentName}</option>)}
+          </select>
+        </div>
+      </div>
+    </V2Section>
+    <V2ClientStrategyReport st={st} schools={schools} />
+    <V2StrategyEngineReport st={st} schools={schools} snapshot={selectedSnapshot} />
+    <V2EvidenceMatrixDebug result={activeResult} />
+  </div>;
+}
 function V2StageTwoLegacyManual({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
   const plan = st.stagePlans || {};
@@ -1943,7 +2362,7 @@ function V2StageTwo({ st, update, schools }) {
     </div>}
     {sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}
     {sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}
-    {sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}
+    {sub === "report" && <V2StageTwoReportManager st={st} update={update} schools={schools} />}
   </div>;
 }
 function V2StageThree({ st, update, schools }) {
