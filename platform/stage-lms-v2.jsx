@@ -663,24 +663,159 @@ function v2CoreEcStrategyEngine(st = {}) {
     };
   });
 }
-function v2StudentHookEngine(st = {}) {
-  const core = v2CoreEcStrategyEngine(st);
-  const cats = core.map(x => x.category).filter(Boolean);
-  const names = core.map(x => x.activityName).filter(Boolean).join(", ");
-  const hasSports = cats.includes("Sports");
-  const hasAcademic = cats.some(c => /STEM|Academic|Debate|Journalism/i.test(c));
-  const hasArts = cats.some(c => /Music|Arts/i.test(c));
-  const character = hasSports && hasAcademic ? "운동의 지속성과 학업적 호기심을 함께 보여주는 균형형 지원자" : hasSports ? "훈련, 규율, 팀 기여가 먼저 보이는 활동 중심 지원자" : hasAcademic ? "학업적 탐구와 지적 호기심이 먼저 읽히는 지원자" : hasArts ? "표현력과 창의성을 학교 공동체에 더할 수 있는 지원자" : "아직 대표 캐릭터를 더 선명하게 만들어야 하는 지원자";
-  return {
-    character,
-    summary: core.length ? `${st.name || "학생"} 학생은 ${names}을 중심으로 볼 때 ${character}로 읽힙니다. Stage 2 전략보고서에서는 이 활동들을 단순 나열하지 않고, 학생이 어떤 환경에서 성과를 만들고 어떤 방식으로 학교 공동체에 기여할 수 있는지를 하나의 이야기로 묶어야 합니다.` : "핵심 EC가 아직 충분히 지정되지 않았습니다. Stage 1의 EC 기본에서 별표 활동을 지정하면 학생 Hook을 더 정확히 생성할 수 있습니다.",
-    gaps: core.flatMap(x => x.gaps).slice(0, 4)
+function v2HookDomainProfile(domain, ec = {}) {
+  const name = v2EcName(ec);
+  const text = v2EcRoadmapText(ec);
+  if (domain === "Sports") return {
+    trait: "반복 훈련, 자기관리, 경쟁 상황에서의 회복력",
+    proof: `${name}에서는 훈련 빈도, 레벨 변화, 대회/경기 기록, 코치 피드백을 정리해 학생이 어떻게 반복 훈련을 견디고 성장했는지를 보여줘야 합니다.`,
+    contribution: "스포츠는 보딩스쿨에서 기숙사 생활 적응력, 팀 훈련 태도, 학교 공동체 안에서의 활력을 보여주는 자료로 활용할 수 있습니다.",
+    next: "훈련 로그와 기록 변화를 월 단위로 정리하고, 가능하면 코치 코멘트 또는 대회/선발 기준을 확보합니다."
   };
+  if (domain === "STEM" || domain === "Academics") return {
+    trait: /math|mathematics|ukmt|olympiad/i.test(text) ? "낯선 문제를 구조적으로 분석하고 끝까지 붙잡는 수학적 문제 해결력" : "지적 호기심을 결과물로 확장하는 학업적 탐구력",
+    proof: `${name}은 단순 참여 이력보다 문제 해결 노트, 탐구 기록, 대회 준비 과정, 결과물 또는 발표 자료로 증명해야 합니다.`,
+    contribution: "이 강점은 수업 참여, 수학/학술 클럽, 또래 튜터링, 탐구 프로젝트로 확장될 때 학교 공동체 기여로 읽힙니다.",
+    next: "매주 1-2개 고난도 문제 또는 탐구 주제를 정해 접근 과정, 실패한 풀이, 최종 해결법을 기록하는 evidence log를 만듭니다."
+  };
+  if (domain === "Leadership") return {
+    trait: "사람과 프로젝트를 움직여 결과를 만드는 책임감",
+    proof: `${name}에서는 직책명보다 학생이 실제로 바꾼 점, 조율한 사람, 만든 결과를 숫자와 사례로 정리해야 합니다.`,
+    contribution: "리더십은 클럽 운영, 팀 문화, 기숙사/하우스 커뮤니티 안에서 학생이 어떤 변화를 만들 수 있는지 보여주는 고리입니다.",
+    next: "회의 기록, 운영 전후 변화, 참여자 피드백을 모아 리더십 사례 1개를 완성합니다."
+  };
+  if (domain === "Community Service") return {
+    trait: "공동체 안에서 필요한 역할을 찾아 꾸준히 기여하는 성실성",
+    proof: `${name}은 봉사 시간보다 대상, 문제, 학생의 역할, 변화가 보이도록 정리해야 합니다.`,
+    contribution: "보딩스쿨은 생활 공동체이므로, 이 영역은 학생이 학교 안에서 주변 사람에게 어떤 긍정적 영향을 줄 수 있는지를 보여줍니다.",
+    next: "수혜 대상, 누적 시간, 학생 역할, 변화 지표를 한 장 evidence sheet로 정리합니다."
+  };
+  if (domain === "Arts") return {
+    trait: "생각과 감정을 결과물로 표현하는 창의성",
+    proof: `${name}은 포트폴리오, 공연/전시 기록, 피드백, 최종 작품을 통해 수준과 성장 과정을 보여줘야 합니다.`,
+    contribution: "예술 활동은 학교 공연, 전시, 앙상블, 출판물 등 공동체 문화에 더할 수 있는 기여로 연결해야 합니다.",
+    next: "대표 작품 3-5개와 제작 의도, 피드백 반영 과정을 정리합니다."
+  };
+  return {
+    trait: "관심 분야를 실제 경험으로 넓히는 실행력",
+    proof: `${name}은 맡은 일, 만든 산출물, 멘토/기관 피드백을 통해 실제 기여를 보여줘야 합니다.`,
+    contribution: "실무 경험은 학생이 교실 밖 맥락에서도 책임 있게 움직일 수 있음을 보여주는 자료로 활용할 수 있습니다.",
+    next: "최종 산출물, 업무 기록, 멘토 피드백을 정리합니다."
+  };
+}
+function v2HookArchetype(domains = []) {
+  const hasSports = domains.includes("Sports");
+  const hasStem = domains.includes("STEM") || domains.includes("Academics");
+  const hasArts = domains.includes("Arts");
+  const hasLeadership = domains.includes("Leadership");
+  const hasService = domains.includes("Community Service");
+  if (hasStem && hasSports) return {
+    character: "지적 문제 해결력과 반복 훈련을 함께 가진 경쟁형 학생",
+    hookLine: "어려운 문제와 어려운 훈련을 모두 오래 붙잡고, 반복을 통해 성장하는 학생"
+  };
+  if (hasStem && hasLeadership) return {
+    character: "아이디어를 실제 팀과 프로젝트로 확장할 수 있는 탐구형 리더",
+    hookLine: "생각에서 끝나지 않고 사람과 결과물로 연결하는 학생"
+  };
+  if (hasArts && hasLeadership) return {
+    character: "창의적 결과물을 공동체 경험으로 확장하는 표현형 리더",
+    hookLine: "자신의 표현력을 학교 공동체의 경험으로 바꿀 수 있는 학생"
+  };
+  if (hasSports && hasService) return {
+    character: "팀워크와 공동체 기여를 생활 속에서 보여주는 활동형 학생",
+    hookLine: "함께 훈련하고 함께 기여하는 방식으로 성장하는 학생"
+  };
+  if (hasStem) return {
+    character: "지적 호기심을 결과물로 증명해야 하는 탐구형 학생",
+    hookLine: "낯선 질문을 붙잡고 자기만의 답을 만들어가는 학생"
+  };
+  if (hasSports) return {
+    character: "훈련의 지속성과 자기관리로 설득해야 하는 활동형 학생",
+    hookLine: "꾸준한 훈련과 경쟁 경험으로 성장하는 학생"
+  };
+  return {
+    character: "아직 대표 Hook을 더 선명하게 만들어야 하는 학생",
+    hookLine: "핵심 활동의 공통분모를 결과물로 증명해야 하는 학생"
+  };
+}
+function v2HookActivityPriority(ec = {}, index = 0) {
+  const domains = v2EcDomainsForActivity(ec, index);
+  if (domains.includes("STEM") || domains.includes("Academics")) return 1;
+  if (domains.includes("Sports")) return 2;
+  if (domains.includes("Leadership")) return 3;
+  if (domains.includes("Community Service")) return 4;
+  if (domains.includes("Arts")) return 5;
+  return 6;
+}
+function v2BuildHookStrategy(st = {}, schools = []) {
+  const entered = v2OrderCoreEcs(st.ecs || []).filter(v2EcRoadmapHasActivity);
+  const selected = entered.filter(e => e.core).slice(0, 3);
+  const top = [...selected, ...entered.filter(e => !e.core)].slice(0, 3);
+  const narrativeTop = [...top].sort((a, b) => v2HookActivityPriority(a) - v2HookActivityPriority(b));
+  const supporting = entered.filter(e => !top.includes(e)).slice(0, 4);
+  const activityInsights = narrativeTop.map((ec, index) => {
+    const domains = v2EcDomainsForActivity(ec, index);
+    const primary = domains.includes("STEM") ? "STEM" : domains.includes("Academics") ? "Academics" : domains[0] || "Academics";
+    const profile = v2HookDomainProfile(primary, ec);
+    return { rank: index + 1, ec, name: v2EcName(ec), domains, primary, ...profile };
+  });
+  const allDomains = [...new Set(activityInsights.flatMap(x => x.domains))];
+  const archetype = v2HookArchetype(allDomains);
+  const studentName = st.name || "학생";
+  const names = activityInsights.map(x => x.name).join(", ");
+  const traitNames = [...new Set(activityInsights.map(x => x.trait))].join(", ");
+  const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
+  const schoolText = interestNames.length ? `관심학교(${interestNames.slice(0, 3).join(", ")})` : "관심 보딩스쿨";
+  const first = activityInsights[0];
+  const second = activityInsights[1];
+  const third = activityInsights[2];
+  const proofPlan = activityInsights.map(x => ({
+    activity: x.name,
+    domains: x.domains,
+    trait: x.trait,
+    proof: x.proof,
+    next: x.next
+  }));
+  const summary = activityInsights.length ? `${studentName} 학생에게는 “${archetype.hookLine}”이라는 Hook이 가장 적절합니다. 핵심 활동 조합(${names})은 서로 다른 활동처럼 보일 수 있지만, 입학사정관에게는 ${traitNames}이라는 역량 조합으로 연결될 수 있습니다. 중요한 것은 활동명을 많이 보여주는 것이 아니라, 각 활동에서 학생이 어떤 방식으로 문제를 해결하고, 훈련하고, 결과를 만들었는지를 증거로 남기는 것입니다.` : "아직 핵심 EC가 충분히 지정되지 않았습니다. Stage 1의 EC 기본에서 지원서에 가장 먼저 보여주고 싶은 활동 3개를 별표로 지정하면 Hook Strategy를 생성할 수 있습니다.";
+  const contributionPlan = activityInsights.length ? `${schoolText} 맥락에서는 이 Hook을 수업, 기숙사 생활, 클럽/팀 활동으로 나누어 보여줘야 합니다. 수업 안에서는 핵심 활동에서 확인되는 준비 태도와 문제 해결 방식이 토론, 과제, 심화 탐구로 이어질 수 있음을 보여줘야 합니다. 클럽/팀에서는 ${first?.trait || "학생의 강점"}이 실제 참여, 결과물, 또래와의 협업으로 이어져야 합니다. 기숙사 생활에서는 훈련 루틴, 피드백 수용 태도, 꾸준한 자기관리 사례를 준비해야 합니다. 즉 “좋은 활동을 했다”가 아니라 “이 학생이 학교 안에서 어떤 방식으로 움직일 것인가”를 보여주는 자료가 필요합니다.` : "관심학교와 핵심 활동을 입력하면 학교생활 기여 전략이 생성됩니다.";
+  const applicationStrategy = [
+    { area: "Activity List", action: `가장 강한 활동: ${first?.name || "핵심 활동"}. Activity List에서는 활동명보다 역할, 기간, 성과, 숫자가 먼저 보이게 작성합니다.` },
+    { area: "Essay", action: "가장 어려웠던 문제나 훈련 장면 하나를 골라, 학생이 상황을 분석하고 다시 시도해 성장한 과정을 보여줍니다." },
+    { area: "Interview", action: `“저는 ${archetype.hookLine}입니다”라는 메시지를 30초 답변으로 준비하고, 핵심 활동 조합(${names || "핵심 활동"})에서 나온 구체 사례 2개로 설명합니다.` },
+    { area: "Recommendation", action: "추천인에게는 성실하다는 일반 표현보다, 문제 해결 과정·훈련 태도·기여 사례가 들어가도록 evidence sheet를 제공합니다." }
+  ];
+  const executionPlan = [
+    { period: "1개월 내", action: "핵심 활동별 evidence sheet를 만들고, 기간·역할·성과·피드백·다음 목표를 한 장으로 정리합니다." },
+    { period: "3개월 내", action: "가장 강한 활동 1개에서 결과물 또는 기록 변화를 확보합니다. 수학이면 문제 해결 노트, 스포츠면 훈련/기록 로그가 우선입니다." },
+    { period: "6개월 내", action: "관심학교와 연결되는 클럽, 팀, 수업, 프로그램을 찾아 Why School 문장과 인터뷰 소재로 연결합니다." },
+    { period: "지원 직전", action: "Activity List, Essay, Interview, Recommendation 자료가 같은 Hook을 말하고 있는지 점검합니다." }
+  ];
+  const gaps = [];
+  if (!top.length) gaps.push("핵심 활동이 아직 지정되지 않아 학생을 기억하게 할 중심 Hook이 약합니다.");
+  if (!top.some(e => e.position)) gaps.push("활동 안에서 맡은 역할이 충분히 드러나지 않습니다. 직책이 없더라도 실제 책임, 기여, 변화 사례를 정리해야 합니다.");
+  if (!top.some(e => (e.awards || []).length)) gaps.push("수상 또는 외부 성과가 약합니다. 수상이 없더라도 결과물, 기록 변화, 피드백처럼 확인 가능한 증거가 필요합니다.");
+  if (!top.some(e => e.hours || e.weeks)) gaps.push("활동 강도를 보여줄 시간 정보가 부족합니다. 주당 시간과 준비 기간은 지속성을 보여주는 기본 근거입니다.");
+  return {
+    top,
+    supporting,
+    activityInsights,
+    character: archetype.character,
+    hookLine: archetype.hookLine,
+    summary,
+    contributionPlan,
+    proofPlan,
+    applicationStrategy,
+    executionPlan,
+    gaps: gaps.length ? gaps : ["현재 핵심 활동의 방향성은 좋습니다. 다음 단계에서는 각 활동의 증거 자료를 만들어 지원서 전 영역에서 같은 Hook이 반복되도록 정리해야 합니다."]
+  };
+}
+function v2StudentHookEngine(st = {}, schools = []) {
+  return v2BuildHookStrategy(st, schools);
 }
 function v2SchoolFitEngine(st = {}, schools = []) {
   const evaluation = v2BuildEvaluationResult(st, schools);
   const core = v2CoreEcStrategyEngine(st);
-  const hook = v2StudentHookEngine(st);
+  const hook = v2StudentHookEngine(st, schools);
   const recommendations = st.recommendations || [];
   return (st.interests || []).filter(x => x.school).map(interest => {
     const school = v2FindSchool(schools, interest.school) || { name: interest.school };
@@ -743,7 +878,7 @@ function v2RecommendationStrategyEngine(st = {}, schools = []) {
   };
 }
 function v2ActionPlanEngine(st = {}, schools = []) {
-  const strategy = v2StudentHookEngine(st);
+  const strategy = v2StudentHookEngine(st, schools);
   const schoolFits = v2SchoolFitEngine(st, schools);
   const testing = v2TestGapEngine(st, schools);
   const actions = [];
@@ -875,7 +1010,7 @@ function v2GetActivityGoal(st = {}, activityId, domain, ec = {}, schools = []) {
 function v2BuildEvidenceMatrix(st = {}, schools = []) {
   const evaluation = v2BuildEvaluationResult(st, schools);
   const core = v2CoreEcStrategyEngine(st);
-  const hook = v2StudentHookEngine(st);
+  const hook = v2StudentHookEngine(st, schools);
   const schoolFits = v2SchoolFitEngine(st, schools);
   const recommendation = v2RecommendationStrategyEngine(st, schools);
   const matrix = [];
@@ -888,7 +1023,7 @@ function v2BuildEvidenceMatrix(st = {}, schools = []) {
 }
 function v2BuildStrategyResult(st = {}, schools = []) {
   const coreEcAnalyses = v2CoreEcStrategyEngine(st);
-  const hookAnalysis = v2StudentHookEngine(st);
+  const hookAnalysis = v2StudentHookEngine(st, schools);
   const schoolFitAnalyses = v2SchoolFitEngine(st, schools);
   const testGapAnalyses = v2TestGapEngine(st, schools);
   const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
@@ -904,13 +1039,13 @@ function v2BuildStrategyResult(st = {}, schools = []) {
     recommendationStrategy,
     actionPlan,
     evidenceMatrix,
-    parentSummary: `${st.name || "학생"} 학생의 전략은 ${hookAnalysis.character}라는 이미지를 중심으로 구성하는 것이 좋습니다. Stage 1의 수치 진단은 유지하되, Stage 2에서는 핵심 EC, 학교별 Fit, 추천서 증거를 연결해 지원서에서 일관된 설득 구조를 만드는 데 초점을 둡니다.`
+    parentSummary: `${st.name || "학생"} 학생의 전략은 “${hookAnalysis.hookLine || hookAnalysis.character}”라는 Hook을 중심으로 구성하는 것이 좋습니다. Stage 1의 수치 진단은 유지하되, Stage 2에서는 핵심 EC 증거, 학교별 Fit, 추천서 자료, 인터뷰 메시지가 모두 같은 학생 이미지를 말하도록 설계하는 데 초점을 둡니다.`
   };
 }
 function v2BuildEvidenceMatrixShallow(st = {}, schools = [], built = {}) {
   const evaluation = v2BuildEvaluationResult(st, schools);
   const core = built.coreEcAnalyses || v2CoreEcStrategyEngine(st);
-  const hook = built.hookAnalysis || v2StudentHookEngine(st);
+  const hook = built.hookAnalysis || v2StudentHookEngine(st, schools);
   const schoolFits = built.schoolFitAnalyses || v2SchoolFitEngine(st, schools);
   const recommendation = built.recommendationStrategy || v2RecommendationStrategyEngine(st, schools);
   const matrix = [];
@@ -2351,8 +2486,19 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
     <div className="report-body">
       <div className="section-title"><span>S2-01</span>학생 종합 포지셔닝</div>
       <div className="card" style={{ background: "#f8fbfe" }}>
-        <h3>{result.positioning?.character || "학생 캐릭터 분석"}</h3>
+        <span className="pill p-blue">Hook Strategy</span>
+        <h3 style={{ marginTop: 10 }}>“{result.positioning?.hookLine || result.positioning?.character || "학생 캐릭터 분석"}”</h3>
+        <p className="small muted">{result.positioning?.character}</p>
         <p style={{ lineHeight: 1.85 }}>{result.positioning?.summary || result.parentSummary}</p>
+        {result.positioning?.contributionPlan && <p style={{ lineHeight: 1.85 }}><b>보딩스쿨에서 어떻게 보여줄 것인가</b><br />{result.positioning.contributionPlan}</p>}
+        {(result.positioning?.proofPlan || []).length > 0 && <div>
+          <b>Hook을 증명할 자료</b>
+          <table className="table" style={{ marginTop: 8 }}><thead><tr><th>활동</th><th>보여줄 역량</th><th>만들어야 할 증거</th></tr></thead><tbody>{result.positioning.proofPlan.map((p, i) => <tr key={`${p.activity}-${i}`}><td><b>{p.activity}</b></td><td style={{ lineHeight: 1.65 }}>{p.trait}</td><td style={{ lineHeight: 1.65 }}>{p.proof}</td></tr>)}</tbody></table>
+        </div>}
+        {(result.positioning?.applicationStrategy || []).length > 0 && <div className="grid g2" style={{ marginTop: 12 }}>
+          <div><b>지원서 배치</b>{result.positioning.applicationStrategy.map(row => <p key={row.area} style={{ lineHeight: 1.75 }}><b>{row.area}</b><br />{row.action}</p>)}</div>
+          <div><b>실행계획</b>{result.positioning.executionPlan.map(row => <p key={row.period} style={{ lineHeight: 1.75 }}><b>{row.period}</b><br />{row.action}</p>)}</div>
+        </div>}
         {(result.positioning?.gaps || []).length > 0 && <div><b>우선 보완점</b>{result.positioning.gaps.slice(0, 4).map((x, i) => <p key={i} style={{ lineHeight: 1.75 }}>{i + 1}. {x}</p>)}</div>}
       </div>
 
@@ -2635,42 +2781,38 @@ function V2StageTwoLegacyManual({ st, update, schools }) {
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
   return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2EcRoadmapBoard st={st} update={update} schools={schools} />}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}</div>;
 }
-function v2StageTwoPositioning(st) {
-  const entered = v2OrderCoreEcs(st.ecs || []).filter(e => v2EcName(e) !== "활동명 미입력" || e.cat || e.team || e.position);
-  const selected = entered.filter(e => e.core).slice(0, 3);
-  const top = [...selected, ...entered.filter(e => !e.core)].slice(0, 3);
-  const supporting = entered.filter(e => !top.includes(e)).slice(0, 4);
-  const cats = top.map(e => e.cat).filter(Boolean);
-  const hasSports = cats.includes("Sports");
-  const hasStem = cats.includes("STEM") || cats.includes("Academic & Intellectual");
-  const hasArts = cats.includes("Music") || cats.includes("Arts");
-  const hasService = cats.includes("Community Services");
-  const mainNames = top.map(v2EcName).join(", ");
-  const character = hasSports && (hasStem || hasArts) ? "활동성과 꾸준함이 함께 보이는 균형형 학생" : hasSports ? "규율, 팀워크, 지속성을 보여주는 활동 중심 학생" : hasStem ? "지적 호기심과 탐구성이 먼저 보이는 학생" : hasArts ? "표현력과 창의성이 강점으로 보이는 학생" : hasService ? "공동체 기여와 성실성이 드러나는 학생" : "아직 뚜렷한 한 축을 더 선명하게 만들어야 하는 학생";
-  const hook = top.length ? `${st.name || "학생"} 학생은 ${mainNames}를 중심으로 보면 ${character}으로 읽힙니다. 입학사정관 입장에서는 단순히 활동 개수가 많은 학생보다, 한두 개의 활동에서 얼마나 오래 지속했고 어떤 역할을 맡았으며 그 경험이 학교 공동체에 어떤 기여로 이어질 수 있는지가 더 중요합니다. 따라서 Stage 1에서 별표로 지정한 핵심 활동 3개를 지원서의 맨 앞에 두고, 나머지 활동은 이 주제를 보강하는 증거로 정리하는 방향이 적절합니다.` : "아직 핵심 활동이 충분히 입력되지 않았습니다. Stage 1의 EC 기본에서 지원서에 가장 먼저 보여주고 싶은 활동 3개를 별표로 지정하면, 학생 Hook과 활동 간 연결성을 더 정확하게 구성할 수 있습니다.";
-  const connection = top.length > 1 ? `현재 핵심 활동들은 ${cats.join(", ")} 영역으로 연결됩니다. 이 조합은 학생이 어떤 환경에서 에너지를 내는지 보여주는 단서입니다. 서로 다른 활동처럼 보이더라도 역할, 지속기간, 수상, 팀/클럽 안에서의 기여를 한 문장으로 묶어 주면 지원서에서 훨씬 설득력 있게 읽힙니다.` : "핵심 활동이 1개 이하이면 학생의 캐릭터가 좁게 보일 수 있습니다. 두 번째, 세 번째 축을 추가로 정리해야 지원서 전체의 균형이 좋아집니다.";
-  const gaps = [];
-  if (!top.some(e => e.position)) gaps.push("핵심 활동에 포지션/역할이 부족합니다. 원서에서는 활동명보다 맡은 역할이 먼저 읽히므로 각 활동별 역할을 구체화해 주세요.");
-  if (!top.some(e => (e.awards || []).length)) gaps.push("수상 또는 외부 성과가 아직 약합니다. 수상이 없더라도 팀 내 기여, 선발 기준, 공연/대회/프로젝트 결과처럼 검증 가능한 근거를 추가해야 합니다.");
-  if (!hasService) gaps.push("공동체 기여 축이 약하게 보일 수 있습니다. 보딩스쿨은 생활공동체 적합성을 보므로 봉사, 멘토링, 팀 기여 경험을 하나의 증거로 보완하는 것이 좋습니다.");
-  if (!hasStem && !hasArts && !hasSports) gaps.push("현재 활동 카테고리만으로는 학생의 뚜렷한 색깔이 약합니다. Academic, Sports, Arts/Music 중 하나의 중심축을 정해 산출물이나 성과를 만들어야 합니다.");
-  return { top, supporting, hook, character, connection, gaps: gaps.length ? gaps : ["현재 핵심 활동의 방향성은 잡혀 있습니다. 다음 단계에서는 각 활동별 구체 사례, 숫자, 결과물을 보강해 원서 문장으로 전환하는 것이 중요합니다."] };
+function v2StageTwoPositioning(st, schools = []) {
+  return v2BuildHookStrategy(st, schools);
 }
 function V2StageTwo({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
-  const positioning = v2StageTwoPositioning(st);
+  const positioning = v2StageTwoPositioning(st, schools);
   return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />
     {sub === "profile" && <div className="grid">
       <V2Section title="지원 전략 핵심">
-        <div className="grid g2">
-          <div className="card" style={{ background: "#f8fbfe" }}><h3>학생 Hook</h3><p style={{ lineHeight: 1.8 }}>{positioning.hook}</p></div>
-          <div className="card" style={{ background: "#f8fbfe" }}><h3>입학사정관에게 보이는 캐릭터</h3><p style={{ lineHeight: 1.8 }}>{positioning.connection}</p></div>
+        <div className="card" style={{ background: "#f8fbfe" }}>
+          <span className="pill p-blue">Hook Strategy</span>
+          <h2 style={{ margin: "10px 0 6px" }}>“{positioning.hookLine}”</h2>
+          <p className="small muted" style={{ margin: 0 }}>{positioning.character}</p>
+          <p style={{ lineHeight: 1.9 }}>{positioning.summary}</p>
+          <p style={{ lineHeight: 1.9 }}><b>보딩스쿨 맥락에서 어떻게 보여줄 것인가</b><br />{positioning.contributionPlan}</p>
         </div>
-        <table className="table" style={{ marginTop: 14 }}><thead><tr><th>우선순위</th><th>핵심 활동</th><th>분류</th><th>전략적 의미</th></tr></thead><tbody>{positioning.top.length ? positioning.top.map((e, i) => <tr key={`${v2EcName(e)}-${i}`}><td>{i + 1}</td><td><b>{v2EcName(e)}</b><br /><span className="small muted">{e.team || ""} {e.position ? `· ${e.position}` : ""}</span></td><td>{e.cat || "-"}</td><td style={{ lineHeight: 1.7 }}>{e.core ? "Stage 1에서 핵심 활동으로 지정되어 지원서 상단에 배치할 활동입니다." : "핵심 활동 3개가 모두 지정되지 않아 현재 입력값 기준으로 우선순위가 높은 활동입니다."} {e.awards?.length ? `관련 수상 ${e.awards.length}건이 있어 성과 근거로 활용할 수 있습니다.` : "수상이나 결과물이 추가되면 설득력이 더 좋아집니다."}</td></tr>) : <tr><td colSpan="4">Stage 1의 EC 기본에서 활동을 입력하고 별표를 지정해 주세요.</td></tr>}</tbody></table>
+        <h3 style={{ marginTop: 18 }}>Hook을 증명할 핵심 증거</h3>
+        <table className="table" style={{ marginTop: 10 }}><thead><tr><th>우선순위</th><th>핵심 활동</th><th>보여줄 역량</th><th>만들어야 할 증거</th><th>다음 액션</th></tr></thead><tbody>{positioning.proofPlan.length ? positioning.proofPlan.map((p, i) => <tr key={`${p.activity}-${i}`}><td>{i + 1}</td><td><b>{p.activity}</b><br /><span className="small muted">{p.domains.join(" / ")}</span></td><td style={{ lineHeight: 1.65 }}>{p.trait}</td><td style={{ lineHeight: 1.65 }}>{p.proof}</td><td style={{ lineHeight: 1.65 }}>{p.next}</td></tr>) : <tr><td colSpan="5">Stage 1의 EC 기본에서 활동을 입력하고 별표를 지정해 주세요.</td></tr>}</tbody></table>
+        <div className="grid g2" style={{ marginTop: 16 }}>
+          <div className="card" style={{ background: "#ffffff" }}>
+            <h3 style={{ marginTop: 0 }}>지원서 배치 전략</h3>
+            {(positioning.applicationStrategy || []).map(row => <p key={row.area} style={{ lineHeight: 1.75 }}><b>{row.area}</b><br />{row.action}</p>)}
+          </div>
+          <div className="card" style={{ background: "#ffffff" }}>
+            <h3 style={{ marginTop: 0 }}>남은 기간 실행계획</h3>
+            {(positioning.executionPlan || []).map(row => <p key={row.period} style={{ lineHeight: 1.75 }}><b>{row.period}</b><br />{row.action}</p>)}
+          </div>
+        </div>
       </V2Section>
-      <V2Section title="추가 보완이 필요한 활동 방향">
+      <V2Section title="Hook을 약하게 만드는 현재 리스크">
         {positioning.gaps.map((x, i) => <p key={i} style={{ lineHeight: 1.8 }}><b>{i + 1}.</b> {x}</p>)}
         {positioning.supporting.length > 0 && <div><h3>보조 활동으로 연결할 수 있는 자료</h3><p style={{ lineHeight: 1.8 }}>{positioning.supporting.map(v2EcName).join(", ")} 활동은 핵심 Hook을 뒷받침하는 보조 증거로 사용할 수 있습니다. 단, 원서에서는 모든 활동을 같은 비중으로 펼치기보다 핵심 3개를 먼저 보여주고 나머지는 맥락을 보강하는 방식이 좋습니다.</p></div>}
       </V2Section>
