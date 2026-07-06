@@ -144,6 +144,7 @@ const V2_RECOMMENDER_STATUS = ["Not Requested", "Requested", "Materials Sent", "
 const V2_EMPTY_PREVIOUS_APPLICATION = () => ({ school: "", gradeApplied: "", platform: "", platformOtherUrl: "", account: "", submittedDate: "", result: "", notes: "" });
 const V2_EMPTY_RECOMMENDATION = () => ({ candidate: "", role: "", roleOther: "", currentStrength: "", targetStrength: "", evidence: "", currentTeacher: "No", specialtyRecommendation: "No", status: "Not Requested", notes: "" });
 const V2_DATA_MODEL_VERSION = "prep-lms-separated-analysis-v1";
+const V2_EC_ROADMAP_DOMAINS = ["Sports", "Arts", "Leadership", "Community Service", "STEM", "Academics", "Internship/Work"];
 
 function v2EcStrength(ec = {}) {
   const awardCount = (ec.awards || []).filter(a => a.awardName || a.competition).length;
@@ -375,7 +376,7 @@ function v2NormalizeStudent(s) {
     interests,
     academicTerms: terms.length ? terms : [V2_EMPTY_TERM(s.school)],
     tests: (s.tests || []).map(t => ({ ...t, details: t.details || v2ParseDetail(t.detail), type: t.type || "SSAT", finalSubmission: t.finalSubmission || "미정" })),
-    ecs: Array.isArray(s.ecs) ? v2OrderCoreEcs(s.ecs) : [V2_EMPTY_EC()],
+    ecs: Array.isArray(s.ecs) ? v2OrderCoreEcs(s.ecs.map((ec, index) => ({ ...ec, activityId: v2EcActivityId(ec, index) }))) : [V2_EMPTY_EC()],
     awards: Array.isArray(s.awards) ? s.awards.map(a => ({ ...V2_EMPTY_AWARD(), ...a })) : [],
     applications: s.applications || [],
     previousApplications: Array.isArray(s.previousApplications) ? s.previousApplications.map(a => ({ ...V2_EMPTY_PREVIOUS_APPLICATION(), ...a })) : [],
@@ -383,6 +384,11 @@ function v2NormalizeStudent(s) {
     calendarEvents: s.calendarEvents || [],
     enrollmentChecklist: s.enrollmentChecklist || [],
     stagePlans: s.stagePlans || {},
+    activityGoalMap: s.activityGoalMap || {},
+    ecRoadmapAnalysis: {
+      legacyMemo: s.ecRoadmapAnalysis?.legacyMemo || s.stagePlans?.ecRoadmap || "",
+      ...(s.ecRoadmapAnalysis || {})
+    },
     reportSnapshots: Array.isArray(s.reportSnapshots) ? s.reportSnapshots : (s.reportSnapshot ? [s.reportSnapshot] : [])
   };
 }
@@ -451,7 +457,7 @@ function v2StageCompletion(st, stage) {
   const terms = st.academicTerms || [];
   const req = {
     stage1: [st.name, st.en, st.program, st.currentGrade, st.school, st.targetYear, st.targetGrade, st.basic?.dob, st.basic?.gender, st.basic?.birthCountry, st.currentSchoolInfo?.type, terms[0]?.term, terms[0]?.subjects?.[0]?.grade, st.tests?.[0]?.overall || st.tests?.[0]?.details?.Total, st.ecs?.[0]?.name],
-    stage2: [st.profile, st.testPlan, st.projectPlan, st.stagePlans?.schoolList, st.stagePlans?.ecRoadmap],
+    stage2: [st.profile, st.testPlan, st.projectPlan, st.stagePlans?.schoolList, st.stagePlans?.ecRoadmap || st.ecRoadmapAnalysis?.generatedAt || Object.keys(st.activityGoalMap || {})[0]],
     stage3: [st.stagePlans?.weeklyPlan, st.stagePlans?.parentMeeting, st.calendarEvents?.[0]?.title],
     stage4: [st.applications?.[0]?.school, st.previousApplications?.[0]?.school, st.stagePlans?.essayThemes, st.recommendations?.[0]?.candidate || st.stagePlans?.recommenders],
     stage5: [st.stagePlans?.enrollmentSchool, st.enrollmentChecklist?.[0]?.done]
@@ -745,6 +751,126 @@ function v2ActionPlanEngine(st = {}, schools = []) {
   testing.flatMap(x => x.gaps).filter(g => Number(g.gapToCompetitive) > 0).slice(0, 2).forEach((gap, i) => actions.push({ priority: actions.length + 1, area: "Testing", action: gap.comment, deadline: st.programEndDate || "", importance: 4 }));
   schoolFits.slice(0, 3).forEach(fit => actions.push({ priority: actions.length + 1, area: "School Fit", action: `${fit.school}: ${fit.strategyPoint}`, deadline: st.programEndDate || "", importance: 4 }));
   return actions.slice(0, 8);
+}
+function v2EcActivityId(ec = {}, index = 0) {
+  return ec.id || ec.activityId || `ec-${index}-${String(ec.name || ec.team || ec.cat || "activity").toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-")}`;
+}
+function v2EcRoadmapText(ec = {}) {
+  return [ec.cat, ec.name, ec.team, ec.position, ec.level, ec.levelOther, ec.description, ec.impact, ...(ec.awards || []).flatMap(a => [a.level, a.competition, a.awardName, a.notes])].join(" ").toLowerCase();
+}
+function v2EcRoadmapHasActivity(ec = {}) {
+  return ["name", "team", "position", "from", "to", "level", "levelOther", "hours", "impact", "honors"].some(k => String(ec[k] || "").trim()) || (ec.awards || []).length > 0 || !!ec.core;
+}
+function v2EcDomainsForActivity(ec = {}, index = 0) {
+  const text = v2EcRoadmapText(ec);
+  const domains = new Set();
+  if (/sport|athletic|soccer|basketball|tennis|golf|ski|hockey|swim|lacrosse|baseball|rowing|crew|track|football|volleyball|captain|varsity/i.test(text) || ec.cat === "Sports") domains.add("Sports");
+  if (/art|music|orchestra|choir|band|piano|violin|theater|film|portfolio|drawing|painting|design|dance/i.test(text) || ["Music", "Arts"].includes(ec.cat)) domains.add("Arts");
+  if (/captain|president|founder|leader|head|chair|mentor|officer|대표|회장|주장|리더|멘토|captaincy/i.test(text) || ec.core) domains.add("Leadership");
+  if (/service|volunteer|community|tutor|fundraising|nonprofit|봉사|기부|멘토링/i.test(text) || ec.cat === "Community Services") domains.add("Community Service");
+  if (/stem|robot|coding|science|math|research|engineering|kaist|biology|physics|chemistry|computer/i.test(text) || ec.cat === "STEM") domains.add("STEM");
+  if (/debate|speech|model un|mun|journal|publication|essay|academic|intellectual|olympiad|history|writing|john locke/i.test(text) || ["Academic & Intellectual", "Debate/Speech", "Journalism/Publication"].includes(ec.cat)) domains.add("Academics");
+  if (/intern|work|entrepreneur|startup|business|job|company|shadow|인턴|창업/i.test(text) || ec.cat === "Internship/Entrepreneurship") domains.add("Internship/Work");
+  if (!domains.size) domains.add(ec.cat === "Sports" ? "Sports" : "Academics");
+  return [...domains].filter(d => V2_EC_ROADMAP_DOMAINS.includes(d));
+}
+function v2EcDomainSeed() {
+  return Object.fromEntries(V2_EC_ROADMAP_DOMAINS.map(d => [d, { domain: d, score: 0, strength: "", gap: "", activities: [], coreCount: 0 }]));
+}
+function v2EcDomainAnalysis(st = {}, schools = []) {
+  const domains = v2EcDomainSeed();
+  const ecs = (st.ecs || []).filter(v2EcRoadmapHasActivity);
+  ecs.forEach((ec, index) => {
+    const activityId = v2EcActivityId(ec, index);
+    const linkedDomains = v2EcDomainsForActivity(ec, index);
+    linkedDomains.forEach(domain => {
+      const entry = domains[domain];
+      entry.activities.push({ activityId, ec, index, linkedDomains });
+      if (ec.core) entry.coreCount += 1;
+    });
+  });
+  const schoolText = (st.interests || []).map(x => v2FindSchool(schools, x.school)).filter(Boolean).map(s => [s.programs, s.sports, s.arts, s.fit, s.interview].join(" ")).join(" ").toLowerCase();
+  Object.values(domains).forEach(entry => {
+    const activities = entry.activities;
+    const awardCount = activities.reduce((sum, a) => sum + ((a.ec.awards || []).length), 0);
+    const leadershipCount = activities.filter(a => /captain|president|leader|founder|mentor|officer|주장|회장/i.test(v2EcRoadmapText(a.ec))).length;
+    const hours = activities.reduce((sum, a) => sum + (Number(a.ec.hours) || 0), 0);
+    const fitBoost = schoolText.includes(entry.domain.toLowerCase().split("/")[0]) ? 8 : 0;
+    const score = Math.min(100, Math.round(activities.length * 18 + entry.coreCount * 15 + awardCount * 8 + leadershipCount * 10 + Math.min(16, hours) + fitBoost));
+    entry.score = score;
+    entry.strength = activities.length
+      ? `${entry.domain} 영역에는 ${activities.length}개 활동이 연결되어 ${entry.coreCount ? `있고, 그중 핵심 활동 ${entry.coreCount}개가 포함되어 있습니다` : "있습니다"}.`
+      : `${entry.domain} 영역에는 아직 입력된 활동이 없습니다.`;
+    entry.gap = score >= 75 ? "현재 강점으로 활용 가능한 영역입니다. 이제 결과물과 추천서 근거를 정리하는 단계가 중요합니다." : score >= 45 ? "활동 기반은 있으나 리더십, 외부 성과, 지속성 중 한 축을 더 보강해야 합니다." : "관심학교 기준으로 보완 후보 영역입니다. 이 영역을 반드시 키울지, 다른 강점에 집중할지 전략 선택이 필요합니다.";
+  });
+  const strongDomains = Object.values(domains).filter(d => d.score >= 70).map(d => d.domain);
+  const weakDomains = Object.values(domains).filter(d => d.score < 45).map(d => d.domain);
+  const parentExplanation = `현재 EC 포트폴리오는 ${strongDomains.length ? strongDomains.join(", ") : "아직 뚜렷한 강점 영역이 충분히 선명하지 않은 상태"}를 중심으로 읽힙니다. 관심학교 기준으로는 단순히 활동 수가 많은 것보다 핵심 활동에서 지속성, 역할, 성과가 함께 보여야 합니다. ${weakDomains.length ? `${weakDomains.join(", ")} 영역은 보완 후보로 보이며, 남은 기간에는 모든 영역을 넓게 채우기보다 지원서에서 가장 설득력 있는 1~2개 축을 결과물 중심으로 강화하는 전략이 좋습니다.` : "현재는 약점 보완보다 핵심 활동의 산출물과 스토리 정리가 더 중요합니다."}`;
+  return { domainScores: Object.values(domains), domainStrengths: strongDomains, domainGaps: weakDomains, parentExplanation, generatedAt: new Date().toISOString() };
+}
+function v2ApplicationSemesterPlan(st = {}) {
+  const currentYear = new Date().getFullYear();
+  const currentGradeNum = Number(String(st.currentGrade || st.grade || "").match(/\d+/)?.[0]) || 7;
+  const targetYear = Number(st.targetYear) || (currentYear + 2);
+  const targetGradeNum = Number(String(st.targetGrade || "").match(/\d+/)?.[0]) || Math.max(currentGradeNum + 2, 9);
+  const startYear = currentYear;
+  const periods = [];
+  let grade = currentGradeNum;
+  for (let year = startYear; year <= targetYear; year++) {
+    const fallGrade = Math.min(targetGradeNum, grade);
+    periods.push({ key: `Fall ${year}`, label: `Fall ${year} (${fallGrade}-1)`, year, season: "Fall", grade: fallGrade, application: year === targetYear });
+    if (year < targetYear) periods.push({ key: `Spring ${year + 1}`, label: `Spring ${year + 1} (${fallGrade}-2)`, year: year + 1, season: "Spring", grade: fallGrade, application: false });
+    grade += 1;
+    if (periods.length >= 6) break;
+  }
+  return periods.slice(0, 5);
+}
+function v2RecommendedGoalForDomain(domain, ec = {}, st = {}, schools = []) {
+  const schoolNames = (st.interests || []).map(x => x.school).filter(Boolean).join(", ");
+  const base = {
+    Sports: "팀 내 기여도와 경기/훈련 성과를 정리하고, 지원 전까지 Varsity 또는 이에 준하는 레벨에서 학생의 역할을 보여줄 수 있는 결과를 만드는 것을 추천합니다.",
+    Arts: "포트폴리오, 공연, 전시, 오디션용 기록물 중 하나를 지원서에 넣을 수 있는 수준으로 정리하는 것을 추천합니다.",
+    Leadership: "단순 직책보다 실제로 바꾼 점이 보이도록 팀 운영, 멘토링, 프로젝트 리드 결과를 하나의 사례로 완성하는 것을 추천합니다.",
+    "Community Service": "일회성 봉사보다 지속 프로젝트로 만들고, 참여 인원·시간·수혜 대상·변화가 숫자로 보이게 정리하는 것을 추천합니다.",
+    STEM: "연구/제작/대회/발표 중 하나를 결과물로 남기고, 관심학교의 STEM 프로그램과 연결되는 탐구 주제를 정리하는 것을 추천합니다.",
+    Academics: "John Locke Essay Competition, 토론/글쓰기 포트폴리오, 독립 연구 등 학업적 호기심을 보여주는 결과물을 준비하는 것을 추천합니다. 일정과 대회 요건은 공식 확인이 필요합니다.",
+    "Internship/Work": "인턴십 또는 실무 프로젝트의 최종 산출물과 멘토 피드백을 정리해 학생의 책임감과 실제 기여를 보여주는 것을 추천합니다."
+  }[domain] || "활동의 역할, 지속성, 성과를 지원서에 쓸 수 있는 결과물로 정리하는 것을 추천합니다.";
+  return `${base}${schoolNames ? ` 관심학교(${schoolNames}) 기준으로는 이 목표가 학생의 학교 적합성과 연결되도록 Why School/인터뷰 소재까지 함께 준비하는 것이 좋습니다.` : ""}`;
+}
+function v2BuildActivityRoadmap(domain, ec = {}, goal = "", st = {}) {
+  const periods = v2ApplicationSemesterPlan(st);
+  return periods.map((period, index) => {
+    const isLast = index === periods.length - 1 || period.application;
+    return {
+      period: period.label,
+      goal: isLast ? "지원서에 넣을 수 있는 최종 성과와 스토리를 확정합니다." : index === 0 ? "현재 수준을 진단하고 목표 달성을 위한 기본 루틴을 만듭니다." : "중간 결과물을 만들고 외부 피드백 또는 검증 기회를 확보합니다.",
+      deliverable: isLast ? "활동 설명 문장, 결과물 링크/파일, 추천서용 evidence sheet" : domain === "Academics" ? "아웃라인/초안/리서치 노트" : domain === "Sports" ? "훈련 기록, 경기 기록, 코치 피드백 메모" : "활동 산출물과 진행 기록",
+      successCriteria: isLast ? "원서 활동란과 인터뷰 답변에 바로 사용할 수 있을 정도로 정리" : "학기 말에 측정 가능한 산출물 1개 이상 확보",
+      risk: "학기 중 학업·시험 준비와 충돌하면 산출물이 흐려질 수 있습니다.",
+      checkpoint: isLast ? "지원서 제출 전 최종 검토" : "학기 말 담당자 리뷰"
+    };
+  });
+}
+function v2BuildWeeklyActionPlan(domain, ec = {}, goal = "") {
+  const map = {
+    Sports: ["주 3회 훈련 기록 작성", "월 1회 코치 피드백 정리", "경기/선발/기록 변화 업데이트"],
+    Arts: ["주 2회 작품/연습 기록", "월 1회 포트폴리오 정리", "학기 말 피드백 반영본 완성"],
+    Leadership: ["주 1회 팀 운영/회의 기록", "월 1회 리더십 사례 정리", "학기 말 변화 지표 정리"],
+    "Community Service": ["주 1회 프로젝트 실행", "월 1회 참여자/수혜자 기록 정리", "학기 말 임팩트 수치 업데이트"],
+    STEM: ["주 2회 리서치/제작", "격주 1회 멘토 피드백", "학기 말 결과물 버전 관리"],
+    Academics: ["주 2회 리서치/글쓰기", "월 1회 외부 피드백", "학기 말 초안 또는 제출본 완성"],
+    "Internship/Work": ["주 1회 업무 기록", "월 1회 멘토 확인", "학기 말 산출물/평가 정리"]
+  }[domain] || ["주 1회 활동 기록", "월 1회 피드백", "학기 말 결과물 정리"];
+  return map.map((item, i) => ({ item, timesPerWeek: i === 0 ? 2 : 1, hoursPerSession: i === 0 ? 1.5 : 1, supportNeeded: i === 1 ? "담당자/멘토 피드백 필요" : "학생 실행", checkpoint: i === 2 ? "학기 말 리뷰" : "월간 점검", expectedOutput: i === 0 ? "진행 기록" : i === 1 ? "피드백 메모" : "최종 산출물" }));
+}
+function v2GetActivityGoal(st = {}, activityId, domain, ec = {}, schools = []) {
+  const saved = st.activityGoalMap?.[activityId] || {};
+  const generatedGoal = saved.generatedGoal || v2RecommendedGoalForDomain(domain, ec, st, schools);
+  const selectedGoal = saved.selectedGoal || saved.userGoal || generatedGoal;
+  const roadmap = saved.roadmap?.length ? saved.roadmap : v2BuildActivityRoadmap(domain, ec, selectedGoal, st);
+  const weeklyActionPlan = saved.weeklyActionPlan?.length ? saved.weeklyActionPlan : v2BuildWeeklyActionPlan(domain, ec, selectedGoal);
+  return { activityId, generatedGoal, userGoal: saved.userGoal || "", selectedGoal, linkedDomains: saved.linkedDomains || v2EcDomainsForActivity(ec), roadmap, weeklyActionPlan, lastGeneratedAt: saved.lastGeneratedAt || new Date().toISOString(), manuallyEdited: !!saved.manuallyEdited };
 }
 function v2BuildEvidenceMatrix(st = {}, schools = []) {
   const evaluation = v2BuildEvaluationResult(st, schools);
@@ -2159,7 +2285,7 @@ function V2Ecs({ st, update }) {
     }
     edit(i, { core: nextValue });
   };
-  return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, V2_EMPTY_EC()] })} render={(r, i) => {
+  return <ArrayEditor title="EC 활동" rows={ecs} add={() => update({ ecs: [...ecs, { ...V2_EMPTY_EC(), activityId: `ec-${Date.now()}-${Math.random().toString(36).slice(2)}` }] })} render={(r, i) => {
     const isSports = r.cat === "Sports";
     const levelOptions = isSports ? V2_EC_LEVELS : ["School", "Regional/Local", "National", "International", "Independent/Personal", "기타"];
     const nameLabel = isSports ? "종목" : "활동명";
@@ -2314,11 +2440,200 @@ function V2StageTwoReportManager({ st, update, schools }) {
     <V2EvidenceMatrixDebug result={activeResult} />
   </div>;
 }
+function V2EcRoadmapChart({ analysis }) {
+  const rows = analysis?.domainScores || [];
+  return <div className="card" style={{ background: "#f8fbfe" }}>
+    <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 18 }}>
+      <div>
+        <h3 style={{ margin: "0 0 6px" }}>EC 영역별 준비도</h3>
+        <p className="small muted" style={{ margin: 0 }}>Stage 1에 입력된 활동을 기반으로 영역별 강점과 보완 후보를 자동 분류합니다.</p>
+      </div>
+      <span className="pill p-blue">자동 분석</span>
+    </div>
+    <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+      {rows.map(row => <div key={row.domain} style={{ display: "grid", gridTemplateColumns: "150px 1fr 50px", alignItems: "center", gap: 12 }}>
+        <b style={{ fontSize: 14 }}>{row.domain}</b>
+        <div style={{ height: 12, borderRadius: 999, background: "#dceaf7", overflow: "hidden" }}>
+          <div style={{ width: `${Math.max(4, row.score)}%`, height: "100%", borderRadius: 999, background: row.score >= 75 ? "#2563eb" : row.score >= 45 ? "#38bdf8" : "#f59e0b" }} />
+        </div>
+        <b style={{ textAlign: "right" }}>{row.score}</b>
+      </div>)}
+    </div>
+  </div>;
+}
+function V2EcRoadmapActivityCard({ item, goal, onOpen }) {
+  const ec = item.ec || {};
+  const hasAwards = (ec.awards || []).length > 0;
+  return <button type="button" onClick={onOpen} style={{ width: "100%", textAlign: "left", border: "1px solid #d8e7f5", background: "#fff", borderRadius: 12, padding: 12, cursor: "pointer" }}>
+    <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+      <div>
+        <b>{v2EcName(ec)}</b>
+        <p className="small muted" style={{ margin: "4px 0 0" }}>{ec.team || ec.position || ec.level || "세부 정보 입력 필요"}</p>
+      </div>
+      {ec.core && <span className="pill p-blue">핵심</span>}
+    </div>
+    <p className="small" style={{ margin: "10px 0 0", lineHeight: 1.55 }}>{goal.selectedGoal || goal.generatedGoal}</p>
+    <div className="right" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+      {(item.linkedDomains || []).map(d => <span key={d} className="pill">{d}</span>)}
+      {hasAwards && <span className="pill p-green">수상 {(ec.awards || []).length}</span>}
+    </div>
+  </button>;
+}
+function V2EcRoadmapDetailModal({ item, st, update, schools, onClose }) {
+  const ec = item?.ec || {};
+  const activityId = item?.activityId || "";
+  const itemDomain = item?.domain || "Academics";
+  const goal = v2GetActivityGoal(st, activityId, itemDomain, ec, schools);
+  const [draftGoal, setDraftGoal] = useState(goal.selectedGoal || goal.generatedGoal || "");
+  const [draftRoadmap, setDraftRoadmap] = useState(goal.roadmap || []);
+  const [draftWeekly, setDraftWeekly] = useState(goal.weeklyActionPlan || []);
+  React.useEffect(() => {
+    const nextGoal = v2GetActivityGoal(st, activityId, itemDomain, ec, schools);
+    setDraftGoal(nextGoal.selectedGoal || nextGoal.generatedGoal || "");
+    setDraftRoadmap(nextGoal.roadmap || []);
+    setDraftWeekly(nextGoal.weeklyActionPlan || []);
+  }, [activityId]);
+  if (!item) return null;
+  const save = () => {
+    const analysis = v2EcDomainAnalysis(st, schools);
+    const saved = {
+      ...goal,
+      userGoal: draftGoal,
+      selectedGoal: draftGoal || goal.generatedGoal,
+      linkedDomains: item.linkedDomains || goal.linkedDomains,
+      roadmap: draftRoadmap,
+      weeklyActionPlan: draftWeekly,
+      manuallyEdited: true,
+      lastGeneratedAt: new Date().toISOString()
+    };
+    update({
+      activityGoalMap: { ...(st.activityGoalMap || {}), [activityId]: saved },
+      ecRoadmapAnalysis: { ...analysis, legacyMemo: st.ecRoadmapAnalysis?.legacyMemo || st.stagePlans?.ecRoadmap || "" }
+    });
+    onClose();
+  };
+  const updateRoadmap = (idx, patch) => setDraftRoadmap(draftRoadmap.map((row, i) => i === idx ? { ...row, ...patch } : row));
+  const updateWeekly = (idx, patch) => setDraftWeekly(draftWeekly.map((row, i) => i === idx ? { ...row, ...patch } : row));
+  const resetSuggestion = () => {
+    const nextGoal = goal.generatedGoal || v2RecommendedGoalForDomain(itemDomain, ec, st, schools);
+    setDraftGoal(nextGoal);
+    setDraftRoadmap(v2BuildActivityRoadmap(itemDomain, ec, nextGoal, st));
+    setDraftWeekly(v2BuildWeeklyActionPlan(itemDomain, ec, nextGoal));
+  };
+  return <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, .38)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div className="card" style={{ width: "min(1120px, 96vw)", maxHeight: "90vh", overflow: "auto", borderRadius: 16, boxShadow: "0 24px 70px rgba(15,23,42,.28)" }}>
+      <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <span className="pill p-blue">{itemDomain}</span>
+          <h2 style={{ margin: "10px 0 4px" }}>{v2EcName(ec)}</h2>
+          <p className="small muted" style={{ margin: 0 }}>{(item.linkedDomains || []).join(" / ")} 영역에 연결된 동일 활동입니다.</p>
+        </div>
+        <button type="button" className="btn ghost" onClick={onClose}>닫기</button>
+      </div>
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        <div>
+          <h3>활동 원자료</h3>
+          <table className="table"><tbody>
+            <tr><th>분류</th><td>{ec.cat || "-"}</td></tr>
+            <tr><th>팀/기관</th><td>{ec.team || "-"}</td></tr>
+            <tr><th>기간</th><td>{[ec.from, ec.to || (ec.status === "진행 중" ? "진행 중" : "")].filter(Boolean).join(" - ") || "-"}</td></tr>
+            <tr><th>주당 시간</th><td>{ec.hours || "-"}</td></tr>
+            <tr><th>레벨/역할</th><td>{[ec.levelOther || ec.level, ec.position].filter(Boolean).join(" / ") || "-"}</td></tr>
+          </tbody></table>
+          {(ec.awards || []).length > 0 && <div style={{ marginTop: 12 }}>
+            <h3>관련 수상내역</h3>
+            <table className="table"><thead><tr><th>레벨</th><th>대회/상</th><th>연월</th></tr></thead><tbody>{ec.awards.map((a, i) => <tr key={i}><td>{a.level}</td><td>{[a.competition, a.awardName].filter(Boolean).join(" / ")}</td><td>{a.date || "-"}</td></tr>)}</tbody></table>
+          </div>}
+        </div>
+        <div>
+          <h3>추천 목표 및 수정</h3>
+          <p className="small muted" style={{ lineHeight: 1.7 }}>추천 목표는 학생 포지셔닝, 핵심 EC, 관심학교 데이터를 기준으로 생성됩니다. 실제 상담 방향에 맞게 수정하면 같은 활동이 연결된 모든 영역에 함께 반영됩니다.</p>
+          <V2Text label="최종 목표" val={draftGoal} set={setDraftGoal} minHeight={120} />
+          <div className="right" style={{ gap: 8 }}>
+            <button type="button" className="btn ghost" onClick={resetSuggestion}>추천안으로 다시 설정</button>
+            <button type="button" className="btn primary" onClick={save}>저장</button>
+          </div>
+        </div>
+      </div>
+      <h3 style={{ marginTop: 18 }}>학기별 로드맵</h3>
+      <div style={{ display: "grid", gap: 10 }}>
+        {draftRoadmap.map((row, i) => <div key={`${row.period}-${i}`} style={{ border: "1px solid #d8e7f5", borderRadius: 12, padding: 12, background: "#fbfdff" }}>
+          <div className="grid g4">
+            <V2Field label="학기" val={row.period} set={v => updateRoadmap(i, { period: v })} />
+            <V2Field label="학기 목표" val={row.goal} set={v => updateRoadmap(i, { goal: v })} />
+            <V2Field label="산출물" val={row.deliverable} set={v => updateRoadmap(i, { deliverable: v })} />
+            <V2Field label="점검 시점" val={row.checkpoint} set={v => updateRoadmap(i, { checkpoint: v })} />
+          </div>
+          <V2Text label="성공 기준 / 리스크" val={`${row.successCriteria || ""}${row.risk ? `\n${row.risk}` : ""}`} set={v => {
+            const [successCriteria, ...rest] = String(v || "").split("\n");
+            updateRoadmap(i, { successCriteria, risk: rest.join("\n") });
+          }} minHeight={56} />
+        </div>)}
+      </div>
+      <h3 style={{ marginTop: 18 }}>주간 액션 플랜</h3>
+      <table className="table"><thead><tr><th>액션</th><th>주당 횟수</th><th>회당 시간</th><th>지원</th><th>산출물</th></tr></thead><tbody>{draftWeekly.map((row, i) => <tr key={i}>
+        <td><input className="input" value={row.item || ""} onChange={e => updateWeekly(i, { item: e.target.value })} /></td>
+        <td><input className="input" type="number" value={row.timesPerWeek || ""} onChange={e => updateWeekly(i, { timesPerWeek: e.target.value })} /></td>
+        <td><input className="input" value={row.hoursPerSession || ""} onChange={e => updateWeekly(i, { hoursPerSession: e.target.value })} /></td>
+        <td><input className="input" value={row.supportNeeded || ""} onChange={e => updateWeekly(i, { supportNeeded: e.target.value })} /></td>
+        <td><input className="input" value={row.expectedOutput || ""} onChange={e => updateWeekly(i, { expectedOutput: e.target.value })} /></td>
+      </tr>)}</tbody></table>
+    </div>
+  </div>;
+}
+function V2EcRoadmapBoard({ st, update, schools }) {
+  const [selected, setSelected] = useState(null);
+  const analysis = v2EcDomainAnalysis(st, schools);
+  const hasActivities = (st.ecs || []).some(v2EcRoadmapHasActivity);
+  const saveAnalysis = () => update({ ecRoadmapAnalysis: { ...analysis, legacyMemo: st.ecRoadmapAnalysis?.legacyMemo || st.stagePlans?.ecRoadmap || "" } });
+  return <div>
+    <V2Section title="EC 로드맵">
+      <div className="grid g2">
+        <V2EcRoadmapChart analysis={analysis} />
+        <div className="card" style={{ background: "#ffffff" }}>
+          <h3 style={{ marginTop: 0 }}>분석 요약</h3>
+          <p style={{ lineHeight: 1.85 }}>{analysis.parentExplanation}</p>
+          <div className="right" style={{ gap: 8, flexWrap: "wrap" }}>
+            {analysis.domainStrengths.map(d => <span key={d} className="pill p-blue">강점: {d}</span>)}
+            {analysis.domainGaps.map(d => <span key={d} className="pill">보완: {d}</span>)}
+          </div>
+          <button type="button" className="btn ghost" style={{ marginTop: 14 }} onClick={saveAnalysis}>현재 분석 저장</button>
+        </div>
+      </div>
+      {!hasActivities && <p className="small muted" style={{ marginTop: 14 }}>Stage 1 > EC 기본에 활동을 입력하면 자동으로 영역별 로드맵이 생성됩니다.</p>}
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        {analysis.domainScores.map(domain => <div key={domain.domain} className="card" style={{ background: domain.activities.length ? "#ffffff" : "#f8fbfe" }}>
+          <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+            <div>
+              <h3 style={{ margin: "0 0 4px" }}>{domain.domain}</h3>
+              <p className="small muted" style={{ margin: 0 }}>{domain.strength}</p>
+            </div>
+            <span className="pill p-blue">{domain.score}</span>
+          </div>
+          <p className="small" style={{ lineHeight: 1.65 }}>{domain.gap}</p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {domain.activities.length ? domain.activities.map(item => {
+              const goal = v2GetActivityGoal(st, item.activityId, domain.domain, item.ec, schools);
+              return <V2EcRoadmapActivityCard key={`${domain.domain}-${item.activityId}`} item={{ ...item, domain: domain.domain }} goal={goal} onOpen={() => setSelected({ ...item, domain: domain.domain })} />;
+            }) : <div style={{ border: "1px dashed #bdd6ee", borderRadius: 12, padding: 12, background: "#fff" }}>
+              <p className="small muted" style={{ margin: 0 }}>이 영역에 연결된 활동이 없습니다. 관심학교 기준으로 꼭 필요한 영역인지 검토한 뒤, 필요하면 Stage 1 EC에 활동을 추가해 주세요.</p>
+            </div>}
+          </div>
+        </div>)}
+      </div>
+      {(st.ecRoadmapAnalysis?.legacyMemo || st.stagePlans?.ecRoadmap) && <details style={{ marginTop: 16 }}>
+        <summary className="small muted" style={{ cursor: "pointer" }}>기존 EC 로드맵 메모 보기</summary>
+        <div className="card" style={{ marginTop: 8, background: "#fbfdff" }}><p style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{st.ecRoadmapAnalysis?.legacyMemo || st.stagePlans?.ecRoadmap}</p></div>
+      </details>}
+    </V2Section>
+    <V2EcRoadmapDetailModal item={selected} st={st} update={update} schools={schools} onClose={() => setSelected(null)} />
+  </div>;
+}
 function V2StageTwoLegacyManual({ st, update, schools }) {
   const [sub, setSub] = useState("profile");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
-  return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}</div>;
+  return <div><V2SubTabs tabs={[["profile", "학생 포지셔닝"], ["ec", "EC 로드맵"], ["schools", "학교 리스트"], ["report", "전략 보고서"]]} active={sub} set={setSub} />{sub === "profile" && <V2Section title="지원 전략 핵심"><V2Text label="학생 Hook / Story Angle" val={st.profile} set={v => update({ profile: v })} /><V2Text label="학업 보완 전략" val={st.tutoring} set={v => update({ tutoring: v })} /><V2Text label="시험 전략" val={st.testPlan} set={v => update({ testPlan: v })} /></V2Section>}{sub === "ec" && <V2EcRoadmapBoard st={st} update={update} schools={schools} />}{sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}{sub === "report" && <V2ClientStrategyReport st={st} schools={schools} />}</div>;
 }
 function v2StageTwoPositioning(st) {
   const entered = v2OrderCoreEcs(st.ecs || []).filter(e => v2EcName(e) !== "활동명 미입력" || e.cat || e.team || e.position);
@@ -2360,7 +2675,7 @@ function V2StageTwo({ st, update, schools }) {
         {positioning.supporting.length > 0 && <div><h3>보조 활동으로 연결할 수 있는 자료</h3><p style={{ lineHeight: 1.8 }}>{positioning.supporting.map(v2EcName).join(", ")} 활동은 핵심 Hook을 뒷받침하는 보조 증거로 사용할 수 있습니다. 단, 원서에서는 모든 활동을 같은 비중으로 펼치기보다 핵심 3개를 먼저 보여주고 나머지는 맥락을 보강하는 방식이 좋습니다.</p></div>}
       </V2Section>
     </div>}
-    {sub === "ec" && <V2Section title="지원시기까지의 EC Planning"><V2Text label="EC 로드맵" val={plan.ecRoadmap} set={v => setPlan({ ecRoadmap: v })} /><CmsRoadmap st={st} update={update} /></V2Section>}
+    {sub === "ec" && <V2EcRoadmapBoard st={st} update={update} schools={schools} />}
     {sub === "schools" && <V2Section title="학교 리스트 / Rubric 기반 Fit"><V2Text label="학교 리스트 전략" val={plan.schoolList} set={v => setPlan({ schoolList: v })} /><EnhancedStrategy st={st} update={update} schools={schools} /></V2Section>}
     {sub === "report" && <V2StageTwoReportManager st={st} update={update} schools={schools} />}
   </div>;
