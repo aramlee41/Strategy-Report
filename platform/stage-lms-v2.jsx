@@ -389,6 +389,7 @@ function v2NormalizeStudent(s) {
       legacyMemo: s.ecRoadmapAnalysis?.legacyMemo || s.stagePlans?.ecRoadmap || "",
       ...(s.ecRoadmapAnalysis || {})
     },
+    signatureProjects: Array.isArray(s.signatureProjects) ? s.signatureProjects : [],
     reportSnapshots: Array.isArray(s.reportSnapshots) ? s.reportSnapshots : (s.reportSnapshot ? [s.reportSnapshot] : [])
   };
 }
@@ -812,6 +813,86 @@ function v2BuildHookStrategy(st = {}, schools = []) {
 function v2StudentHookEngine(st = {}, schools = []) {
   return v2BuildHookStrategy(st, schools);
 }
+function v2ProjectRoadmapFromHook(st = {}, projectType = "") {
+  return v2ApplicationSemesterPlan(st).map((period, index) => ({
+    period: period.label,
+    focus: index === 0 ? "기초 자료를 모으고 프로젝트의 증거 구조를 설계합니다." : index === 1 ? "중간 결과물을 만들고 담당자 피드백을 반영합니다." : period.application ? "지원서에 넣을 최종 문장과 증거 자료를 확정합니다." : "외부 검증 또는 학교 Fit 연결 자료를 확보합니다.",
+    deliverable: /Math|STEM|Research/i.test(projectType) ? "문제 해결 노트, 탐구 기록, 제출/발표 자료" : /Athletic|Sports|Ski/i.test(projectType) ? "훈련 로그, 기록 변화, 코치 피드백" : /Writing|Interview/i.test(projectType) ? "대표 에피소드, 에세이/인터뷰 초안, 추천서 evidence sheet" : "프로젝트 evidence sheet, 활동 설명 초안, 인터뷰 사례",
+    checkpoint: period.application ? "지원서 제출 전 최종 점검" : "학기 말 담당자 리뷰"
+  }));
+}
+function v2SignatureProject(id, title, badge, theme, sourceActivities, rationale, currentState, targetState, projectType, st = {}) {
+  return {
+    id,
+    title,
+    badge,
+    theme,
+    sourceActivities: sourceActivities.map(x => x.ec?.activityId || x.ec?.id || x.name).filter(Boolean),
+    sourceActivityNames: sourceActivities.map(x => x.name).filter(Boolean),
+    rationale,
+    currentState,
+    targetState,
+    semesterRoadmap: v2ProjectRoadmapFromHook(st, projectType),
+    applicationUsage: /Bridge/i.test(projectType) ? ["Why School", "Interview", "School-specific supplement"] : /Writing|Research/i.test(projectType) ? ["Essay", "Portfolio / Supplement", "Interview", "Recommendation"] : ["Activity List", "Essay", "Interview", "Recommendation"],
+    evidenceNeeded: [],
+    risks: [],
+    nextActions: [],
+    generatedAt: new Date().toISOString(),
+    manuallyEdited: false
+  };
+}
+function v2GenerateSignatureProjects(st = {}, schools = []) {
+  const hook = v2BuildHookStrategy(st, schools);
+  const insights = hook.activityInsights || [];
+  const stem = insights.filter(x => x.domains.includes("STEM") || x.domains.includes("Academics"));
+  const sports = insights.filter(x => x.domains.includes("Sports"));
+  const arts = insights.filter(x => x.domains.includes("Arts"));
+  const leadership = insights.filter(x => x.domains.includes("Leadership") || x.domains.includes("Community Service"));
+  const schoolNames = (st.interests || []).map(x => x.school).filter(Boolean).slice(0, 3);
+  const projectList = [];
+  if (stem.length && sports.length) {
+    const title = `${sports[0].name} × ${stem[0].name.includes("Math") || stem[0].name.includes("UKMT") ? "수학" : "탐구"} — “${hook.hookLine}”`;
+    const p = v2SignatureProject("signature-stem-sports", title, "독보적 아이덴티티", "blue", [sports[0], ...stem.slice(0, 2)], `${st.name || "학생"} 학생의 가장 흥미로운 고리는 학업적 문제 해결력과 스포츠 훈련성이 함께 보인다는 점입니다. 이 프로젝트는 두 활동을 따로 보여주는 대신, 어려운 문제와 어려운 훈련을 모두 반복적으로 해결하는 학생이라는 하나의 이미지로 묶어 줍니다.`, `현재 근거는 ${[...stem, ...sports].map(x => x.name).join(", ")}입니다. 다만 이 활동들이 아직 하나의 스토리로 연결되어 보이려면 문제 해결 과정, 훈련 기록, 피드백 자료가 더 필요합니다.`, "지원 전까지 수학/탐구 evidence log와 스포츠 훈련 로그를 함께 정리하고, Essay와 Interview에서 같은 성장 패턴으로 설명할 수 있게 만듭니다.", "STEM × Sports Identity", st);
+    p.evidenceNeeded = ["수학 문제 해결 노트", "대회 준비/결과 기록", "스포츠 훈련 로그", "기록 변화 또는 코치 피드백", "두 활동을 연결하는 30초 인터뷰 답변"];
+    p.risks = ["수학과 스포츠가 별개의 활동으로 보이면 Hook의 힘이 약해질 수 있습니다.", "객관적 기록이나 피드백이 부족하면 활동의 깊이가 충분히 전달되지 않습니다."];
+    p.nextActions = ["이번 달 안에 수학 문제 해결 노트 양식을 만듭니다.", "스포츠 훈련 로그와 코치 피드백 요청 문안을 준비합니다.", "두 활동을 연결하는 Essay 소재 후보 2개를 정리합니다."];
+    projectList.push(p);
+  }
+  if (stem.length) {
+    const p = v2SignatureProject("signature-stem-portfolio", `${stem[0].name} 중심 수학·탐구 포트폴리오`, "STEM Spike", "cyan", stem.slice(0, 2), `${stem.map(x => x.name).join(", ")}는 단순 대회 참가가 아니라 학생의 사고 방식과 문제 해결 습관을 보여주는 자료가 되어야 합니다. 이 프로젝트는 수상 여부와 별개로 학생이 어떻게 생각하고 다시 시도하는지를 증거로 남기는 데 목적이 있습니다.`, `현재 ${stem.map(x => x.name).join(", ")} 활동이 확인됩니다. 하지만 문제를 어떻게 접근했는지, 실패한 풀이를 어떻게 수정했는지, 어떤 지적 호기심으로 확장했는지는 아직 더 정리해야 합니다.`, "지원 전까지 주간 문제 해결 노트, 탐구 기록, 수학 교사/멘토에게 전달할 evidence sheet를 완성합니다.", "STEM Competition Portfolio", st);
+    p.evidenceNeeded = ["주간 문제 해결 노트", "실패한 풀이와 수정 과정", "대회 준비 일정", "수학 교사 추천서 evidence sheet", "심화 탐구 주제 1개"];
+    p.risks = ["대회명만 있고 사고 과정이 없으면 단순 스펙처럼 보일 수 있습니다.", "학교 수업과 공동체 기여로 확장되는 장면이 부족할 수 있습니다."];
+    p.nextActions = ["고난도 문제 5개를 골라 풀이 과정 기록을 시작합니다.", "수학 교사에게 보여줄 evidence sheet 초안을 만듭니다.", "관심학교의 Math Club/STEM 프로그램을 조사합니다."];
+    projectList.push(p);
+  }
+  if (sports.length) {
+    const p = v2SignatureProject("signature-athletic-track", `${sports[0].name} Athletic Growth Track`, "Athletic Spike", "green", sports.slice(0, 2), `${sports[0].name}는 단순 취미가 아니라 지속성, 자기관리, 경쟁 상황에서의 회복력을 보여주는 중요한 활동입니다. 보딩스쿨에서는 스포츠가 생활 공동체 적응력과 팀 기여 가능성의 신호가 될 수 있습니다.`, `현재 ${sports[0].name} 활동이 확인됩니다. 다만 기록 변화, 레벨, 대회 경험, 코치 피드백이 정리될수록 훨씬 강한 증거가 됩니다.`, "지원 전까지 훈련 로그, 기록 변화, 코치 피드백, 영상/사진 자료를 정리해 Activity List와 Interview에 사용할 수 있게 만듭니다.", "Athletic Development Track", st);
+    p.evidenceNeeded = ["훈련 로그", "기록 변화", "대회/선발 기준", "코치 피드백", "활동 사진/영상 링크"];
+    p.risks = ["활동명만으로는 실력과 지속성을 판단하기 어렵습니다.", "팀/학교 공동체 기여로 연결되지 않으면 보딩 Fit 근거가 약해질 수 있습니다."];
+    p.nextActions = ["훈련 빈도와 기록 변화를 월별로 정리합니다.", "코치 피드백 요청 문안을 준비합니다.", "스포츠 활동을 보딩 생활 적응력으로 설명하는 인터뷰 답변을 만듭니다."];
+    projectList.push(p);
+  }
+  if (arts.length || leadership.length || projectList.length < 3) {
+    const base = arts[0] || leadership[0] || insights[0];
+    const title = arts[0] ? `${base.name} Portfolio Project` : leadership[0] ? `${base.name} Leadership / Service Initiative` : "Writing / Interview Story Project";
+    const badge = arts[0] ? "Arts Portfolio" : leadership[0] ? "Leadership / Service Spike" : "Writing Portfolio";
+    const p = v2SignatureProject("signature-expression-project", title, badge, "purple", base ? [base] : [], base ? `${base.name} 활동을 학생의 관심사, 결과물, 발표, 기여 사례로 확장하는 프로젝트입니다. Hook이 활동 목록 안에만 머물지 않고 지원서 문장과 인터뷰 소재로 작동하게 만듭니다.` : "핵심 활동의 공통분모를 Essay와 Interview에서 설명할 수 있는 스토리로 정리하는 프로젝트입니다.", base ? `현재 ${base.name} 활동이 확인됩니다. 결과물, 피드백, 역할, 변화 사례를 더 정리해야 합니다.` : "아직 별도 활동 축이 충분하지 않아 기존 핵심 활동에서 스토리 소재를 발굴해야 합니다.", "지원 전까지 대표 결과물과 30초 인터뷰 답변, 추천서 evidence sheet를 완성합니다.", "Writing / Interview Portfolio", st);
+    p.evidenceNeeded = ["대표 결과물", "활동 설명 초안", "인터뷰 답변", "추천서 evidence sheet"];
+    p.risks = ["프로젝트 목적이 불분명하면 활동 나열처럼 보일 수 있습니다."];
+    p.nextActions = ["핵심 활동별 에피소드 3개를 고릅니다.", "Essay/Interview에 사용할 대표 장면 1개를 정합니다."];
+    projectList.push(p);
+  }
+  {
+    const targetSchools = schoolNames.length ? schoolNames.join(", ") : "관심학교";
+    const titlePrefix = schoolNames[0] ? `${schoolNames[0]} 등` : "관심학교";
+    const p = v2SignatureProject("signature-school-fit-bridge", `${titlePrefix} Fit Bridge`, "School Fit Project", "sky", insights.slice(0, 3), `${targetSchools} 맥락에서는 학생의 활동이 학교 프로그램, 팀, 클럽, 수업과 어떻게 연결되는지가 중요합니다. 이 프로젝트는 Why School과 Interview에서 학생의 Hook을 학교별 맥락으로 번역하는 역할을 합니다.`, schoolNames.length ? `현재 관심학교는 ${targetSchools}입니다. 학생 활동과 학교별 프로그램 연결 자료를 더 정리해야 합니다.` : "아직 관심학교가 충분히 지정되지 않았습니다. 관심학교가 정해지는 즉시 학생 활동과 학교별 프로그램 연결 자료를 정리해야 합니다.", "관심학교별 Math/STEM, Sports, Arts, Outdoor, Club 프로그램을 조사하고, 학교별 Why School 문장과 인터뷰 답변을 만듭니다.", "School Fit Bridge Project", st);
+    p.evidenceNeeded = ["학교별 프로그램 조사표", "Why School 문장", "인터뷰 답변", "학교별 fit note"];
+    p.risks = ["학교별 연결 근거 없이 같은 활동 설명을 반복하면 지원서가 일반적으로 보일 수 있습니다."];
+    p.nextActions = ["관심학교별 프로그램 2개씩 조사합니다.", "각 학교에 맞춘 Why School 문장 1개씩 작성합니다."];
+    projectList.push(p);
+  }
+  return projectList.slice(0, 4);
+}
 function v2SchoolFitEngine(st = {}, schools = []) {
   const evaluation = v2BuildEvaluationResult(st, schools);
   const core = v2CoreEcStrategyEngine(st);
@@ -1029,6 +1110,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
   const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
   const actionPlan = v2ActionPlanEngine(st, schools);
   const ecRoadmapAnalysis = st.ecRoadmapAnalysis?.domainScores ? st.ecRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
+  const signatureProjects = (st.signatureProjects || []).length ? st.signatureProjects : v2GenerateSignatureProjects(st, schools);
   const evidenceMatrix = v2BuildEvidenceMatrixShallow(st, schools, { coreEcAnalyses, hookAnalysis, schoolFitAnalyses, recommendationStrategy });
   return {
     version: V2_DATA_MODEL_VERSION,
@@ -1040,6 +1122,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
     recommendationStrategy,
     actionPlan,
     ecRoadmapAnalysis,
+    signatureProjects,
     evidenceMatrix,
     parentSummary: `${st.name || "학생"} 학생의 전략은 “${hookAnalysis.hookLine || hookAnalysis.character}”라는 Hook을 중심으로 구성하는 것이 좋습니다. Stage 1의 수치 진단은 유지하되, Stage 2에서는 핵심 EC 증거, 학교별 Fit, 추천서 자료, 인터뷰 메시지가 모두 같은 학생 이미지를 말하도록 설계하는 데 초점을 둡니다.`
   };
@@ -2481,6 +2564,7 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
   const evaluation = snapshot?.evaluationResult || st.evaluationResult || v2BuildEvaluationResult(st, schools);
   const savedEcRoadmapAnalysis = snapshot?.strategyResult?.ecRoadmapAnalysis || result.ecRoadmapAnalysis || st.ecRoadmapAnalysis;
   const ecRoadmapAnalysis = savedEcRoadmapAnalysis?.domainScores?.length ? savedEcRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
+  const signatureProjects = result.signatureProjects?.length ? result.signatureProjects : ((st.signatureProjects || []).length ? st.signatureProjects : v2GenerateSignatureProjects(st, schools));
   return <div className="report" style={{ marginTop: 14 }}>
     <div className="report-cover">
       <div className="brand">YES Boarding Prep</div>
@@ -2506,10 +2590,13 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         {(result.positioning?.gaps || []).length > 0 && <div><b>우선 보완점</b>{result.positioning.gaps.slice(0, 4).map((x, i) => <p key={i} style={{ lineHeight: 1.75 }}>{i + 1}. {x}</p>)}</div>}
       </div>
 
-      <div className="section-title"><span>S2-02</span>EC 영역별 준비도</div>
+      <div className="section-title"><span>S2-02</span>Signature Project / 3대 스파이크 기획</div>
+      <div style={{ display: "grid", gap: 12 }}>{signatureProjects.length ? signatureProjects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} />) : <div className="card"><p className="small muted">핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}</div>
+
+      <div className="section-title"><span>S2-03</span>EC 영역별 준비도</div>
       <V2ReportEcReadiness analysis={ecRoadmapAnalysis} />
 
-      <div className="section-title"><span>S2-03</span>핵심 EC 3개 분석</div>
+      <div className="section-title"><span>S2-04</span>핵심 EC 3개 분석</div>
       <div className="grid g3">{(result.coreEcAnalyses || []).length ? result.coreEcAnalyses.map(ec => <div className="card" key={`${ec.rank}-${ec.activityName}`} style={{ background: "#ffffff" }}>
         <span className="pill p-blue">Core EC {ec.rank}</span>
         <h3>{ec.activityName}</h3>
@@ -2521,13 +2608,13 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         <b>부족한 점</b>{ec.gaps.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
       </div>) : <div className="card"><p className="small muted">Stage 1 > EC 기본에서 별표 핵심 활동을 지정하면 자동 분석이 생성됩니다.</p></div>}</div>
 
-      <div className="section-title"><span>S2-04</span>시험 Gap 및 학교별 상대 평가</div>
+      <div className="section-title"><span>S2-05</span>시험 Gap 및 학교별 상대 평가</div>
       {(result.testGapAnalyses || []).length ? result.testGapAnalyses.map(row => <div className="card" key={row.school} style={{ marginBottom: 10 }}>
         <h3>{row.school}</h3>
         <table className="table"><thead><tr><th>시험</th><th>현재</th><th>추천 목표</th><th>경쟁 목표</th><th>가장 약한 영역</th><th>해석</th></tr></thead><tbody>{row.gaps.map(g => <tr key={`${row.school}-${g.type}`}><td>{g.type}</td><td>{g.score}</td><td>{g.targetRecommended || "-"}</td><td>{g.targetCompetitive || "-"}</td><td>{g.weakestSection || "-"}</td><td style={{ lineHeight: 1.7 }}>{g.comment}</td></tr>)}</tbody></table>
       </div>) : <p className="small muted">관심학교와 시험 점수를 입력하면 학교별 시험 Gap이 표시됩니다.</p>}
 
-      <div className="section-title"><span>S2-05</span>학교별 Fit 전략</div>
+      <div className="section-title"><span>S2-06</span>학교별 Fit 전략</div>
       {(result.schoolFitAnalyses || []).length ? result.schoolFitAnalyses.map(fit => <div className="card" key={fit.school} style={{ marginBottom: 12 }}>
         <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start" }}><h3 style={{ marginTop: 0 }}>{fit.school}</h3><V2ClientCategoryPill category={fit.category} /></div>
         {fit.reasonFromUser && <p style={{ lineHeight: 1.8 }}><b>이 학교를 넣은 이유</b><br />{fit.reasonFromUser}</p>}
@@ -2538,16 +2625,16 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         <b>학교별 필수 보완점</b>{fit.riskFactors.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
       </div>) : <p className="small muted">프로그램/목표 > 관심학교를 입력하면 학교별 Fit 전략이 생성됩니다.</p>}
 
-      <div className="section-title"><span>S2-06</span>추천서 전략</div>
+      <div className="section-title"><span>S2-07</span>추천서 전략</div>
       <div className="card" style={{ background: "#f8fbfe" }}>
         <p style={{ lineHeight: 1.8 }}>{result.recommendationStrategy?.summary}</p>
         {(result.recommendationStrategy?.rows || []).length ? <table className="table"><thead><tr><th>우선순위</th><th>후보자</th><th>역할</th><th>관계 강도</th><th>전략적 역할</th><th>다음 액션</th></tr></thead><tbody>{result.recommendationStrategy.rows.map((r, i) => <tr key={`${r.candidate}-${i}`}><td>{i + 1}</td><td><b>{r.candidate}</b></td><td>{r.role || "-"}</td><td>{r.relationshipGap}</td><td style={{ lineHeight: 1.7 }}>{r.strategicRole}<br /><span className="small muted">{r.requiredEvidence}</span></td><td style={{ lineHeight: 1.7 }}>{r.nextAction}</td></tr>)}</tbody></table> : <p className="small muted">Stage 4 > 추천서/계정에서 후보자를 입력하면 추천서 전략이 생성됩니다.</p>}
       </div>
 
-      <div className="section-title"><span>S2-07</span>남은 기간 액션 플랜</div>
+      <div className="section-title"><span>S2-08</span>남은 기간 액션 플랜</div>
       <table className="table"><thead><tr><th>우선순위</th><th>영역</th><th>액션</th><th>중요도</th></tr></thead><tbody>{(result.actionPlan || []).map(a => <tr key={`${a.priority}-${a.area}`}><td>{a.priority}</td><td>{a.area}</td><td style={{ lineHeight: 1.7 }}>{a.action}</td><td>{v2Stars(a.importance)}</td></tr>)}</tbody></table>
 
-      <div className="section-title"><span>S2-08</span>학부모용 요약</div>
+      <div className="section-title"><span>S2-09</span>학부모용 요약</div>
       <p style={{ lineHeight: 1.9 }}>{result.parentSummary}</p>
       <p className="small muted">분석 기준: 데이터 모델 {snapshot?.dataVersion?.model || V2_DATA_MODEL_VERSION} · 학교 데이터 {snapshot?.dataVersion?.schoolDataset || window.PREP_SCHOOL_DATA_VERSION || "local"} · Stage 1 총점 {evaluation.legacyStage1?.total || "-"}</p>
     </div>
@@ -2611,6 +2698,75 @@ function V2ReportEcReadiness({ analysis }) {
       </div>
     </div>
   </div>;
+}
+function V2SignatureProjectCard({ project, index, editable = false, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(project);
+  React.useEffect(() => setDraft(project), [project?.id]);
+  const accent = { blue: "#2563eb", cyan: "#0891b2", green: "#059669", purple: "#7c3aed", sky: "#0284c7" }[project.theme] || "#2563eb";
+  const setArray = (key, value) => setDraft({ ...draft, [key]: String(value || "").split("\n").map(x => x.trim()).filter(Boolean) });
+  const save = () => { onSave?.({ ...draft, manuallyEdited: true }); setEditing(false); };
+  const p = editing ? draft : project;
+  return <div className="card" style={{ borderLeft: `5px solid ${accent}`, background: "#fff" }}>
+    <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+      <div>
+        <span className="pill p-blue">HOOK {index + 1}</span>
+        {editing ? <V2Field label="Project Title" val={draft.title} set={v => setDraft({ ...draft, title: v })} /> : <h3 style={{ margin: "10px 0 4px" }}>{p.title}</h3>}
+        <p className="small muted" style={{ margin: 0 }}>{(p.sourceActivityNames || []).join(" / ")}</p>
+      </div>
+      <div className="right" style={{ gap: 8 }}>
+        <span className="pill" style={{ background: "#eef6ff", color: accent }}>{p.badge}</span>
+        {editable && <button type="button" className="btn ghost" onClick={() => editing ? save() : setEditing(true)}>{editing ? "저장" : "수정"}</button>}
+        {editable && editing && <button type="button" className="btn ghost" onClick={() => { setDraft(project); setEditing(false); }}>취소</button>}
+      </div>
+    </div>
+    {editing ? <div className="grid g2" style={{ marginTop: 12 }}>
+      <V2Field label="Badge" val={draft.badge} set={v => setDraft({ ...draft, badge: v })} />
+      <V2Text label="왜 필요한가" val={draft.rationale} set={v => setDraft({ ...draft, rationale: v })} minHeight={90} />
+      <V2Text label="현재 상태" val={draft.currentState} set={v => setDraft({ ...draft, currentState: v })} minHeight={90} />
+      <V2Text label="목표 상태" val={draft.targetState} set={v => setDraft({ ...draft, targetState: v })} minHeight={90} />
+      <V2Text label="Evidence Needed" val={(draft.evidenceNeeded || []).join("\n")} set={v => setArray("evidenceNeeded", v)} minHeight={90} />
+      <V2Text label="Risk / Gap" val={(draft.risks || []).join("\n")} set={v => setArray("risks", v)} minHeight={90} />
+      <V2Text label="Recommended Next Action" val={(draft.nextActions || []).join("\n")} set={v => setArray("nextActions", v)} minHeight={90} />
+      <V2Text label="Application Usage" val={(draft.applicationUsage || []).join("\n")} set={v => setArray("applicationUsage", v)} minHeight={90} />
+    </div> : <div>
+      <p style={{ lineHeight: 1.8 }}><b>왜 필요한가</b><br />{p.rationale}</p>
+      <div className="grid g3">
+        <div><b>현재 상태</b><p className="small" style={{ lineHeight: 1.65 }}>{p.currentState}</p></div>
+        <div><b>목표 상태</b><p className="small" style={{ lineHeight: 1.65 }}>{p.targetState}</p></div>
+        <div><b>지원서 활용</b><p className="small" style={{ lineHeight: 1.65 }}>{(p.applicationUsage || []).join(" / ")}</p></div>
+      </div>
+      <div className="grid g2" style={{ marginTop: 12 }}>
+        <div><b>확보해야 할 증거</b>{(p.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>• {x}</p>)}</div>
+        <div><b>다음 액션</b>{(p.nextActions || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>• {x}</p>)}</div>
+      </div>
+      {(p.risks || []).length > 0 && <div style={{ marginTop: 10 }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>• {x}</p>)}</div>}
+      {(p.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{p.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
+    </div>}
+  </div>;
+}
+function V2SignatureProjectsSection({ st, update, schools }) {
+  const generated = v2GenerateSignatureProjects(st, schools);
+  const saved = st.signatureProjects || [];
+  const projects = saved.length ? saved : generated;
+  const saveAll = next => update({ signatureProjects: next });
+  const regenerate = () => {
+    if (saved.length && !window.confirm("기존 수동 수정 프로젝트를 추천안으로 다시 생성할까요?")) return;
+    saveAll(v2GenerateSignatureProjects(st, schools));
+  };
+  const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
+  return <V2Section title="Signature Project / 3대 스파이크 기획">
+    <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+      <p className="small muted" style={{ margin: 0, maxWidth: 760 }}>Hook Strategy를 실제 지원서에서 기억되게 만드는 프로젝트 설계입니다. 핵심 EC, 관심학교, EC 영역별 준비도, 남은 지원 기간을 바탕으로 자동 생성되며, 상담 방향에 맞게 수정해 저장할 수 있습니다.</p>
+      <div className="right" style={{ gap: 8 }}>
+        {!saved.length && <button type="button" className="btn primary" onClick={() => saveAll(generated)}>추천안 저장</button>}
+        <button type="button" className="btn ghost" onClick={regenerate}>추천안 다시 생성</button>
+      </div>
+    </div>
+    <div style={{ display: "grid", gap: 14 }}>
+      {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
+    </div>
+  </V2Section>;
 }
 function V2EcRoadmapChart({ analysis }) {
   const rows = analysis?.domainScores || [];
@@ -2838,6 +2994,7 @@ function V2StageTwo({ st, update, schools }) {
           </div>
         </div>
       </V2Section>
+      <V2SignatureProjectsSection st={st} update={update} schools={schools} />
       <V2Section title="Hook을 약하게 만드는 현재 리스크">
         {positioning.gaps.map((x, i) => <p key={i} style={{ lineHeight: 1.8 }}><b>{i + 1}.</b> {x}</p>)}
         {positioning.supporting.length > 0 && <div><h3>보조 활동으로 연결할 수 있는 자료</h3><p style={{ lineHeight: 1.8 }}>{positioning.supporting.map(v2EcName).join(", ")} 활동은 핵심 Hook을 뒷받침하는 보조 증거로 사용할 수 있습니다. 단, 원서에서는 모든 활동을 같은 비중으로 펼치기보다 핵심 3개를 먼저 보여주고 나머지는 맥락을 보강하는 방식이 좋습니다.</p></div>}
