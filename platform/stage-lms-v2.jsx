@@ -764,13 +764,13 @@ function v2EcRoadmapHasActivity(ec = {}) {
 function v2EcDomainsForActivity(ec = {}, index = 0) {
   const text = v2EcRoadmapText(ec);
   const domains = new Set();
-  if (/sport|athletic|soccer|basketball|tennis|golf|ski|hockey|swim|lacrosse|baseball|rowing|crew|track|football|volleyball|captain|varsity/i.test(text) || ec.cat === "Sports") domains.add("Sports");
-  if (/art|music|orchestra|choir|band|piano|violin|theater|film|portfolio|drawing|painting|design|dance/i.test(text) || ["Music", "Arts"].includes(ec.cat)) domains.add("Arts");
-  if (/captain|president|founder|leader|head|chair|mentor|officer|대표|회장|주장|리더|멘토|captaincy/i.test(text) || ec.core) domains.add("Leadership");
+  if (/\b(sport|athletic|soccer|basketball|tennis|golf|ski|hockey|swim|lacrosse|baseball|rowing|crew|track|football|volleyball|varsity)\b/i.test(text) || ec.cat === "Sports") domains.add("Sports");
+  if (/\b(art|arts|music|orchestra|choir|band|piano|violin|theater|theatre|film|portfolio|drawing|painting|design|dance)\b/i.test(text) || ["Music", "Arts"].includes(ec.cat)) domains.add("Arts");
+  if (/\b(captain|president|founder|leader|head|chair|mentor|officer|captaincy)\b|대표|회장|주장|리더|멘토/i.test(text)) domains.add("Leadership");
   if (/service|volunteer|community|tutor|fundraising|nonprofit|봉사|기부|멘토링/i.test(text) || ec.cat === "Community Services") domains.add("Community Service");
-  if (/stem|robot|coding|science|math|research|engineering|kaist|biology|physics|chemistry|computer/i.test(text) || ec.cat === "STEM") domains.add("STEM");
-  if (/debate|speech|model un|mun|journal|publication|essay|academic|intellectual|olympiad|history|writing|john locke/i.test(text) || ["Academic & Intellectual", "Debate/Speech", "Journalism/Publication"].includes(ec.cat)) domains.add("Academics");
-  if (/intern|work|entrepreneur|startup|business|job|company|shadow|인턴|창업/i.test(text) || ec.cat === "Internship/Entrepreneurship") domains.add("Internship/Work");
+  if (/\b(stem|robot|coding|science|math|mathematics|ukmt|olympiad|research|engineering|kaist|biology|physics|chemistry|computer)\b/i.test(text) || ec.cat === "STEM") domains.add("STEM");
+  if (/\b(debate|speech|model un|mun|journal|publication|essay|academic|intellectual|olympiad|history|writing|john locke|ukmt|math|mathematics)\b/i.test(text) || ["Academic & Intellectual", "Debate/Speech", "Journalism/Publication"].includes(ec.cat)) domains.add("Academics");
+  if (/\b(internship|intern|entrepreneur|entrepreneurship|startup|business|job|company|shadowing|work experience)\b|인턴|창업/i.test(text) || ec.cat === "Internship/Entrepreneurship") domains.add("Internship/Work");
   if (!domains.size) domains.add(ec.cat === "Sports" ? "Sports" : "Academics");
   return [...domains].filter(d => V2_EC_ROADMAP_DOMAINS.includes(d));
 }
