@@ -1028,6 +1028,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
   const testGapAnalyses = v2TestGapEngine(st, schools);
   const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
   const actionPlan = v2ActionPlanEngine(st, schools);
+  const ecRoadmapAnalysis = st.ecRoadmapAnalysis?.domainScores ? st.ecRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
   const evidenceMatrix = v2BuildEvidenceMatrixShallow(st, schools, { coreEcAnalyses, hookAnalysis, schoolFitAnalyses, recommendationStrategy });
   return {
     version: V2_DATA_MODEL_VERSION,
@@ -1038,6 +1039,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
     schoolFitAnalyses,
     recommendationStrategy,
     actionPlan,
+    ecRoadmapAnalysis,
     evidenceMatrix,
     parentSummary: `${st.name || "학생"} 학생의 전략은 “${hookAnalysis.hookLine || hookAnalysis.character}”라는 Hook을 중심으로 구성하는 것이 좋습니다. Stage 1의 수치 진단은 유지하되, Stage 2에서는 핵심 EC 증거, 학교별 Fit, 추천서 자료, 인터뷰 메시지가 모두 같은 학생 이미지를 말하도록 설계하는 데 초점을 둡니다.`
   };
@@ -2477,6 +2479,8 @@ function V2BasicReport({ st, schools }) {
 function V2StrategyEngineReport({ st, schools, snapshot }) {
   const result = snapshot?.strategyResult || st.strategyResult || v2BuildStrategyResult(st, schools);
   const evaluation = snapshot?.evaluationResult || st.evaluationResult || v2BuildEvaluationResult(st, schools);
+  const savedEcRoadmapAnalysis = snapshot?.strategyResult?.ecRoadmapAnalysis || result.ecRoadmapAnalysis || st.ecRoadmapAnalysis;
+  const ecRoadmapAnalysis = savedEcRoadmapAnalysis?.domainScores?.length ? savedEcRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
   return <div className="report" style={{ marginTop: 14 }}>
     <div className="report-cover">
       <div className="brand">YES Boarding Prep</div>
@@ -2502,7 +2506,10 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         {(result.positioning?.gaps || []).length > 0 && <div><b>우선 보완점</b>{result.positioning.gaps.slice(0, 4).map((x, i) => <p key={i} style={{ lineHeight: 1.75 }}>{i + 1}. {x}</p>)}</div>}
       </div>
 
-      <div className="section-title"><span>S2-02</span>핵심 EC 3개 분석</div>
+      <div className="section-title"><span>S2-02</span>EC 영역별 준비도</div>
+      <V2ReportEcReadiness analysis={ecRoadmapAnalysis} />
+
+      <div className="section-title"><span>S2-03</span>핵심 EC 3개 분석</div>
       <div className="grid g3">{(result.coreEcAnalyses || []).length ? result.coreEcAnalyses.map(ec => <div className="card" key={`${ec.rank}-${ec.activityName}`} style={{ background: "#ffffff" }}>
         <span className="pill p-blue">Core EC {ec.rank}</span>
         <h3>{ec.activityName}</h3>
@@ -2514,13 +2521,13 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         <b>부족한 점</b>{ec.gaps.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
       </div>) : <div className="card"><p className="small muted">Stage 1 > EC 기본에서 별표 핵심 활동을 지정하면 자동 분석이 생성됩니다.</p></div>}</div>
 
-      <div className="section-title"><span>S2-03</span>시험 Gap 및 학교별 상대 평가</div>
+      <div className="section-title"><span>S2-04</span>시험 Gap 및 학교별 상대 평가</div>
       {(result.testGapAnalyses || []).length ? result.testGapAnalyses.map(row => <div className="card" key={row.school} style={{ marginBottom: 10 }}>
         <h3>{row.school}</h3>
         <table className="table"><thead><tr><th>시험</th><th>현재</th><th>추천 목표</th><th>경쟁 목표</th><th>가장 약한 영역</th><th>해석</th></tr></thead><tbody>{row.gaps.map(g => <tr key={`${row.school}-${g.type}`}><td>{g.type}</td><td>{g.score}</td><td>{g.targetRecommended || "-"}</td><td>{g.targetCompetitive || "-"}</td><td>{g.weakestSection || "-"}</td><td style={{ lineHeight: 1.7 }}>{g.comment}</td></tr>)}</tbody></table>
       </div>) : <p className="small muted">관심학교와 시험 점수를 입력하면 학교별 시험 Gap이 표시됩니다.</p>}
 
-      <div className="section-title"><span>S2-04</span>학교별 Fit 전략</div>
+      <div className="section-title"><span>S2-05</span>학교별 Fit 전략</div>
       {(result.schoolFitAnalyses || []).length ? result.schoolFitAnalyses.map(fit => <div className="card" key={fit.school} style={{ marginBottom: 12 }}>
         <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start" }}><h3 style={{ marginTop: 0 }}>{fit.school}</h3><V2ClientCategoryPill category={fit.category} /></div>
         {fit.reasonFromUser && <p style={{ lineHeight: 1.8 }}><b>이 학교를 넣은 이유</b><br />{fit.reasonFromUser}</p>}
@@ -2531,16 +2538,16 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
         <b>학교별 필수 보완점</b>{fit.riskFactors.map((x, i) => <p className="small" key={i}>{i + 1}. {x}</p>)}
       </div>) : <p className="small muted">프로그램/목표 > 관심학교를 입력하면 학교별 Fit 전략이 생성됩니다.</p>}
 
-      <div className="section-title"><span>S2-05</span>추천서 전략</div>
+      <div className="section-title"><span>S2-06</span>추천서 전략</div>
       <div className="card" style={{ background: "#f8fbfe" }}>
         <p style={{ lineHeight: 1.8 }}>{result.recommendationStrategy?.summary}</p>
         {(result.recommendationStrategy?.rows || []).length ? <table className="table"><thead><tr><th>우선순위</th><th>후보자</th><th>역할</th><th>관계 강도</th><th>전략적 역할</th><th>다음 액션</th></tr></thead><tbody>{result.recommendationStrategy.rows.map((r, i) => <tr key={`${r.candidate}-${i}`}><td>{i + 1}</td><td><b>{r.candidate}</b></td><td>{r.role || "-"}</td><td>{r.relationshipGap}</td><td style={{ lineHeight: 1.7 }}>{r.strategicRole}<br /><span className="small muted">{r.requiredEvidence}</span></td><td style={{ lineHeight: 1.7 }}>{r.nextAction}</td></tr>)}</tbody></table> : <p className="small muted">Stage 4 > 추천서/계정에서 후보자를 입력하면 추천서 전략이 생성됩니다.</p>}
       </div>
 
-      <div className="section-title"><span>S2-06</span>남은 기간 액션 플랜</div>
+      <div className="section-title"><span>S2-07</span>남은 기간 액션 플랜</div>
       <table className="table"><thead><tr><th>우선순위</th><th>영역</th><th>액션</th><th>중요도</th></tr></thead><tbody>{(result.actionPlan || []).map(a => <tr key={`${a.priority}-${a.area}`}><td>{a.priority}</td><td>{a.area}</td><td style={{ lineHeight: 1.7 }}>{a.action}</td><td>{v2Stars(a.importance)}</td></tr>)}</tbody></table>
 
-      <div className="section-title"><span>S2-07</span>학부모용 요약</div>
+      <div className="section-title"><span>S2-08</span>학부모용 요약</div>
       <p style={{ lineHeight: 1.9 }}>{result.parentSummary}</p>
       <p className="small muted">분석 기준: 데이터 모델 {snapshot?.dataVersion?.model || V2_DATA_MODEL_VERSION} · 학교 데이터 {snapshot?.dataVersion?.schoolDataset || window.PREP_SCHOOL_DATA_VERSION || "local"} · Stage 1 총점 {evaluation.legacyStage1?.total || "-"}</p>
     </div>
@@ -2584,6 +2591,25 @@ function V2StageTwoReportManager({ st, update, schools }) {
     <V2ClientStrategyReport st={st} schools={schools} />
     <V2StrategyEngineReport st={st} schools={schools} snapshot={selectedSnapshot} />
     <V2EvidenceMatrixDebug result={activeResult} />
+  </div>;
+}
+function V2ReportEcReadiness({ analysis }) {
+  const rows = analysis?.domainScores || [];
+  const strongest = [...rows].sort((a, b) => b.score - a.score).slice(0, 2).filter(x => x.score >= 45);
+  const entered = [...rows].sort((a, b) => b.score - a.score).slice(0, 2).filter(x => x.score > 0 && x.score < 45);
+  const gaps = rows.filter(x => x.score < 45).slice(0, 3);
+  return <div className="card" style={{ background: "#f8fbfe" }}>
+    <div className="grid g2">
+      <V2EcRoadmapChart analysis={analysis} />
+      <div>
+        <h3 style={{ marginTop: 0 }}>EC 포트폴리오 해석</h3>
+        <p style={{ lineHeight: 1.85 }}>{analysis?.parentExplanation || "Stage 1 EC 활동을 입력하면 영역별 준비도 분석이 표시됩니다."}</p>
+        {strongest.length > 0 && <p style={{ lineHeight: 1.75 }}><b>현재 가장 활용하기 좋은 축</b><br />{strongest.map(x => `${x.domain} ${x.score}점`).join(" / ")} 영역은 Hook과 지원서 상단 활동을 구성할 때 우선적으로 활용할 수 있습니다.</p>}
+        {!strongest.length && entered.length > 0 && <p style={{ lineHeight: 1.75 }}><b>현재 입력된 활동 축</b><br />{entered.map(x => `${x.domain} ${x.score}점`).join(" / ")} 영역에 활동은 입력되어 있으나, 아직 강점으로 단정하기에는 역할·성과·지속성 근거가 더 필요합니다.</p>}
+        {gaps.length > 0 && <p style={{ lineHeight: 1.75 }}><b>보완 후보 영역</b><br />{gaps.map(x => x.domain).join(", ")} 영역은 모든 학생이 반드시 채워야 하는 것은 아니지만, 관심학교 성향과 학생 Hook에 필요한 경우 결과물 또는 역할을 추가로 만들어야 합니다.</p>}
+        <p className="small muted" style={{ lineHeight: 1.7 }}>이 점수는 합격 가능성 점수가 아니라, 입력된 EC 자료가 각 영역에서 얼마나 명확한 증거로 정리되어 있는지를 보여주는 준비도입니다.</p>
+      </div>
+    </div>
   </div>;
 }
 function V2EcRoadmapChart({ analysis }) {
