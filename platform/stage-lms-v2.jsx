@@ -1015,6 +1015,225 @@ function v2ResolveSignatureProjects(st = {}, schools = [], projectSource = null)
   });
   return resolved.slice(0, 4);
 }
+function v2SignatureProjectSourceEcs(st = {}, project = {}) {
+  const p = v2NormalizeSignatureProject(project);
+  const ids = new Set((p.sourceActivities || []).map(x => String(x || "").toLowerCase()));
+  const names = new Set((p.sourceActivityNames || []).map(x => String(x || "").toLowerCase()));
+  return (st.ecs || []).filter((ec, index) => {
+    const id = String(ec.activityId || ec.id || v2EcActivityId(ec, index) || "").toLowerCase();
+    const name = String(v2EcName(ec) || ec.name || ec.activityName || "").toLowerCase();
+    return ids.has(id) || names.has(name) || [...names].some(n => n && name.includes(n));
+  });
+}
+function v2SignatureProposalText(project = {}, ecs = []) {
+  const p = v2NormalizeSignatureProject(project);
+  return [
+    p.title,
+    p.badge,
+    p.bigIdea,
+    p.boardingFit,
+    p.academicTalent,
+    p.communityContribution,
+    ...(p.sourceActivityNames || []),
+    ...ecs.map(ec => `${v2EcName(ec)} ${ec.category || ec.cat || ""} ${ec.note || ""} ${ec.impact || ""} ${ec.position || ""}`)
+  ].join(" ").toLowerCase();
+}
+function v2SignatureProjectArchetype(project = {}, ecs = []) {
+  const text = v2SignatureProposalText(project, ecs);
+  if (/diabet|diabetes|diabetic|당뇨/.test(text)) return {
+    key: "diabetes",
+    title: "Pediatric Diabetes School-Life Research Portfolio",
+    subtitle: "소아 당뇨 학생의 학교생활 지원 방안 연구 프로젝트",
+    perspectiveLabel: "네 가지 관점별 분석",
+    perspectives: [
+      ["Biology 관점", "소아 당뇨의 생물학적 원리, 혈당 조절, 인슐린, 식사와 운동의 관계를 이해합니다. 이를 통해 학생의 생명과학적 관심과 기본 학업 역량을 보여줄 수 있습니다."],
+      ["Psychology 관점", "소아 당뇨 학생들이 느낄 수 있는 불안, 스트레스, 또래와 다르다는 감정, 자기 관리 부담을 분석합니다. 청소년기의 질병 관리가 정서와 사회성에 어떤 영향을 줄 수 있는지 탐구합니다."],
+      ["Public Health 관점", "학생 개인의 관리만이 아니라 학교 차원의 지원 체계를 살펴봅니다. 보건교육, 교직원 교육, 응급 대응, 식단 정보 제공, 건강관리 정책 등을 조사합니다."],
+      ["Boarding Life 관점", "보딩스쿨은 학생이 학교 안에서 생활 전반을 보내는 환경이므로 기숙사, 식당, 체육 활동, 야간 생활, 주말 프로그램까지 고려해야 합니다."]
+    ],
+    coreQuestion: "소아 당뇨를 가진 학생들은 학교생활에서 어떤 어려움을 겪으며, 보딩스쿨은 이 학생들을 어떻게 더 효과적으로 지원할 수 있는가?",
+    deliverables: ["5~8페이지 Research Brief", "Evidence Log", "School-Life Problem Map", "5분 발표자료", "Teacher / Mentor Feedback Sheet"],
+    stages: ["주제 이해 및 Research Question 설정", "자료 조사 및 Evidence Log 작성", "네 가지 관점별 분석", "School-Life Problem Map 제작", "Proposed Support Model 제안", "Research Brief와 발표자료 완성"]
+  };
+  if (/research|stem|math|olympiad|ukmt|science|academic|논문|리서치|수학|과학|탐구/.test(text)) return {
+    key: "research",
+    title: `${project.title || "Academic Research Portfolio"}`,
+    subtitle: "학업적 호기심을 결과물로 증명하는 학생 주도형 리서치 프로젝트",
+    perspectiveLabel: "분석 관점",
+    perspectives: [
+      ["Academic Question", "활동명이나 대회명보다 학생이 붙잡을 핵심 질문을 먼저 설정합니다. 질문이 좁고 선명해야 리서치가 단순 조사로 보이지 않습니다."],
+      ["Evidence & Method", "논문, 기사, 교재, 강의자료, 문제풀이 기록 등 신뢰할 수 있는 자료를 읽고 Evidence Log로 축적합니다."],
+      ["Explanation & Teaching", "자신이 이해한 내용을 후배나 또래가 이해할 수 있는 설명 자료로 바꾸어 학업적 깊이와 커뮤니케이션 능력을 동시에 보여줍니다."],
+      ["Boarding Community", "보딩스쿨의 수업, 클럽, peer tutoring, research seminar 안에서 이 관심이 어떻게 기여로 이어질 수 있는지 연결합니다."]
+    ],
+    coreQuestion: "이 학생은 어떤 학업적 질문을 오래 붙잡고, 어떤 근거를 통해 자신의 설명과 결과물을 만들 수 있는가?",
+    deliverables: ["Research Brief 또는 Problem-Solving Portfolio", "Evidence / Solution Log", "설명 슬라이드 또는 3~5분 발표자료", "Teacher Feedback Sheet", "지원서용 활동 설명문"],
+    stages: ["핵심 질문 2~3개 설정", "자료와 기존 결과물 정리", "Evidence Log 작성", "중간 브리프 작성", "교사/멘토 피드백 반영", "최종 포트폴리오 완성"]
+  };
+  if (/sport|ski|baseball|soccer|tennis|athletic|varsity|스키|야구|축구|농구|운동|스포츠/.test(text)) return {
+    key: "sports",
+    title: `${project.title || "Athletic Performance & Team Culture Portfolio"}`,
+    subtitle: "훈련, 자기관리, 팀 기여를 입시 증거로 정리하는 Athletic Spike 프로젝트",
+    perspectiveLabel: "분석 관점",
+    perspectives: [
+      ["Performance", "기록, 기술 목표, 대회/경기 결과를 정리해 단순 참여가 아니라 성장의 방향성을 보여줍니다."],
+      ["Training Discipline", "주간 훈련 루틴, 컨디션 관리, 피드백 반영 과정을 기록해 보딩스쿨 생활에 필요한 자기관리 능력을 보여줍니다."],
+      ["Team Contribution", "팀 안에서 맡은 역할, 후배 지원, 분위기 형성, 코치와의 관계를 정리해 공동체 적응력을 보여줍니다."],
+      ["Boarding Fit", "시즌 스포츠, 기숙사 생활, 학업과 운동의 균형을 어떻게 관리할 수 있는지 보여주는 방향으로 연결합니다."]
+    ],
+    coreQuestion: "이 학생은 운동 경험을 통해 어떤 자기관리, 회복력, 팀 기여 역량을 보여줄 수 있는가?",
+    deliverables: ["월별 Training Log", "Performance Change Chart", "Coach Feedback Sheet", "Team Contribution Notes", "Interview Athletic Story"],
+    stages: ["최근 3개월 훈련 기록 정리", "기록/기술 baseline 설정", "코치 피드백 확보", "팀 기여 사례 수집", "성과 변화표 작성", "인터뷰용 athletic story 완성"]
+  };
+  if (/art|music|cello|piano|theater|writing|essay|portfolio|arts|첼로|피아노|음악|미술|연극|글쓰기/.test(text)) return {
+    key: "arts",
+    title: `${project.title || "Creative Reflection Portfolio"}`,
+    subtitle: "예술 활동을 감수성, 표현력, 학교 문화 기여로 연결하는 포트폴리오 프로젝트",
+    perspectiveLabel: "분석 관점",
+    perspectives: [
+      ["Creative Growth", "대표 작품이나 연주만 보여주지 않고, 선택 이유와 연습/제작 과정, 피드백 반영을 함께 기록합니다."],
+      ["Reflection", "작품을 통해 학생이 어떤 감정, 생각, 관점을 표현하는지 글로 정리합니다."],
+      ["Community Sharing", "공연, 전시, 봉사 연주, 학교 행사 참여 등 보딩스쿨 커뮤니티와 연결되는 장면을 만듭니다."],
+      ["Portfolio Readiness", "제출 가능한 링크, 작품 설명, artist statement, 지도자 피드백을 정리합니다."]
+    ],
+    coreQuestion: "이 학생의 예술 활동은 어떤 생각과 감정을 표현하며, 학교 공동체 안에서 어떤 문화적 기여로 이어질 수 있는가?",
+    deliverables: ["대표 작품/연주 3~5개", "Artist Statement", "연습/제작 Log", "Performance or Portfolio Link", "Teacher Feedback Sheet"],
+    stages: ["대표 작품 후보 선정", "작품별 reflection 작성", "피드백 기준 설정", "중간 포트폴리오 정리", "공유/공연 기회 확보", "최종 포트폴리오 링크 완성"]
+  };
+  if (/service|leadership|community|volunteer|captain|president|봉사|리더|회장|주장|커뮤니티/.test(text)) return {
+    key: "leadership",
+    title: `${project.title || "Community Impact & Leadership Project"}`,
+    subtitle: "관심과 실행력을 학교 공동체 기여로 바꾸는 리더십 프로젝트",
+    perspectiveLabel: "분석 관점",
+    perspectives: [
+      ["Problem Definition", "봉사 시간이나 직책보다 학생이 발견한 문제와 그 문제를 왜 중요하게 보는지를 먼저 정리합니다."],
+      ["Initiative Design", "작은 실행부터 시작해 참여자, 일정, 역할, 결과물을 명확히 설계합니다."],
+      ["Impact Evidence", "참여자 수, 변화 사례, 피드백, 지속 가능성을 정리해 리더십의 실체를 보여줍니다."],
+      ["Boarding Contribution", "보딩스쿨 안에서 같은 방식으로 어떤 클럽, 기숙사, 팀 문화에 기여할 수 있는지 연결합니다."]
+    ],
+    coreQuestion: "이 학생은 어떤 문제를 발견하고, 다른 사람과 함께 어떤 변화를 만들 수 있는가?",
+    deliverables: ["Project Plan", "Execution Log", "Impact Summary", "Participant Feedback", "Leadership Reflection"],
+    stages: ["문제 정의", "작은 파일럿 실행", "참여자/피드백 수집", "중간 개선", "결과 요약", "지원서용 leadership story 완성"]
+  };
+  return {
+    key: "general",
+    title: `${project.title || "Signature Project Portfolio"}`,
+    subtitle: "학생의 핵심 활동을 하나의 입시 스토리로 묶는 포트폴리오 프로젝트",
+    perspectiveLabel: "분석 관점",
+    perspectives: [
+      ["Core Interest", "활동명 뒤에 있는 학생의 관심과 질문을 선명하게 정리합니다."],
+      ["Evidence", "과정, 결과물, 피드백, 변화 기록을 모아 단순 참여가 아니라 성장의 증거로 만듭니다."],
+      ["Contribution", "학생 개인의 성과를 학교 공동체 안에서 활용 가능한 기여로 확장합니다."],
+      ["Application Story", "Activity List, Essay, Interview, Recommendation에서 같은 이미지가 반복되도록 정리합니다."]
+    ],
+    coreQuestion: "이 학생의 핵심 활동은 어떤 학생 이미지를 만들고, 어떤 증거로 그 이미지를 설득할 수 있는가?",
+    deliverables: ["Project Brief", "Evidence Log", "Final Output", "Feedback Sheet", "Application Story Notes"],
+    stages: ["핵심 이미지 정의", "기존 증거 정리", "부족한 산출물 확인", "중간 결과물 제작", "피드백 반영", "지원서 활용 자료 완성"]
+  };
+}
+function v2SignatureProposalTimeline(st = {}, archetype = {}) {
+  const periods = v2ApplicationSemesterPlan(st);
+  if (periods.length >= 3) {
+    return periods.map((period, index) => ({
+      label: period.label,
+      tasks: index === 0
+        ? ["핵심 질문과 최종 산출물 기준을 확정합니다.", "기존 활동 자료와 증거를 한 폴더에 정리합니다.", "주간 진행 기록 양식을 만듭니다."]
+        : period.application
+          ? ["지원서에 들어갈 활동 설명문과 인터뷰 답변을 완성합니다.", "최종 산출물 링크와 피드백 자료를 정리합니다.", "추천서 작성자에게 공유할 Evidence Sheet를 만듭니다."]
+          : ["중간 산출물을 제작하고 피드백을 받습니다.", "부족한 객관적 증거를 보완합니다.", "관심학교 프로그램과 연결되는 문장을 작성합니다."]
+    }));
+  }
+  return archetype.stages.map((stage, index) => ({ label: `Week ${index + 1}`, tasks: [stage] }));
+}
+function v2BuildSignatureProjectProposal(st = {}, project = {}, schools = []) {
+  const p = v2NormalizeSignatureProject(project);
+  const studentName = st.name || "학생";
+  const sourceEcs = v2SignatureProjectSourceEcs(st, p);
+  const archetype = v2SignatureProjectArchetype(p, sourceEcs);
+  const schoolNames = (st.interests || []).map(x => x.school).filter(Boolean).slice(0, 3);
+  const schoolText = schoolNames.length ? schoolNames.join(", ") : "관심 보딩스쿨";
+  const activityText = (p.sourceActivityNames || []).length ? p.sourceActivityNames.join(", ") : v2ProjectActivityText(sourceEcs.map(ec => ({ name: v2EcName(ec), ec })));
+  const targetGrade = [st.targetYear, st.targetGrade].filter(Boolean).join(" ") || st.target || "지원 목표";
+  const purpose = p.academicTalent || `${studentName} 학생의 관심을 단순 활동명이 아니라 학업적으로 사고하고 결과물을 만드는 역량으로 보여주는 데 목적이 있습니다.`;
+  const contribution = p.communityContribution || `${schoolText}에서 학생이 수업, 클럽, 팀, 기숙사 생활 안에서 어떤 방식으로 기여할 수 있는지를 보여주는 방향으로 설계합니다.`;
+  const timeline = v2SignatureProposalTimeline(st, archetype);
+  return {
+    title: archetype.title,
+    subtitle: archetype.subtitle,
+    meta: `${studentName} · ${targetGrade} · ${activityText}`,
+    sections: [
+      {
+        title: "1. 프로젝트 개요",
+        body: `본 프로젝트는 ${studentName} 학생이 ${activityText} 활동을 바탕으로, 단순한 참여 이력이나 관심 분야를 넘어 실제 결과물로 설명할 수 있는 Signature Project를 완성하는 것을 목표로 합니다. ${p.bigIdea || ""}\n\n특히 ${schoolText}처럼 학업, 기숙사 생활, 클럽/팀 활동이 밀접하게 연결되는 보딩스쿨 환경에서는 학생이 무엇을 좋아하는지보다 그 관심을 어떻게 탐구하고, 어떤 결과물로 만들며, 학교 공동체 안에서 어떤 기여로 확장할 수 있는지가 중요합니다.`
+      },
+      {
+        title: "2. 프로젝트 목적",
+        body: `본 프로젝트의 목적은 ${studentName} 학생의 강점을 활동명이나 수상 실적만으로 설명하지 않고, 학업적 사고력, 자기주도성, 문제 해결력, 공동체 기여 가능성을 하나의 스토리로 묶는 데 있습니다.\n\n${purpose}\n\n따라서 이 프로젝트는 하나의 추가 활동이 아니라, 원서와 인터뷰에서 ${studentName} 학생을 기억하게 만드는 핵심 포트폴리오 역할을 해야 합니다.`
+      },
+      {
+        title: "3. 핵심 질문",
+        body: `본 프로젝트의 중심 질문은 다음과 같습니다.\n\n${archetype.coreQuestion}\n\n이 질문을 바탕으로 세부적으로는 다음을 탐구합니다.`,
+        bullets: [
+          `${studentName} 학생이 이 주제에 관심을 갖게 된 구체적 계기는 무엇인가?`,
+          `현재 활동 기록에서 이미 증명된 강점은 무엇이며, 아직 부족한 증거는 무엇인가?`,
+          `이 프로젝트가 ${schoolText}의 수업, 클럽, 팀 활동, 기숙사 생활과 어떻게 연결될 수 있는가?`,
+          `지원서, 인터뷰, 추천서에서 이 프로젝트를 어떤 문장과 자료로 보여줄 것인가?`
+        ]
+      },
+      {
+        title: "4. 프로젝트 차별성",
+        body: `이 프로젝트의 차별성은 ${activityText}를 단순 활동 목록에 넣는 데서 끝내지 않고, 학생이 직접 질문을 만들고 자료를 읽고 과정을 기록하며 최종 결과물까지 완성한다는 점입니다.\n\n${p.boardingFit || ""}\n\n입학사정관 입장에서는 활동 개수보다 학생이 어떤 문제를 오래 붙잡았는지, 그 과정에서 어떤 생각의 깊이가 생겼는지, 그리고 그 경험이 학교 공동체에 어떤 기여로 이어질 수 있는지가 더 중요합니다.`,
+        bullets: [
+          "활동명을 결과물과 사고 과정으로 전환합니다.",
+          "학생의 관심을 보딩스쿨 생활 맥락과 연결합니다.",
+          "추천서와 인터뷰에서 확인 가능한 Evidence Sheet를 남깁니다.",
+          "지원 직전까지 업데이트 가능한 포트폴리오 구조를 만듭니다."
+        ]
+      },
+      {
+        title: "5. 프로젝트 진행 방식",
+        body: `프로젝트는 약 6~8주 또는 남은 지원 학기 동안 진행하는 것을 권장합니다. 핵심은 한 번에 완성본을 만드는 것이 아니라, 매주 읽고 기록하고 피드백을 반영하는 과정을 남기는 것입니다.\n\n${studentName} 학생은 먼저 핵심 질문을 정리한 뒤, 기존 활동 자료를 Evidence Log로 옮기고, 중간 산출물을 만든 후 교사·코치·멘토의 피드백을 받아 최종 결과물로 발전시켜야 합니다.`,
+        bullets: archetype.stages
+      },
+      {
+        title: `6. ${archetype.perspectiveLabel}`,
+        body: `${studentName} 학생의 프로젝트는 아래 관점으로 나누어 분석하면 훨씬 깊이 있게 읽힙니다.`,
+        subsections: archetype.perspectives.map(([title, body]) => ({ title, body }))
+      },
+      {
+        title: "7. 최종 결과물",
+        body: `프로젝트 완료 후에는 단순 보고서 하나가 아니라 원서 과정에서 반복적으로 활용 가능한 자료 묶음이 필요합니다. 아래 결과물은 지원서, 인터뷰, 추천서, 보충자료에 각각 다른 방식으로 사용될 수 있습니다.`,
+        bullets: archetype.deliverables
+      },
+      {
+        title: "8. 입시 활용 방안",
+        body: `본 프로젝트는 ${studentName} 학생의 Stage 2 전략보고서 안에서 핵심 스파이크로 활용됩니다. Activity List에서는 역할과 결과물을 압축해 보여주고, Essay에서는 이 주제를 왜 붙잡게 되었는지와 어떤 방식으로 성장했는지를 서술합니다. Interview에서는 프로젝트를 45초에서 1분 안에 설명할 수 있는 답변으로 정리하고, Recommendation에서는 교사나 멘토가 확인해 줄 수 있는 Evidence Sheet로 공유합니다.`,
+        bullets: [
+          "Activity List: 활동명보다 역할, 기간, 산출물, 영향력을 중심으로 기재합니다.",
+          "Essay: 학생이 문제를 발견하고 사고를 확장한 장면을 중심으로 사용합니다.",
+          "Interview: 관심 분야, 보딩스쿨 지원 이유, 공동체 기여 가능성을 연결합니다.",
+          "Recommendation: 추천인이 학생의 성실성, 사고력, 피드백 수용력을 구체적으로 쓸 수 있도록 자료를 제공합니다.",
+          "Supplement: 학교가 허용하는 경우 Research Brief, Portfolio Link, 발표자료를 보충자료로 활용합니다."
+        ]
+      },
+      {
+        title: "9. 기대 효과",
+        body: `${studentName} 학생은 이 프로젝트를 통해 “활동을 많이 한 학생”이 아니라 “관심 분야를 깊이 있게 탐구하고, 결과물로 만들고, 학교 공동체에 적용할 수 있는 학생”으로 읽힐 수 있습니다.\n\n${contribution}`,
+        bullets: [
+          "학업적 호기심을 구체적인 탐구 과정으로 보여줄 수 있습니다.",
+          "자료를 읽고 정리하며 자신의 생각을 발전시키는 학업 태도를 증명할 수 있습니다.",
+          "보딩스쿨 환경에서 실제로 기여할 수 있는 학생 이미지를 만들 수 있습니다.",
+          "원서, 인터뷰, 추천서에서 반복 사용할 수 있는 핵심 스토리를 확보할 수 있습니다."
+        ]
+      },
+      {
+        title: "10. 최종 목표",
+        body: `최종 목표는 ${studentName} 학생이 단순히 “${activityText}를 한 학생”으로 보이는 것이 아니라, 그 활동을 통해 자신만의 질문을 만들고, 근거를 축적하고, 결과물을 완성하며, ${schoolText} 공동체 안에서 의미 있는 기여를 할 수 있는 학생으로 보이도록 만드는 것입니다.\n\n즉, 이 프로젝트는 하나의 활동을 추가하는 것이 아니라 ${studentName} 학생의 관심 분야, 학업 역량, 문제 해결력, 공동체 기여 가능성을 하나의 입시 스토리로 연결하는 포트폴리오입니다.`
+      }
+    ],
+    timeline
+  };
+}
 function v2ProjectActivityText(items = []) {
   const names = items.map(x => x?.name || v2EcName(x?.ec || x || {})).filter(Boolean);
   return names.length ? names.join(", ") : "핵심 활동";
@@ -1507,7 +1726,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
   const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
   const actionPlan = v2ActionPlanEngine(st, schools);
   const ecRoadmapAnalysis = st.ecRoadmapAnalysis?.domainScores ? st.ecRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
-  const signatureProjects = v2ResolveSignatureProjects(st, schools);
+  const signatureProjects = v2ResolveSignatureProjects(st, schools).map(project => ({ ...project, proposal: project.proposal || v2BuildSignatureProjectProposal(st, project, schools) }));
   const evidenceMatrix = v2BuildEvidenceMatrixShallow(st, schools, { coreEcAnalyses, hookAnalysis, schoolFitAnalyses, recommendationStrategy });
   return {
     version: V2_DATA_MODEL_VERSION,
@@ -2988,7 +3207,7 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
       </div>
 
       <div className="section-title"><span>S2-02</span>Signature Project / 3대 스파이크 기획</div>
-      <div style={{ display: "grid", gap: 12 }}>{signatureProjects.length ? signatureProjects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} />) : <div className="card"><p className="small muted">핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}</div>
+      <div style={{ display: "grid", gap: 12 }}>{signatureProjects.length ? signatureProjects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} st={st} schools={schools} />) : <div className="card"><p className="small muted">핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}</div>
 
       <div className="section-title"><span>S2-03</span>EC 영역별 준비도</div>
       <V2ReportEcReadiness analysis={ecRoadmapAnalysis} />
@@ -3163,13 +3382,64 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeep({ st, updat
       </div>
     </div>
     <div style={{ display: "grid", gap: 14 }}>
-      {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
+      {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} st={st} schools={schools} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
     </div>
   </V2Section>;
 }
-V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, index, editable = false, onSave }) {
+function V2SignatureProposalView({ proposal }) {
+  if (!proposal) return null;
+  return <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
+      <span className="pill p-blue">Signature Project Proposal</span>
+      <h2 style={{ margin: "10px 0 4px", color: "#12344d" }}>{proposal.title}</h2>
+      <p style={{ margin: 0, fontSize: 16, color: "#28516d", fontWeight: 800 }}>{proposal.subtitle}</p>
+      <p className="small muted" style={{ marginTop: 8 }}>{proposal.meta}</p>
+    </div>
+    {(proposal.sections || []).map(section => <section key={section.title} style={{ borderBottom: "1px solid #d8e7f5", paddingBottom: 16 }}>
+      <h3 style={{ margin: "0 0 10px", color: "#173b58" }}>{section.title}</h3>
+      {section.body && <p style={{ whiteSpace: "pre-line", lineHeight: 1.85, margin: "0 0 10px" }}>{section.body}</p>}
+      {(section.bullets || []).length > 0 && <ul style={{ margin: "10px 0 0", paddingLeft: 20, lineHeight: 1.8 }}>
+        {section.bullets.map((x, i) => <li key={i}>{x}</li>)}
+      </ul>}
+      {(section.subsections || []).length > 0 && <div className="grid g2" style={{ marginTop: 12 }}>
+        {section.subsections.map(sub => <div key={sub.title} className="card" style={{ background: "#f8fbfe", padding: 14 }}>
+          <b>{sub.title}</b>
+          <p className="small" style={{ lineHeight: 1.75, marginBottom: 0 }}>{sub.body}</p>
+        </div>)}
+      </div>}
+    </section>)}
+    {(proposal.timeline || []).length > 0 && <section>
+      <h3 style={{ margin: "0 0 10px", color: "#173b58" }}>프로젝트 일정 예시</h3>
+      <table className="table">
+        <thead><tr><th>기간</th><th>실행 내용</th></tr></thead>
+        <tbody>{proposal.timeline.map((row, i) => <tr key={`${row.label}-${i}`}><td><b>{row.label}</b></td><td><ul style={{ margin: 0, paddingLeft: 18 }}>{(row.tasks || []).map((task, ti) => <li key={ti}>{task}</li>)}</ul></td></tr>)}</tbody>
+      </table>
+    </section>}
+  </div>;
+}
+function V2SignatureProposalModal({ proposal, onClose, onSave }) {
+  if (!proposal) return null;
+  return <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,.52)", padding: "28px 18px", overflow: "auto" }}>
+    <div style={{ maxWidth: 980, margin: "0 auto", background: "white", borderRadius: 12, boxShadow: "0 24px 80px rgba(15,23,42,.28)", padding: 24 }}>
+      <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>스파이크 기획서</h3>
+          <p className="small muted" style={{ margin: "4px 0 0" }}>현재 입력값을 바탕으로 자동 구성된 고객용 제안서입니다.</p>
+        </div>
+        <div className="right" style={{ gap: 8 }}>
+          {onSave && <button type="button" className="btn primary" onClick={onSave}>제안서 저장</button>}
+          <button type="button" className="btn ghost" onClick={() => window.print()}>PDF 저장</button>
+          <button type="button" className="btn ghost" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+      <V2SignatureProposalView proposal={proposal} />
+    </div>
+  </div>;
+}
+V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, index, editable = false, onSave, st = {}, schools = [] }) {
   const normalized = v2NormalizeSignatureProject(project || {});
   const [editing, setEditing] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
   const [draft, setDraft] = useState(normalized);
   React.useEffect(() => setDraft(v2NormalizeSignatureProject(project || {})), [project?.id, project?.generatedAt, project?.manuallyEdited]);
   const accent = { blue: "#2563eb", cyan: "#0891b2", green: "#059669", purple: "#7c3aed", sky: "#0284c7" }[normalized.theme] || "#2563eb";
@@ -3180,6 +3450,11 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
     setEditing(false);
   };
   const p = editing ? draft : normalized;
+  const proposal = p.proposal || v2BuildSignatureProjectProposal(st, p, schools);
+  const saveProposal = () => {
+    onSave?.(v2NormalizeSignatureProject({ ...p, proposal, proposalSavedAt: new Date().toISOString(), schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
+    setProposalOpen(false);
+  };
   const sectionStyle = { border: "1px solid #dbeafe", borderRadius: 10, padding: 12, background: "#f8fbff" };
   return <div className="card" style={{ borderLeft: `5px solid ${accent}`, background: "#fff" }}>
     <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
@@ -3190,6 +3465,7 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
       </div>
       <div className="right" style={{ gap: 8 }}>
         <span className="pill" style={{ background: "#eef6ff", color: accent }}>{p.badge}</span>
+        <button type="button" className="btn primary" onClick={() => setProposalOpen(true)}>제안서 보기</button>
         {editable && <button type="button" className="btn ghost" onClick={() => editing ? save() : setEditing(true)}>{editing ? "저장" : "수정"}</button>}
         {editable && editing && <button type="button" className="btn ghost" onClick={() => { setDraft(normalized); setEditing(false); }}>취소</button>}
       </div>
@@ -3228,6 +3504,7 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
       {(p.risks || []).length > 0 && <div style={{ marginTop: 10 }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>}
       {(p.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{p.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
     </div>}
+    {proposalOpen && <V2SignatureProposalModal proposal={proposal} onClose={() => setProposalOpen(false)} onSave={editable ? saveProposal : null} />}
   </div>;
 };
 V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, update, schools }) {
@@ -3255,7 +3532,7 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, 
       <p className="small" style={{ margin: 0, lineHeight: 1.65 }}>이전에 저장된 Signature Project 중 단순 설명에 가까운 항목 {legacyCount}개를 현재 입력된 학생 정보, 핵심 EC, 관심학교 데이터를 기준으로 자동 보강해 표시하고 있습니다. 이 버전을 유지하려면 <b>보강안 저장</b>을 눌러주세요.</p>
     </div>}
     <div style={{ display: "grid", gap: 14 }}>
-      {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
+      {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} st={st} schools={schools} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
     </div>
   </V2Section>;
 };
