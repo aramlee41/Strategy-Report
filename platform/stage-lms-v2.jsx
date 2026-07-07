@@ -916,6 +916,105 @@ function v2NormalizeSignatureProject(project = {}) {
     semesterRoadmap: Array.isArray(project.semesterRoadmap) ? project.semesterRoadmap : []
   };
 }
+const V2_SIGNATURE_PROJECT_SCHEMA = "signature-project-v2";
+function v2SignatureProjectText(project = {}) {
+  const p = v2NormalizeSignatureProject(project);
+  return [
+    p.bigIdea,
+    p.boardingFit,
+    p.academicTalent,
+    p.communityContribution,
+    p.currentEvidence,
+    p.targetOutput,
+    ...(p.evidenceNeeded || []),
+    ...(p.nextActions || []),
+    ...(p.applicationUsage || [])
+  ].filter(Boolean).join("\n");
+}
+function v2SignatureProjectHasStructuredBrief(project = {}) {
+  const p = v2NormalizeSignatureProject(project);
+  const text = v2SignatureProjectText(p);
+  const compactLength = text.replace(/\s/g, "").length;
+  const markerCount = ["무엇을", "어떻게", "의도", "프로젝트"].filter(marker => text.includes(marker)).length;
+  const fieldCount = ["bigIdea", "boardingFit", "academicTalent", "communityContribution", "currentEvidence", "targetOutput"]
+    .filter(key => String(p[key] || "").trim().replace(/\s/g, "").length >= 80).length;
+  if (p.schemaVersion === V2_SIGNATURE_PROJECT_SCHEMA && compactLength >= 520 && fieldCount >= 4) return true;
+  return (markerCount >= 3 && fieldCount >= 4) || (compactLength >= 900 && fieldCount >= 5);
+}
+function v2SignatureProjectIsLegacy(project = {}) {
+  if (!project || !Object.keys(project).length) return false;
+  return !v2SignatureProjectHasStructuredBrief(project);
+}
+function v2SignatureProjectActivityTokens(project = {}) {
+  const p = v2NormalizeSignatureProject(project);
+  return new Set([...(p.sourceActivities || []), ...(p.sourceActivityNames || [])].map(x => String(x || "").trim().toLowerCase()).filter(Boolean));
+}
+function v2SignatureProjectMatchScore(saved = {}, generated = {}) {
+  const s = v2NormalizeSignatureProject(saved);
+  const g = v2NormalizeSignatureProject(generated);
+  let score = 0;
+  if (s.id && g.id && s.id === g.id) score += 8;
+  if (s.title && g.title && s.title === g.title) score += 6;
+  const sTitle = String(s.title || "").toLowerCase();
+  const gTitle = String(g.title || "").toLowerCase();
+  if (sTitle && gTitle && (sTitle.includes(gTitle) || gTitle.includes(sTitle))) score += 3;
+  const sTokens = v2SignatureProjectActivityTokens(s);
+  const gTokens = v2SignatureProjectActivityTokens(g);
+  gTokens.forEach(token => { if (sTokens.has(token)) score += 4; });
+  return score;
+}
+function v2MergeSignatureProject(saved = {}, generated = {}) {
+  const s = v2NormalizeSignatureProject(saved);
+  const g = v2NormalizeSignatureProject(generated);
+  if (v2SignatureProjectHasStructuredBrief(s)) return { ...s, schemaVersion: s.schemaVersion || V2_SIGNATURE_PROJECT_SCHEMA };
+  const keepSavedTitle = String(s.title || "").trim() && !/^signature|old shallow/i.test(String(s.title || ""));
+  return v2NormalizeSignatureProject({
+    ...g,
+    id: g.id || s.id,
+    title: keepSavedTitle ? s.title : g.title,
+    badge: s.badge || g.badge,
+    theme: s.theme || g.theme,
+    sourceActivities: (s.sourceActivities || []).length ? s.sourceActivities : g.sourceActivities,
+    sourceActivityNames: (s.sourceActivityNames || []).length ? s.sourceActivityNames : g.sourceActivityNames,
+    semesterRoadmap: (g.semesterRoadmap || []).length ? g.semesterRoadmap : s.semesterRoadmap,
+    schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA,
+    upgradedFromLegacy: true,
+    legacySummary: [s.rationale, s.currentState, s.targetState].filter(Boolean).join("\n"),
+    generatedAt: g.generatedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    manuallyEdited: !!s.manuallyEdited
+  });
+}
+function v2ResolveSignatureProjects(st = {}, schools = [], projectSource = null) {
+  const saved = (projectSource || st.signatureProjects || []).map(v2NormalizeSignatureProject);
+  const generated = v2GenerateSignatureProjects(st, schools).map(project => v2NormalizeSignatureProject({ ...project, schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
+  if (!saved.length) return generated;
+  if (!generated.length) return saved;
+  const usedSaved = new Set();
+  const resolved = generated.map(g => {
+    let bestIndex = -1;
+    let bestScore = 0;
+    saved.forEach((s, idx) => {
+      if (usedSaved.has(idx)) return;
+      const score = v2SignatureProjectMatchScore(s, g);
+      if (score > bestScore) {
+        bestIndex = idx;
+        bestScore = score;
+      }
+    });
+    if (bestIndex >= 0 && bestScore >= 3) {
+      usedSaved.add(bestIndex);
+      return v2MergeSignatureProject(saved[bestIndex], g);
+    }
+    return g;
+  });
+  saved.forEach((s, idx) => {
+    if (!usedSaved.has(idx) && v2SignatureProjectHasStructuredBrief(s) && resolved.length < 4) {
+      resolved.push({ ...s, schemaVersion: s.schemaVersion || V2_SIGNATURE_PROJECT_SCHEMA });
+    }
+  });
+  return resolved.slice(0, 4);
+}
 function v2ProjectActivityText(items = []) {
   const names = items.map(x => x?.name || v2EcName(x?.ec || x || {})).filter(Boolean);
   return names.length ? names.join(", ") : "핵심 활동";
@@ -1408,7 +1507,7 @@ function v2BuildStrategyResult(st = {}, schools = []) {
   const recommendationStrategy = v2RecommendationStrategyEngine(st, schools);
   const actionPlan = v2ActionPlanEngine(st, schools);
   const ecRoadmapAnalysis = st.ecRoadmapAnalysis?.domainScores ? st.ecRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
-  const signatureProjects = (st.signatureProjects || []).length ? st.signatureProjects : v2GenerateSignatureProjects(st, schools);
+  const signatureProjects = v2ResolveSignatureProjects(st, schools);
   const evidenceMatrix = v2BuildEvidenceMatrixShallow(st, schools, { coreEcAnalyses, hookAnalysis, schoolFitAnalyses, recommendationStrategy });
   return {
     version: V2_DATA_MODEL_VERSION,
@@ -2862,7 +2961,7 @@ function V2StrategyEngineReport({ st, schools, snapshot }) {
   const evaluation = snapshot?.evaluationResult || st.evaluationResult || v2BuildEvaluationResult(st, schools);
   const savedEcRoadmapAnalysis = snapshot?.strategyResult?.ecRoadmapAnalysis || result.ecRoadmapAnalysis || st.ecRoadmapAnalysis;
   const ecRoadmapAnalysis = savedEcRoadmapAnalysis?.domainScores?.length ? savedEcRoadmapAnalysis : v2EcDomainAnalysis(st, schools);
-  const signatureProjects = result.signatureProjects?.length ? result.signatureProjects : ((st.signatureProjects || []).length ? st.signatureProjects : v2GenerateSignatureProjects(st, schools));
+  const signatureProjects = v2ResolveSignatureProjects(st, schools, result.signatureProjects);
   return <div className="report" style={{ marginTop: 14 }}>
     <div className="report-cover">
       <div className="brand">YES Boarding Prep</div>
@@ -3132,13 +3231,15 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
   </div>;
 };
 V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, update, schools }) {
-  const generated = v2GenerateSignatureProjects(st, schools);
+  const generated = v2GenerateSignatureProjects(st, schools).map(project => v2NormalizeSignatureProject({ ...project, schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
   const saved = (st.signatureProjects || []).map(v2NormalizeSignatureProject);
-  const projects = saved.length ? saved : generated;
+  const projects = v2ResolveSignatureProjects(st, schools);
+  const legacyCount = saved.filter(v2SignatureProjectIsLegacy).length;
+  const hasResolvedUpgrade = legacyCount > 0 && projects.length > 0;
   const saveAll = next => update({ signatureProjects: next.map(v2NormalizeSignatureProject) });
   const regenerate = () => {
     if (saved.length && !window.confirm("기존 수동 수정 프로젝트를 추천안으로 다시 생성할까요?")) return;
-    saveAll(v2GenerateSignatureProjects(st, schools));
+    saveAll(generated);
   };
   const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
   return <V2Section title="Signature Project / 3대 스파이크 기획">
@@ -3146,9 +3247,13 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, 
       <p className="small muted" style={{ margin: 0, maxWidth: 820 }}>Stage 1의 핵심 EC와 관심학교 데이터를 바탕으로, 학생의 Hook을 실제 원서에서 사용할 수 있는 Signature Project로 변환합니다. 각 프로젝트는 학업적 재능, 보딩스쿨 fit, 사회적 기여, 증거자료, 학기별 로드맵까지 함께 생성되며 필요하면 상담 방향에 맞게 수정해 저장할 수 있습니다.</p>
       <div className="right" style={{ gap: 8 }}>
         {!saved.length && <button type="button" className="btn primary" onClick={() => saveAll(generated)}>추천안 저장</button>}
+        {hasResolvedUpgrade && <button type="button" className="btn primary" onClick={() => saveAll(projects)}>보강안 저장</button>}
         <button type="button" className="btn ghost" onClick={regenerate}>추천안 다시 생성</button>
       </div>
     </div>
+    {hasResolvedUpgrade && <div className="card" style={{ background: "#eff6ff", borderColor: "#bfdbfe", marginBottom: 12 }}>
+      <p className="small" style={{ margin: 0, lineHeight: 1.65 }}>이전에 저장된 Signature Project 중 단순 설명에 가까운 항목 {legacyCount}개를 현재 입력된 학생 정보, 핵심 EC, 관심학교 데이터를 기준으로 자동 보강해 표시하고 있습니다. 이 버전을 유지하려면 <b>보강안 저장</b>을 눌러주세요.</p>
+    </div>}
     <div style={{ display: "grid", gap: 14 }}>
       {projects.length ? projects.map((project, i) => <V2SignatureProjectCard key={project.id || i} project={project} index={i} editable onSave={next => editOne(i, next)} />) : <div className="card"><p className="small muted">Stage 1 EC 기본에서 핵심 활동을 입력하면 Signature Project 추천안이 생성됩니다.</p></div>}
     </div>
