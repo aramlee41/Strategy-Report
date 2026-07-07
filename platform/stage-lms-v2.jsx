@@ -144,7 +144,114 @@ const V2_RECOMMENDER_STATUS = ["Not Requested", "Requested", "Materials Sent", "
 const V2_EMPTY_PREVIOUS_APPLICATION = () => ({ school: "", gradeApplied: "", platform: "", platformOtherUrl: "", account: "", submittedDate: "", result: "", notes: "" });
 const V2_EMPTY_RECOMMENDATION = () => ({ candidate: "", role: "", roleOther: "", currentStrength: "", targetStrength: "", evidence: "", currentTeacher: "No", specialtyRecommendation: "No", status: "Not Requested", notes: "" });
 const V2_DATA_MODEL_VERSION = "prep-lms-separated-analysis-v1";
+const V2_SIGNATURE_AI_ENDPOINT_KEY = "yes_prep_signature_ai_endpoint";
 const V2_EC_ROADMAP_DOMAINS = ["Sports", "Arts", "Leadership", "Community Service", "STEM", "Academics", "Internship/Work"];
+
+function v2SignatureAiEndpoint() {
+  try {
+    const saved = localStorage.getItem(V2_SIGNATURE_AI_ENDPOINT_KEY) || "";
+    if (saved) return saved;
+  } catch (e) {}
+  if (typeof window !== "undefined" && /vercel\.app$/i.test(window.location.hostname)) {
+    return `${window.location.origin}/api/generate-signature-project`;
+  }
+  return "";
+}
+
+function v2SetSignatureAiEndpoint(value) {
+  const clean = String(value || "").trim().replace(/\/$/, "");
+  if (!clean) return "";
+  const endpoint = /\/api\/generate-signature-project$/i.test(clean) ? clean : `${clean}/api/generate-signature-project`;
+  try { localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, endpoint); } catch (e) {}
+  return endpoint;
+}
+
+function v2PromptSignatureAiEndpoint(force = false) {
+  const current = v2SignatureAiEndpoint();
+  if (current && !force) return current;
+  const next = window.prompt(
+    "Vercel API 주소를 입력해주세요. 예: https://your-project.vercel.app",
+    current || "https://your-project.vercel.app"
+  );
+  return v2SetSignatureAiEndpoint(next);
+}
+
+function v2SignatureAiStudentPayload(st = {}) {
+  return {
+    name: st.name || "",
+    en: st.en || st.englishName || "",
+    grade: st.grade || st.currentGrade || "",
+    targetYear: st.targetYear || "",
+    targetGrade: st.targetGrade || "",
+    target: st.target || "",
+    school: st.school || "",
+    citizenship: st.citizenship || st.usStatus || "",
+    interests: (st.interests || []).slice(0, 6),
+    tests: (st.tests || []).slice(0, 8),
+    transcripts: (st.transcripts || []).slice(0, 12),
+    ecs: (st.ecs || []).slice(0, 18),
+    awards: (st.awards || []).slice(0, 12),
+    recommendations: (st.recommendations || []).slice(0, 8),
+    profile: st.profile || st.hookNotes || ""
+  };
+}
+
+function v2SignatureAiSchoolPayload(st = {}, schools = []) {
+  const interestNames = new Set((st.interests || []).map(x => x.school).filter(Boolean));
+  return (schools || [])
+    .filter(s => interestNames.has(s.name))
+    .slice(0, 6)
+    .map(s => ({
+      name: s.name || "",
+      programs: s.programs || "",
+      sports: s.sports || "",
+      arts: s.arts || "",
+      fit: s.fit || "",
+      risk: s.risk || "",
+      interview: s.interview || "",
+      englishRequirements: s.englishRequirements || {}
+    }));
+}
+
+function v2NormalizeAiProposal(proposal = {}) {
+  return {
+    title: proposal.title || "Signature Project Proposal",
+    subtitle: proposal.subtitle || "",
+    meta: proposal.meta || "",
+    sections: Array.isArray(proposal.sections) ? proposal.sections.map(section => ({
+      title: section.title || "",
+      body: section.body || "",
+      bullets: Array.isArray(section.bullets) ? section.bullets : [],
+      subsections: Array.isArray(section.subsections) ? section.subsections.map(sub => ({
+        title: sub.title || "",
+        body: sub.body || ""
+      })) : []
+    })) : [],
+    timeline: Array.isArray(proposal.timeline) ? proposal.timeline.map(row => ({
+      label: row.label || "",
+      tasks: Array.isArray(row.tasks) ? row.tasks : []
+    })) : []
+  };
+}
+
+async function v2GenerateAiSignatureProposal({ st, project, schools, endpoint, mode = "generate" }) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode,
+      student: v2SignatureAiStudentPayload(st),
+      project: v2NormalizeSignatureProject(project),
+      schools: v2SignatureAiSchoolPayload(st, schools)
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `AI API request failed (${response.status})`);
+  return {
+    ...data,
+    proposal: v2NormalizeAiProposal(data.proposal || {})
+  };
+}
 
 function v2EcStrength(ec = {}) {
   const awardCount = (ec.awards || []).filter(a => a.awardName || a.competition).length;
@@ -3372,6 +3479,10 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeep({ st, updat
     if (saved.length && !window.confirm("기존 수동 수정 프로젝트를 추천안으로 다시 생성할까요?")) return;
     saveAll(v2GenerateSignatureProjects(st, schools));
   };
+  const configureAi = () => {
+    const endpoint = v2PromptSignatureAiEndpoint(true);
+    if (endpoint) window.alert(`AI API endpoint saved:\n${endpoint}`);
+  };
   const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
   return <V2Section title="Signature Project / 3대 스파이크 기획">
     <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -3440,8 +3551,15 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
   const normalized = v2NormalizeSignatureProject(project || {});
   const [editing, setEditing] = useState(false);
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiPreviewProposal, setAiPreviewProposal] = useState(null);
   const [draft, setDraft] = useState(normalized);
-  React.useEffect(() => setDraft(v2NormalizeSignatureProject(project || {})), [project?.id, project?.generatedAt, project?.manuallyEdited]);
+  React.useEffect(() => {
+    setDraft(v2NormalizeSignatureProject(project || {}));
+    setAiPreviewProposal(null);
+    setAiError("");
+  }, [project?.id, project?.generatedAt, project?.manuallyEdited, project?.aiGeneratedAt]);
   const accent = { blue: "#2563eb", cyan: "#0891b2", green: "#059669", purple: "#7c3aed", sky: "#0284c7" }[normalized.theme] || "#2563eb";
   const setArray = (key, value) => setDraft({ ...draft, [key]: String(value || "").split("\n").map(x => x.trim()).filter(Boolean) });
   const save = () => {
@@ -3451,9 +3569,36 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
   };
   const p = editing ? draft : normalized;
   const proposal = p.proposal || v2BuildSignatureProjectProposal(st, p, schools);
+  const modalProposal = aiPreviewProposal || proposal;
   const saveProposal = () => {
-    onSave?.(v2NormalizeSignatureProject({ ...p, proposal, proposalSavedAt: new Date().toISOString(), schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
+    onSave?.(v2NormalizeSignatureProject({ ...p, proposal: modalProposal, proposalSavedAt: new Date().toISOString(), schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
     setProposalOpen(false);
+  };
+  const runAiProposal = async () => {
+    if (!editable || aiLoading) return;
+    const endpoint = v2PromptSignatureAiEndpoint(false);
+    if (!endpoint) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const result = await v2GenerateAiSignatureProposal({ st, project: p, schools, endpoint });
+      const nextProject = v2NormalizeSignatureProject({
+        ...p,
+        proposal: result.proposal,
+        aiQualityReview: result.qualityReview,
+        aiModel: result.model,
+        aiGeneratedAt: result.generatedAt || new Date().toISOString(),
+        proposalSavedAt: new Date().toISOString(),
+        schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA
+      });
+      setAiPreviewProposal(result.proposal);
+      onSave?.(nextProject);
+      setProposalOpen(true);
+    } catch (error) {
+      setAiError(error.message || "AI generation failed.");
+    } finally {
+      setAiLoading(false);
+    }
   };
   const sectionStyle = { border: "1px solid #dbeafe", borderRadius: 10, padding: 12, background: "#f8fbff" };
   return <div className="card" style={{ borderLeft: `5px solid ${accent}`, background: "#fff" }}>
@@ -3465,11 +3610,15 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
       </div>
       <div className="right" style={{ gap: 8 }}>
         <span className="pill" style={{ background: "#eef6ff", color: accent }}>{p.badge}</span>
+        {editable && <button type="button" className="btn green" disabled={aiLoading} onClick={runAiProposal}>{aiLoading ? "AI 생성 중..." : "AI 고급 생성"}</button>}
         <button type="button" className="btn primary" onClick={() => setProposalOpen(true)}>제안서 보기</button>
         {editable && <button type="button" className="btn ghost" onClick={() => editing ? save() : setEditing(true)}>{editing ? "저장" : "수정"}</button>}
         {editable && editing && <button type="button" className="btn ghost" onClick={() => { setDraft(normalized); setEditing(false); }}>취소</button>}
       </div>
     </div>
+    {aiError && <div className="card" style={{ background: "#fff7ed", borderColor: "#fed7aa", marginTop: 12 }}>
+      <p className="small" style={{ margin: 0, color: "#9a3412" }}>{aiError}</p>
+    </div>}
     {editing ? <div className="grid g2" style={{ marginTop: 12 }}>
       <V2Field label="Badge" val={draft.badge} set={v => setDraft({ ...draft, badge: v })} />
       <V2Text label="Big Idea / 핵심 기획" val={draft.bigIdea} set={v => setDraft({ ...draft, bigIdea: v, rationale: v })} minHeight={110} />
@@ -3504,7 +3653,7 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
       {(p.risks || []).length > 0 && <div style={{ marginTop: 10 }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>}
       {(p.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{p.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
     </div>}
-    {proposalOpen && <V2SignatureProposalModal proposal={proposal} onClose={() => setProposalOpen(false)} onSave={editable ? saveProposal : null} />}
+    {proposalOpen && <V2SignatureProposalModal proposal={modalProposal} onClose={() => setProposalOpen(false)} onSave={editable ? saveProposal : null} />}
   </div>;
 };
 V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, update, schools }) {
@@ -3518,6 +3667,10 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, 
     if (saved.length && !window.confirm("기존 수동 수정 프로젝트를 추천안으로 다시 생성할까요?")) return;
     saveAll(generated);
   };
+  const configureAi = () => {
+    const endpoint = v2PromptSignatureAiEndpoint(true);
+    if (endpoint) window.alert(`AI API endpoint saved:\n${endpoint}`);
+  };
   const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
   return <V2Section title="Signature Project / 3대 스파이크 기획">
     <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -3525,6 +3678,7 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, 
       <div className="right" style={{ gap: 8 }}>
         {!saved.length && <button type="button" className="btn primary" onClick={() => saveAll(generated)}>추천안 저장</button>}
         {hasResolvedUpgrade && <button type="button" className="btn primary" onClick={() => saveAll(projects)}>보강안 저장</button>}
+        <button type="button" className="btn ghost" onClick={configureAi}>AI API 설정</button>
         <button type="button" className="btn ghost" onClick={regenerate}>추천안 다시 생성</button>
       </div>
     </div>
