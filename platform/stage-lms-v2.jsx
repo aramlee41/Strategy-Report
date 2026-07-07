@@ -155,7 +155,10 @@ function v2EcStrength(ec = {}) {
   return (ec.core ? 100 : 0) + awardCount * 6 + levelScore + timeScore + storyScore;
 }
 function v2OrderCoreEcs(ecs = []) {
-  return [...ecs].sort((a, b) => Number(!!b.core) - Number(!!a.core) || v2EcStrength(b) - v2EcStrength(a));
+  return [...ecs]
+    .map((ec, index) => ({ ec, index }))
+    .sort((a, b) => Number(!!b.ec.core) - Number(!!a.ec.core) || a.index - b.index)
+    .map(x => x.ec);
 }
 function v2EcName(ec = {}) {
   return ec.name || ec.team || ec.description || "활동명 미입력";
