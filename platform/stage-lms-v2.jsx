@@ -1068,6 +1068,129 @@ v2GenerateSignatureProjects = function v2GenerateSignatureProjectsDeep(st = {}, 
   }
   return projects.slice(0, 4);
 };
+function v2SignatureIdeaBlock({ what, how, intent, project }) {
+  return [
+    `무엇을 할 것인가: ${what}`,
+    `어떻게 실행할 것인가: ${how}`,
+    `어떤 의도인가: ${intent}`,
+    `어떤 프로젝트로 정의되는가: ${project}`
+  ].join("\n\n");
+}
+v2GenerateSignatureProjects = function v2GenerateSignatureProjectsDepthV2(st = {}, schools = []) {
+  const hook = v2BuildHookStrategy(st, schools);
+  const insights = hook.activityInsights || [];
+  const stem = insights.filter(x => x.domains.includes("STEM") || x.domains.includes("Academics"));
+  const sports = insights.filter(x => x.domains.includes("Sports"));
+  const arts = insights.filter(x => x.domains.includes("Arts"));
+  const service = insights.filter(x => x.domains.includes("Community Service") || x.domains.includes("Leadership"));
+  const allText = insights.map(x => `${x.name} ${x.ec?.activityName || ""} ${x.ec?.note || ""} ${x.ec?.impact || ""}`).join(" ").toLowerCase();
+  const studentName = st.name || "학생";
+  const schoolText = v2ProjectSchoolText(st, schools);
+  const hasDiabetes = /diabet|diabetes|diabetic|당뇨/.test(allText);
+  const hasBaseball = /baseball|야구/.test(allText);
+  const hasCello = /cello|첼로/.test(allText);
+  const projects = [];
+  if (stem.length) {
+    const title = hasDiabetes ? "Pediatric Diabetes School-Life Research Portfolio" : `${stem[0].name} Academic Research Portfolio`;
+    projects.push(v2SignatureProject(hasDiabetes ? "signature-diabetes-research-v2" : "signature-academic-research-v2", title, "Academic Research Spike", "cyan", stem.slice(0, 2), "Research / STEM", st, {
+      schools,
+      bigIdea: hasDiabetes ? v2SignatureIdeaBlock({
+        what: `${studentName} 학생이 소아 당뇨를 가진 학생들이 학교생활에서 실제로 겪는 어려움을 조사하고, 이를 보딩스쿨 환경에서 어떻게 지원할 수 있는지 제안하는 리서치 포트폴리오를 만듭니다. 단순히 '당뇨에 관심이 있다'가 아니라, 혈당 관리, 식사, 운동, 친구 관계, 수업 집중, 정서적 부담이 서로 어떻게 연결되는지를 학생의 언어로 구조화하는 프로젝트입니다.`,
+        how: "매주 논문, 기사, 병원/공공기관 자료, 학교 보건 관련 자료를 1-2개씩 읽고 evidence log를 작성합니다. 각 자료마다 핵심 내용, 기존 해결책의 한계, 학생이 제안할 수 있는 개선 방향을 정리합니다. 이후 문제를 Biology, Psychology, Public Health, Boarding Life의 네 관점으로 나누어 분석하고, 최종적으로 5-8페이지 research brief와 5분 발표자료로 정리합니다.",
+        intent: "이 프로젝트의 의도는 STEM 역량을 단순 대회나 활동명으로 보여주는 것이 아니라, 실제 사회 문제를 학업적 탐구로 이해하고 해결 방향을 설계할 수 있는 학생이라는 이미지를 만드는 것입니다. 보딩스쿨은 수업에서 질문하고, 자료를 읽고, 토론하고, 배운 것을 공동체 안에서 적용하는 학생을 선호합니다. 따라서 이 프로젝트는 학업 준비도와 커뮤니티 기여 가능성을 동시에 보여주는 핵심 증거가 됩니다.",
+        project: "최종 결과물은 Pediatric Diabetes School-Life Research Portfolio입니다. 구성은 research question, literature/evidence log, school-life problem map, proposed support model, bibliography, teacher/mentor feedback로 잡습니다. 원서에서는 Activity List, STEM supplement, Interview, 추천서 evidence sheet에 모두 사용할 수 있습니다."
+      }) : v2SignatureIdeaBlock({
+        what: `${studentName} 학생이 ${stem[0].name}을 중심으로 어려운 문제를 어떻게 정의하고, 어떤 방식으로 접근하고, 실패한 풀이를 어떻게 수정해 결과물로 발전시키는지를 보여주는 학업 포트폴리오를 만듭니다.`,
+        how: "대표 문제나 탐구 주제를 정하고, 매주 접근 과정과 풀이/조사 과정을 evidence log로 남깁니다. 단순 정답이나 수상 결과보다 질문 설정, 시도한 방법, 막힌 지점, 수정한 전략, 최종 설명 방식을 기록합니다.",
+        intent: "의도는 대회 참여 사실을 나열하는 것이 아니라, 학생의 사고력과 자기주도적 학습 태도를 보딩스쿨이 이해할 수 있는 증거로 바꾸는 것입니다.",
+        project: "최종 결과물은 Academic Research Portfolio입니다. 대표 문제풀이/탐구 노트, 발표자료, 교사 피드백, 원서용 활동 설명을 포함합니다."
+      }),
+      boardingFit: `${schoolText}에서는 지적 호기심이 교실 안에만 머무르지 않고 클럽, 연구, 토론, peer tutoring, 기숙사 대화로 이어지는지를 중요하게 봅니다. 이 프로젝트는 학생이 배운 지식을 실제 생활 문제에 적용하고, 그 결과를 친구와 교사에게 설명할 수 있다는 점을 보여줍니다.`,
+      academicTalent: `${v2ProjectAcademicEvidence(st)} 특히 이 프로젝트는 자료 독해, 문제 정의, 근거 비교, 결론 작성, 발표 능력을 모두 보여주므로 학업적 재능을 구체적으로 증명하는 축이 됩니다.`,
+      communityContribution: hasDiabetes ? "리서치가 개인 탐구에서 끝나지 않도록, 다음 단계에서는 학생/교사/코치/기숙사 어드바이저가 실제로 참고할 수 있는 안내자료로 확장합니다. 이렇게 해야 '똑똑한 학생'을 넘어 배운 것을 공동체에 환원하는 학생으로 읽힙니다." : "학업 포트폴리오를 후배나 또래가 이해할 수 있는 설명 자료로 바꾸면, 학생의 학업 역량이 공동체 안에서의 지적 기여로 이어집니다.",
+      currentEvidence: `${v2ProjectActivityText(stem)} 활동이 현재 근거입니다. 다만 활동명만으로는 충분하지 않으므로, 학생이 어떤 질문을 붙잡았고 어떤 자료를 읽었으며 어떤 결론에 도달했는지를 보여주는 기록이 필요합니다.`,
+      targetOutput: hasDiabetes ? "5-8페이지 research brief, 5분 발표자료, 참고문헌 10개 이상, 학생/교사용 1페이지 요약 가이드, 가능하면 보건교사·생명과학 교사·의료/보건 멘토 피드백 1회 이상을 목표로 합니다." : "대표 탐구 포트폴리오, 설명 자료, 발표자료, 교사 피드백, 원서용 활동 설명을 목표로 합니다.",
+      evidenceNeeded: ["Research question 2-3개", "주간 evidence log", "문제 정의와 기존 해결책의 한계", "최종 research brief", "발표자료", "교사/멘토 피드백"],
+      nextActions: ["핵심 질문을 2-3개로 좁힙니다.", "자료 10개 수집 계획을 세웁니다.", "evidence log 양식을 만들고 이번 주부터 기록합니다.", "피드백을 받을 교사/멘토 후보를 정합니다."]
+    }));
+  }
+  if (hasDiabetes) {
+    projects.push(v2SignatureProject("signature-diabetes-toolkit-v2", "Diabetes-Aware Boarding Community Toolkit", "Community Health Contribution", "blue", stem.slice(0, 2), "Community Health Toolkit", st, {
+      schools,
+      bigIdea: v2SignatureIdeaBlock({
+        what: "첫 번째 리서치 프로젝트를 실제 공동체 기여로 바꾸는 프로젝트입니다. 소아 당뇨를 가진 학생이 보딩스쿨에서 더 안전하고 자연스럽게 생활할 수 있도록 학생, 친구, 교사, 코치, 기숙사 어드바이저가 각각 참고할 수 있는 간단한 toolkit을 만듭니다.",
+        how: "리서치에서 정리한 내용을 바탕으로 대상별 자료를 나눕니다. 학생용에는 도움 요청 방법과 자기관리 체크리스트, 친구용에는 오해를 줄이고 자연스럽게 도울 수 있는 행동, 교사용에는 수업·시험·체육 상황에서의 배려 포인트, 코치/기숙사용에는 운동 전후와 야간 생활에서의 기본 체크 포인트를 넣습니다. 가능하면 PDF, Notion 페이지, 5분 발표자료, 1회 awareness session으로 실행합니다.",
+        intent: "의도는 '건강 주제를 조사한 학생'에서 끝나는 것이 아니라, 배운 것을 다른 사람에게 전달하고 학교 공동체가 실제로 사용할 수 있는 자료로 바꾸는 것입니다. 이는 보딩스쿨이 중요하게 보는 empathy, initiative, maturity, community contribution을 직접 보여줍니다.",
+        project: "최종 결과물은 Diabetes-Aware Boarding Community Toolkit입니다. 4종 PDF toolkit, quick guide, 발표 슬라이드, 피드백 설문, 참여자 수, 담당 교사 코멘트를 evidence로 남깁니다."
+      }),
+      boardingFit: "보딩스쿨은 수업만이 아니라 식사, 운동, 기숙사, 주말 활동이 모두 연결된 생활 공동체입니다. 이 프로젝트는 학생이 보딩스쿨 환경을 이해하고, 그 안에서 다른 학생이 더 안전하고 편안하게 생활하도록 기여할 수 있다는 점을 보여줍니다.",
+      academicTalent: "리서치 내용을 대상별로 재구성해야 하므로 정보 선별력, 설명력, 청중에 맞춘 커뮤니케이션 능력이 드러납니다. 이는 학업적 이해를 실제 적용으로 옮기는 능력입니다.",
+      communityContribution: "이 프로젝트의 핵심은 contribution입니다. 지식을 혼자 갖고 있는 학생이 아니라, 학교 공동체가 활용할 수 있도록 번역하고 나누는 학생으로 보이게 합니다.",
+      currentEvidence: "현재 STEM/health 관련 활동이 있다면 이를 출발점으로 삼고, 아직 실행 증거가 부족하다면 toolkit 초안, 피드백 설문, 발표 기록을 새로 만들어야 합니다.",
+      targetOutput: "학생용·친구용·교사용·코치/기숙사용 toolkit, 1페이지 quick guide, 5분 발표자료, awareness session 1회, 피드백 설문 결과를 목표로 합니다.",
+      evidenceNeeded: ["Toolkit 링크/PDF", "발표 사진 또는 화면 캡처", "피드백 설문", "참여 인원", "담당 교사 코멘트"],
+      nextActions: ["리서치 내용을 대상별로 분류합니다.", "학생용 quick guide부터 초안을 만듭니다.", "발표 또는 공유할 수 있는 교내/외부 채널을 찾습니다.", "피드백 설문 문항을 만듭니다."]
+    }));
+  }
+  if (hasBaseball || sports.length) {
+    const base = sports.find(x => /baseball|야구/i.test(x.name)) || sports[0];
+    projects.push(v2SignatureProject("signature-baseball-performance-v2", hasBaseball && hasDiabetes ? "Baseball, Blood Sugar, and Performance" : `${base.name} Performance & Team Culture Log`, "Boarding Athlete Spike", "green", [base].filter(Boolean), "Athletic / Boarding Fit", st, {
+      schools,
+      bigIdea: v2SignatureIdeaBlock({
+        what: hasBaseball && hasDiabetes ? "야구를 단순 스포츠 활동이 아니라 운동, 에너지 관리, 팀워크, 건강 인식이 연결되는 보딩스쿨형 athletic project로 만듭니다." : `${base.name} 활동을 단순 참여 기록이 아니라 훈련, 자기관리, 팀 기여, 회복력을 보여주는 athletic growth project로 만듭니다.`,
+        how: "주간 훈련 시간, 기술 목표, 경기 기록, 컨디션 변화, 코치 피드백, 팀 안에서 맡은 역할을 기록합니다. 가능하면 기록 변화표, 훈련 로그, 코치 코멘트, 짧은 highlight 영상 또는 경기/대회 기록 링크를 함께 정리합니다.",
+        intent: "의도는 스포츠 실력만 보여주는 것이 아니라 보딩스쿨 생활에서 중요한 discipline, resilience, teamwork, coachability를 증명하는 것입니다. 특히 팀 스포츠는 기숙사와 팀 환경에서 이 학생이 어떻게 적응하고 기여할지를 보여주는 좋은 자료입니다.",
+        project: hasBaseball && hasDiabetes ? "최종 결과물은 Baseball, Blood Sugar, and Performance입니다. 운동과 건강 관리의 연결, 팀 내 안전한 참여 문화, 훈련 로그, 코치 피드백을 묶어 athletic profile로 정리합니다." : "최종 결과물은 Athletic Performance & Team Culture Log입니다. 훈련 로그, 기록 변화, 팀 기여 사례, 코치 피드백, 인터뷰용 athletic story를 포함합니다."
+      }),
+      boardingFit: `${schoolText}에서는 스포츠가 실력뿐 아니라 생활 리듬, 코치와의 관계, 팀 안에서의 책임감, 시즌별 자기관리를 보여주는 근거가 됩니다. 이 프로젝트는 학생이 보딩스쿨 팀 환경에서 성실하게 훈련하고 공동체에 기여할 수 있음을 보여줍니다.`,
+      academicTalent: "훈련 데이터를 기록하고 변화 원인을 분석하는 과정은 자기관찰력과 분석력을 보여줍니다. 운동 경험을 숫자, 피드백, 성장 기록으로 정리하면 단순 활동보다 훨씬 설득력 있게 읽힙니다.",
+      communityContribution: "팀 안에서 후배를 돕거나 안전한 훈련 루틴을 공유하고, 코치 피드백을 바탕으로 팀 문화에 기여하는 방향으로 확장합니다.",
+      currentEvidence: `${base.name} 활동이 현재 근거입니다. 주당 시간, 기간, 포지션, 경기/대회 기록, 코치 피드백이 정리될수록 강해집니다.`,
+      targetOutput: "월별 훈련 로그, 기록 변화표, 코치 피드백, 팀 기여 사례 3개, 가능하면 영상/사진 링크, Activity List 문장, 인터뷰용 45초 답변을 목표로 합니다.",
+      evidenceNeeded: ["훈련 로그", "기록 변화표", "코치 피드백", "경기/대회 기록", "팀 기여 사례", "영상/사진 링크"],
+      nextActions: ["최근 3개월 훈련 기록을 정리합니다.", "코치에게 받을 피드백 항목을 정합니다.", "팀 안에서 맡은 역할과 변화 사례를 3개 작성합니다."]
+    }));
+  }
+  if (hasCello || arts.length) {
+    const base = arts.find(x => /cello|첼로/i.test(x.name)) || arts[0];
+    projects.push(v2SignatureProject("signature-cello-reflection-v2", hasCello ? "Cello Reflection Portfolio: Science, Care, and Expression" : `${base.name} Reflection Portfolio`, "Arts / Reflection Spike", "purple", [base].filter(Boolean), "Arts / Expression", st, {
+      schools,
+      bigIdea: v2SignatureIdeaBlock({
+        what: `${base.name}을 학생의 정서적 깊이와 표현력을 보여주는 보완 축으로 만듭니다. STEM이나 스포츠가 문제 해결력과 규율을 보여준다면, 이 프로젝트는 학생이 자신의 경험과 감정을 어떻게 해석하고 표현하는지를 보여줍니다.`,
+        how: "대표 작품 3-5개를 고르고, 각 작품에 대해 선택 이유, 연습 과정, 어려웠던 부분, 피드백 반영, 최종 연주/작품 링크를 정리합니다. 가능하면 작은 공연, 봉사 연주, 학교 행사 참여, 지도자 피드백을 함께 남깁니다.",
+        intent: "의도는 학생을 한 분야만 강한 학생으로 보이지 않게 하는 것입니다. 보딩스쿨은 학업, 활동, 공동체 문화의 균형을 보기 때문에 예술 활동은 학생의 감수성, 꾸준함, 문화적 기여 가능성을 보완해 줍니다.",
+        project: "최종 결과물은 Reflection Portfolio입니다. 3-5개 작품/연주 링크, 곡별 reflection, 지도자 피드백, artist statement, 공연/봉사 기록을 포함합니다."
+      }),
+      boardingFit: `${schoolText}에서는 공연, chapel, assembly, house event, arts club처럼 공동체 문화에 기여할 수 있는 장면이 많습니다. 이 프로젝트는 학생이 조용하지만 분명한 방식으로 학교 문화에 기여할 수 있음을 보여줍니다.`,
+      academicTalent: "작품 해석, 연습 계획, 피드백 반영, 자기평가를 기록하면 예술 활동 안에서도 분석력과 자기주도성이 드러납니다.",
+      communityContribution: "작은 공연, 봉사 연주, 학교 행사 참여, 후배 멘토링 등으로 연결하면 예술 활동이 개인 포트폴리오를 넘어 공동체 기여가 됩니다.",
+      currentEvidence: `${base.name} 활동이 현재 근거입니다. 대표 작품과 성장 과정, 피드백 기록이 함께 필요합니다.`,
+      targetOutput: "대표 작품 3-5개, 곡별 reflection, 연습 로그, 피드백 반영 기록, 공연/봉사 기록, artist statement를 목표로 합니다.",
+      evidenceNeeded: ["대표 작품/연주 링크", "곡별 reflection", "연습 로그", "지도자 피드백", "공연/봉사 기록", "artist statement"],
+      nextActions: ["대표 작품 후보 3-5개를 고릅니다.", "각 작품의 선택 이유를 씁니다.", "지도자 피드백을 받을 일정을 정합니다."]
+    }));
+  }
+  if (!projects.length || projects.length < 3) {
+    const base = service[0] || insights[0];
+    projects.push(v2SignatureProject("signature-community-builder-v2", "Balanced Community Builder Project", "Community Builder", "blue", base ? [base] : insights.slice(0, 2), "Community Builder", st, {
+      schools,
+      bigIdea: v2SignatureIdeaBlock({
+        what: `${studentName} 학생의 여러 활동을 하나의 학생 이미지로 묶는 프로젝트입니다. 목표 이미지는 문제 해결력, 팀워크, 표현력을 모두 가진 균형형 커뮤니티 빌더입니다.`,
+        how: "핵심 활동 2-3개를 골라 각각이 보여주는 역량을 정리하고, 그 역량이 학교 공동체 안에서 어떤 기여로 이어질 수 있는지 사례와 evidence를 만듭니다.",
+        intent: "의도는 활동 개수를 많이 보여주는 것이 아니라, 입학사정관이 학생을 한 문장으로 기억하게 만드는 것입니다.",
+        project: "최종 결과물은 학생 이미지 맵, Activity List 우선순위, Essay/Interview 소재, 추천서 evidence sheet입니다."
+      }),
+      boardingFit: "보딩스쿨은 균형 있는 학생을 좋아하지만, 균형이 흐릿하게 보이면 장점이 약해집니다. 따라서 여러 활동을 하나의 이미지로 묶어야 합니다.",
+      academicTalent: v2ProjectAcademicEvidence(st),
+      communityContribution: "학생의 강점을 팀, 클럽, 수업, 기숙사 생활에서 어떤 기여로 바꿀지 정리합니다.",
+      currentEvidence: `${v2ProjectActivityText(insights)} 활동이 현재 근거입니다.`,
+      targetOutput: "학생 이미지 맵, 핵심 활동 3개 evidence sheet, 인터뷰 30초 답변, 추천서 요청용 요약자료를 목표로 합니다.",
+      evidenceNeeded: ["핵심 활동별 evidence", "학생 이미지 맵", "인터뷰 답변", "추천서 evidence sheet"],
+      nextActions: ["핵심 활동 3개를 확정합니다.", "각 활동이 보여주는 역량을 한 문장으로 씁니다.", "공통 Hook 문장을 작성합니다."]
+    }));
+  }
+  return projects.slice(0, 4);
+};
 function v2SchoolFitEngine(st = {}, schools = []) {
   const evaluation = v2BuildEvaluationResult(st, schools);
   const core = v2CoreEcStrategyEngine(st);
@@ -2987,16 +3110,16 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
     </div> : <div>
       <div style={{ ...sectionStyle, marginTop: 14 }}>
         <b>Big Idea / 핵심 기획</b>
-        <p style={{ lineHeight: 1.8, marginBottom: 0 }}>{p.bigIdea}</p>
+        <p style={{ lineHeight: 1.8, marginBottom: 0, whiteSpace: "pre-line" }}>{p.bigIdea}</p>
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
-        <div style={sectionStyle}><b>Boarding School Fit</b><p className="small" style={{ lineHeight: 1.7 }}>{p.boardingFit}</p></div>
-        <div style={sectionStyle}><b>Academic Talent</b><p className="small" style={{ lineHeight: 1.7 }}>{p.academicTalent}</p></div>
-        <div style={sectionStyle}><b>Community Contribution</b><p className="small" style={{ lineHeight: 1.7 }}>{p.communityContribution}</p></div>
+        <div style={sectionStyle}><b>Boarding School Fit</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.boardingFit}</p></div>
+        <div style={sectionStyle}><b>Academic Talent</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.academicTalent}</p></div>
+        <div style={sectionStyle}><b>Community Contribution</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.communityContribution}</p></div>
       </div>
       <div className="grid g2" style={{ marginTop: 12 }}>
-        <div><b>Current Evidence</b><p className="small" style={{ lineHeight: 1.7 }}>{p.currentEvidence}</p></div>
-        <div><b>Target Output</b><p className="small" style={{ lineHeight: 1.7 }}>{p.targetOutput}</p></div>
+        <div><b>Current Evidence</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.currentEvidence}</p></div>
+        <div><b>Target Output</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.targetOutput}</p></div>
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
         <div><b>Evidence Needed</b>{(p.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>
