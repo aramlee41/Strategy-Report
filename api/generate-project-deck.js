@@ -143,6 +143,62 @@ const DECK_SCHEMA = {
   required: ["deck_title", "student_summary", "consultant_transformation_summary", "slides"]
 };
 
+const REVIEW_SCHEMA = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    score: { type: "number" },
+    needs_rewrite: { type: "boolean" },
+    summary: { type: "string" },
+    critical_issues: TEXT_ARRAY_SCHEMA,
+    slide_reviews: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          slide_no: { type: "number" },
+          status: { type: "string", enum: ["pass", "rewrite"] },
+          issues: TEXT_ARRAY_SCHEMA,
+          rewrite_instructions: { type: "string" }
+        }
+      }
+    }
+  },
+  required: ["score", "needs_rewrite", "summary", "critical_issues", "slide_reviews"]
+};
+
+const BLUEPRINT_SCHEMA = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    signature_title: { type: "string" },
+    project_question: { type: "string" },
+    student_hook: { type: "string" },
+    student_fit: { type: "string" },
+    academic_value: { type: "string" },
+    community_contribution: { type: "string" },
+    target_audience: { type: "string" },
+    final_outputs: { type: "array", items: CARD_SCHEMA },
+    weekly_arc: { type: "array", items: CARD_SCHEMA },
+    admissions_use: { type: "array", items: CARD_SCHEMA },
+    risks_and_controls: { type: "array", items: CARD_SCHEMA }
+  },
+  required: [
+    "signature_title",
+    "project_question",
+    "student_hook",
+    "student_fit",
+    "academic_value",
+    "community_contribution",
+    "target_audience",
+    "final_outputs",
+    "weekly_arc",
+    "admissions_use",
+    "risks_and_controls"
+  ]
+};
+
 const THEME = {
   navy: "173A59",
   blue: "2C78A0",
@@ -185,6 +241,8 @@ function readDeckPrompt() {
     "Every slide must be specific enough to render directly into editable PPTX."
   ].join("\n");
   try {
+    const v3Prompt = path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.v3.txt");
+    if (fs.existsSync(v3Prompt)) return fs.readFileSync(v3Prompt, "utf8").trim() || fallback;
     const v2Prompt = path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.v2.txt");
     if (fs.existsSync(v2Prompt)) return fs.readFileSync(v2Prompt, "utf8").trim() || fallback;
     const cleanPrompt = path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.clean.txt");
@@ -361,7 +419,7 @@ function payloadCharLength(payload) {
   return JSON.stringify(payload).length;
 }
 
-function enforcePayloadBudget(payload, maxChars = 42000) {
+function enforcePayloadBudget(payload, maxChars = 32000) {
   if (payloadCharLength(payload) <= maxChars) return payload;
   const next = JSON.parse(JSON.stringify(payload));
   next._compactionNotice = "The original Prep LMS data was larger than the AI context budget, so nonessential long fields were shortened before generation.";
@@ -564,6 +622,118 @@ async function callOpenAi(payload, model, attempt, feedback = "") {
   return responseText(data);
 }
 
+async function callOpenAiSchema(model, instructions, message, schemaName, schema) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      instructions,
+      input: [{ role: "user", content: [{ type: "input_text", text: message }] }],
+      text: {
+        format: {
+          type: "json_schema",
+          name: schemaName,
+          strict: false,
+          schema
+        }
+      },
+      store: false
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const error = new Error(data.error?.message || "OpenAI API request failed");
+    error.status = response.status;
+    error.details = data;
+    throw error;
+  }
+  return responseText(data);
+}
+
+async function generateProjectBlueprint(payload, model) {
+  const instructions = [
+    "You are a senior boarding school admissions strategist and academic project architect.",
+    "Create a concrete signature project blueprint before any slides are written.",
+    "The blueprint must turn raw student data into a specific, feasible, parent-facing project concept.",
+    "Do not summarize the input. Decide the student hook, project question, final outputs, weekly arc, admissions use, and risks.",
+    "Write in polished Korean, with English only for project titles and admissions labels.",
+    "Return only valid JSON."
+  ].join("\n");
+  const message = [
+    "Build the project blueprint from this Prep LMS data.",
+    "The result will be used as the source of truth for a 10-slide parent proposal deck.",
+    "Make it specific enough that another model cannot turn it into a generic project.",
+    JSON.stringify(payload, null, 2)
+  ].join("\n\n");
+  return JSON.parse(await callOpenAiSchema(model, instructions, message, "project_blueprint", BLUEPRINT_SCHEMA));
+}
+
+function deckReviewInstructions() {
+  return [
+    "You are a strict senior education consulting deck reviewer.",
+    "Your job is to decide whether this AI-generated PPTX content JSON is strong enough to show Korean parents without human rewriting.",
+    "Evaluate it against a premium parent-facing proposal PDF standard.",
+    "Fail the deck if any slide is generic, thin, truncated-looking, mechanically worded, insufficiently student-specific, or not actionable.",
+    "Pay special attention to:",
+    "- whether the project concept is sharp and specific",
+    "- whether the student profile is meaningfully connected to the project",
+    "- whether weeks 1-12 are concrete and executable",
+    "- whether support roles are practical",
+    "- whether final outputs are tangible",
+    "- whether admissions value is school-aware rather than generic",
+    "- whether the final character is memorable",
+    "- whether labels or bottom steps look clipped or orphaned",
+    "Return only valid JSON."
+  ].join("\n");
+}
+
+async function reviewDeckWithOpenAi(payload, deck, model) {
+  const message = [
+    "Review this generated deck JSON against the desired premium proposal quality.",
+    "Use the student payload and blueprint to judge specificity.",
+    "If it would still require a consultant to rewrite it before sending to parents, set needs_rewrite to true.",
+    "Give slide-specific rewrite instructions.",
+    JSON.stringify({ payload, deck }, null, 2)
+  ].join("\n\n");
+  return JSON.parse(await callOpenAiSchema(model, deckReviewInstructions(), message, "project_deck_review", REVIEW_SCHEMA));
+}
+
+function reviewNeedsRewrite(review) {
+  if (!review || typeof review !== "object") return false;
+  const score = Number(review.score || 0);
+  const rewriteSlides = asArray(review.slide_reviews).filter(item => String(item?.status || "").toLowerCase() === "rewrite");
+  return Boolean(review.needs_rewrite) || score < 8.6 || rewriteSlides.length > 0 || asArray(review.critical_issues).length > 0;
+}
+
+async function reviseDeckWithOpenAi(payload, deck, review, model) {
+  const instructions = [
+    readDeckPrompt(),
+    "",
+    "REVISION MODE",
+    "You are revising a deck that failed senior consultant review.",
+    "Rewrite the entire 10-slide JSON, not just the weak slides, so the story is coherent.",
+    "Use the review comments as mandatory corrections.",
+    "Keep the exact 10-slide structure and renderer fields.",
+    "Make weak cards more concrete, project-specific, student-specific, and parent-ready.",
+    "Avoid clipped-looking fragments. Bottom steps must have clear labels and complete text.",
+    "Return only valid JSON."
+  ].join("\n");
+  const message = [
+    "Revise this generated project proposal deck.",
+    "Student payload and project blueprint:",
+    JSON.stringify(payload, null, 2),
+    "Previous deck JSON:",
+    JSON.stringify(deck, null, 2),
+    "Senior reviewer feedback:",
+    JSON.stringify(review, null, 2)
+  ].join("\n\n");
+  return validateDeck(JSON.parse(await callOpenAiSchema(model, instructions, message, "project_proposal_deck_revision", DECK_SCHEMA)));
+}
+
 function addText(slide, text, options) {
   slide.addText(clip(text, options.max || 600), {
     fontFace: "Noto Sans KR",
@@ -610,12 +780,19 @@ function bulletCount(cards) {
   return cardArray(cards).reduce((sum, card) => sum + asArray(card.bullets).filter(Boolean).length, 0);
 }
 
+function containsTruncatedText(value) {
+  if (Array.isArray(value)) return value.some(containsTruncatedText);
+  if (value && typeof value === "object") return Object.values(value).some(containsTruncatedText);
+  return /(\.\.\.|…)\s*$/.test(String(value || "").trim());
+}
+
 function deckQualityIssues(deck) {
   const issues = [];
   const slide = no => deck.slides?.[no - 1] || {};
   const add = issue => issues.push(issue);
 
   if (!Array.isArray(deck.slides) || deck.slides.length !== 10) add("deck must contain exactly 10 slides");
+  if (containsTruncatedText(deck)) add("deck contains truncated-looking text endings");
 
   const s2 = slide(2);
   const s2Paragraphs = asArray(s2.main_card?.paragraphs).filter(Boolean);
@@ -661,7 +838,7 @@ function deckQualityIssues(deck) {
   return issues;
 }
 
-function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEME.navy) {
+function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEME.navy, max = 44) {
   slide.addShape(pptx.ShapeType.roundRect, {
     x, y, w, h: 0.26,
     rectRadius: 0.06,
@@ -674,7 +851,7 @@ function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEM
     bold: true,
     color,
     align: "center",
-    max: 28
+    max
   });
 }
 
@@ -686,9 +863,9 @@ function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = TH
     line: { color: THEME.border, pt: 0.8 }
   });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.05, h, fill: { color: accent }, line: { color: accent } });
-  addText(slide, title || "", { x: x + 0.18, y: y + 0.14, w: w - 0.34, h: 0.26, fontSize: 10.5, bold: true, color: THEME.navy, max: 55 });
+  addText(slide, title || "", { x: x + 0.18, y: y + 0.14, w: w - 0.34, h: 0.26, fontSize: 10.2, bold: true, color: THEME.navy, max: 80 });
   const body = [text, ...arr(bullets, 6).map(item => `• ${item}`)].filter(Boolean).join("\n");
-  addText(slide, body, { x: x + 0.18, y: y + 0.48, w: w - 0.34, h: Math.max(0.3, h - 0.58), fontSize: 7.4, color: THEME.ink, valign: "mid", max: 520 });
+  addText(slide, body, { x: x + 0.18, y: y + 0.48, w: w - 0.34, h: Math.max(0.3, h - 0.58), fontSize: 7.1, color: THEME.ink, valign: "mid", max: 760 });
 }
 
 function addHeader(slide, pptx, deck, slideData, index) {
@@ -724,7 +901,7 @@ function addTable(slide, table, x, y, w, h, fontSize = 6.8) {
       options: { bold: true, align: "center", valign: "mid", color: THEME.navy, fill: { color: THEME.softBlue } }
     })),
     ...rows.map(row => headers.map((_, idx) => ({
-      text: clip(Array.isArray(row) ? row[idx] || "" : "", idx === 0 ? 26 : 95),
+      text: clip(Array.isArray(row) ? row[idx] || "" : "", idx === 0 ? 32 : 170),
       options: { align: idx === 0 ? "center" : "left", valign: "mid", color: THEME.ink }
     })))
   ];
@@ -848,7 +1025,28 @@ function renderCoreCharacterSlide(pptx, deck, slideData, index) {
   addCard(s, pptx, { x: 0.58, y: 1.55, w: 12.14, h: 1.28, title: slideData.core_title || "Core Character", text: slideData.summary || "", fill: THEME.white, accent: THEME.gold });
   cardArray(slideData.traits, "trait").slice(0, 4).forEach((trait, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52, title: trait.trait || trait.title, text: trait.description || trait.text, fill: idx % 2 ? "F8FBFE" : THEME.softMint, accent: THEME.blue }));
   addCard(s, pptx, { x: 0.58, y: 5.02, w: 7.05, h: 1.05, title: "최종 인상", text: slideData.final_quote || "", fill: THEME.white, accent: THEME.mint });
-  cardArray(slideData.bottom_steps, "label").slice(0, 4).forEach((step, idx) => addPill(s, pptx, `${step.label || ""}: ${step.text || ""}`, 7.95, 5.02 + idx * 0.38, 4.55, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
+  cardArray(slideData.bottom_steps, "label").slice(0, 4).forEach((step, idx) => {
+    const y = 4.95 + idx * 0.43;
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 7.95, y, w: 4.55, h: 0.34,
+      rectRadius: 0.05,
+      fill: { color: idx % 2 ? THEME.softMint : THEME.softBlue },
+      line: { color: idx % 2 ? THEME.softMint : THEME.softBlue }
+    });
+    addText(s, step.label || `Step ${idx + 1}`, {
+      x: 8.06, y: y + 0.06, w: 0.95, h: 0.13,
+      fontSize: 6.2,
+      bold: true,
+      color: THEME.navy,
+      max: 24
+    });
+    addText(s, step.text || step.description || "", {
+      x: 9.02, y: y + 0.045, w: 3.28, h: 0.19,
+      fontSize: 5.7,
+      color: THEME.ink,
+      max: 120
+    });
+  });
   addFooter(s, deck, index);
 }
 
@@ -923,12 +1121,15 @@ module.exports = async function handler(req, res) {
     }
     const payload = compactPayload(bodyJson(req));
     const model = process.env.OPENAI_MODEL || "gpt-5.4-mini";
+    const blueprint = await generateProjectBlueprint(payload, model);
+    const deckPayload = { ...payload, project_blueprint: blueprint };
     let deck = null;
+    let review = null;
     let lastError = null;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const text = await callOpenAi(payload, model, attempt, lastError?.message || "");
+        const text = await callOpenAi(deckPayload, model, attempt, lastError?.message || "");
         deck = validateDeck(JSON.parse(text));
         const qualityIssues = deckQualityIssues(deck);
         if (qualityIssues.length) {
@@ -943,7 +1144,18 @@ module.exports = async function handler(req, res) {
     }
     if (!deck) throw lastError || new Error("OpenAI deck JSON generation failed.");
 
-    const pptxFile = await renderPptx(deck, payload);
+    review = await reviewDeckWithOpenAi(deckPayload, deck, model);
+    if (reviewNeedsRewrite(review)) {
+      const revisedDeck = await reviseDeckWithOpenAi(deckPayload, deck, review, model);
+      const revisedIssues = deckQualityIssues(revisedDeck);
+      if (revisedIssues.length) {
+        throw new Error(`Revised deck quality check failed: ${revisedIssues.slice(0, 10).join("; ")}`);
+      }
+      deck = revisedDeck;
+      review = await reviewDeckWithOpenAi(deckPayload, deck, model);
+    }
+
+    const pptxFile = await renderPptx(deck, deckPayload);
     return res.status(200).json({
       proposal: frontendProposal(deck, pptxFile),
       pptxFileName: pptxFile.fileName,
@@ -952,6 +1164,7 @@ module.exports = async function handler(req, res) {
       pdfBase64: "",
       model,
       generatedAt: payload.generatedAt,
+      qualityReviewScore: review?.score,
       provider: "openai-responses"
     });
   } catch (error) {
