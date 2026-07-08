@@ -1,6 +1,44 @@
 const fs = require("fs");
 const path = require("path");
 
+const TEXT_ARRAY_SCHEMA = {
+  type: "array",
+  items: { type: "string" }
+};
+
+const CARD_SCHEMA = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    title: { type: "string" },
+    heading: { type: "string" },
+    text: { type: "string" },
+    role: { type: "string" },
+    school: { type: "string" },
+    connection: { type: "string" },
+    trait: { type: "string" },
+    description: { type: "string" },
+    chip: { type: "string" },
+    bullets: TEXT_ARRAY_SCHEMA
+  }
+};
+
+const TABLE_SCHEMA = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    title: { type: "string" },
+    headers: TEXT_ARRAY_SCHEMA,
+    rows: {
+      type: "array",
+      items: {
+        type: "array",
+        items: { type: "string" }
+      }
+    }
+  }
+};
+
 const DECK_SCHEMA = {
   type: "object",
   additionalProperties: true,
@@ -12,7 +50,94 @@ const DECK_SCHEMA = {
       type: "array",
       minItems: 10,
       maxItems: 10,
-      items: { type: "object", additionalProperties: true }
+      items: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          slide_no: { type: "number" },
+          layout: {
+            type: "string",
+            enum: [
+              "cover",
+              "project_concept",
+              "why_project",
+              "student_tasks",
+              "weekly_plan_1",
+              "weekly_plan_2",
+              "support_structure",
+              "final_outputs",
+              "admissions_learning_value",
+              "core_character"
+            ]
+          },
+          section_label: { type: "string" },
+          page_context: { type: "string" },
+          title: { type: "string" },
+          title_en: { type: "string" },
+          subtitle_ko: { type: "string" },
+          badges: TEXT_ARRAY_SCHEMA,
+          info_rows: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: true,
+              properties: { label: { type: "string" }, value: { type: "string" } }
+            }
+          },
+          main_card: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              heading: { type: "string" },
+              paragraphs: TEXT_ARRAY_SCHEMA
+            }
+          },
+          side_card: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              heading: { type: "string" },
+              bullets: TEXT_ARRAY_SCHEMA
+            }
+          },
+          process_cards: { type: "array", items: CARD_SCHEMA },
+          metrics: { type: "array", items: CARD_SCHEMA },
+          cards: { type: "array", items: CARD_SCHEMA },
+          message_box: {
+            type: "object",
+            additionalProperties: true,
+            properties: { heading: { type: "string" }, text: { type: "string" } }
+          },
+          quote: { type: "string" },
+          skill_chips: { type: "array", items: CARD_SCHEMA },
+          workflow: { type: "array", items: CARD_SCHEMA },
+          checking_table: TABLE_SCHEMA,
+          evidence_log_table: TABLE_SCHEMA,
+          guiding_question: { type: "string" },
+          phase_chips: TEXT_ARRAY_SCHEMA,
+          weekly_table: TABLE_SCHEMA,
+          note_box: {
+            type: "object",
+            additionalProperties: true,
+            properties: { heading: { type: "string" }, text: { type: "string" } }
+          },
+          scenario_section_title: { type: "string" },
+          scenario_cards: { type: "array", items: CARD_SCHEMA },
+          role_cards: { type: "array", items: CARD_SCHEMA },
+          process_flow: TEXT_ARRAY_SCHEMA,
+          output_cards: { type: "array", items: CARD_SCHEMA },
+          flow: TEXT_ARRAY_SCHEMA,
+          admissions_table: TABLE_SCHEMA,
+          growth_table: TABLE_SCHEMA,
+          school_cards: { type: "array", items: CARD_SCHEMA },
+          activity_list_example: { type: "string" },
+          core_title: { type: "string" },
+          summary: { type: "string" },
+          traits: { type: "array", items: CARD_SCHEMA },
+          final_quote: { type: "string" },
+          bottom_steps: { type: "array", items: CARD_SCHEMA }
+        }
+      }
     }
   },
   required: ["deck_title", "student_summary", "consultant_transformation_summary", "slides"]
@@ -60,6 +185,8 @@ function readDeckPrompt() {
     "Every slide must be specific enough to render directly into editable PPTX."
   ].join("\n");
   try {
+    const v2Prompt = path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.v2.txt");
+    if (fs.existsSync(v2Prompt)) return fs.readFileSync(v2Prompt, "utf8").trim() || fallback;
     const cleanPrompt = path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.clean.txt");
     if (fs.existsSync(cleanPrompt)) return fs.readFileSync(cleanPrompt, "utf8").trim() || fallback;
     const source = fs.readFileSync(path.join(process.cwd(), "src", "prompts", "projectProposalDeckPrompt.ts"), "utf8");
@@ -391,9 +518,16 @@ function validateDeck(deck) {
   return deck;
 }
 
-async function callOpenAi(payload, model, attempt) {
+async function callOpenAi(payload, model, attempt, feedback = "") {
   const message = [
-    attempt > 1 ? "The previous response could not be parsed. Return only valid JSON matching the required deck schema." : "",
+    attempt > 1
+      ? [
+          "The previous response failed parsing or quality checks.",
+          feedback ? `Quality feedback: ${feedback}` : "",
+          "Regenerate the full 10-slide JSON with denser, parent-ready content.",
+          "Do not remove required cards, tables, rows, bullets, or paragraphs to make the answer shorter."
+        ].filter(Boolean).join(" ")
+      : "",
     "Transform this Prep LMS student data and rough project report into the required parent-facing 10-slide PPTX renderer JSON.",
     "Do not summarize. Critically improve weak parts, add concrete execution details, and make the proposal useful for parents and admissions.",
     JSON.stringify(payload, null, 2)
@@ -454,6 +588,77 @@ function asObject(value, fallbackKey = "text") {
 
 function cardArray(value, titleKey = "title") {
   return asArray(value).map(item => asObject(item, titleKey)).filter(item => Object.values(item).some(Boolean));
+}
+
+function textLength(value) {
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + textLength(item), 0);
+  if (value && typeof value === "object") return Object.values(value).reduce((sum, item) => sum + textLength(item), 0);
+  return String(value || "").replace(/\s+/g, " ").trim().length;
+}
+
+function tableRows(table) {
+  return asArray(table?.rows).filter(row => textLength(row) > 0);
+}
+
+function filledCellCount(row) {
+  if (Array.isArray(row)) return row.filter(cell => String(cell || "").trim()).length;
+  if (row && typeof row === "object") return Object.values(row).filter(cell => String(cell || "").trim()).length;
+  return String(row || "").trim() ? 1 : 0;
+}
+
+function bulletCount(cards) {
+  return cardArray(cards).reduce((sum, card) => sum + asArray(card.bullets).filter(Boolean).length, 0);
+}
+
+function deckQualityIssues(deck) {
+  const issues = [];
+  const slide = no => deck.slides?.[no - 1] || {};
+  const add = issue => issues.push(issue);
+
+  if (!Array.isArray(deck.slides) || deck.slides.length !== 10) add("deck must contain exactly 10 slides");
+
+  const s2 = slide(2);
+  const s2Paragraphs = asArray(s2.main_card?.paragraphs).filter(Boolean);
+  if (s2Paragraphs.length < 3 || textLength(s2Paragraphs) < 300) add("slide 2 needs at least 3 substantial project concept paragraphs");
+  if (cardArray(s2.process_cards).length < 4) add("slide 2 needs 4 process cards");
+  if (cardArray(s2.metrics, "label").length < 5) add("slide 2 needs 5 metrics");
+
+  const s3 = slide(3);
+  if (cardArray(s3.cards, "heading").length < 3 || bulletCount(s3.cards) < 9) add("slide 3 needs 3 reason cards with detailed bullets");
+  if (textLength(s3.message_box?.text) < 120) add("slide 3 message box is too shallow");
+
+  const s4 = slide(4);
+  if (cardArray(s4.workflow).length < 5) add("slide 4 needs a 5-step workflow");
+  if (tableRows(s4.checking_table).length < 4) add("slide 4 checking table needs at least 4 rows");
+  if (tableRows(s4.evidence_log_table).length < 3) add("slide 4 evidence log table needs at least 3 rows");
+
+  const s5 = slide(5);
+  const s5Rows = tableRows(s5.weekly_table);
+  if (s5Rows.length < 6 || s5Rows.some(row => filledCellCount(row) < 4)) add("slide 5 weekly plan needs 6 fully populated weekly rows");
+  if (textLength(s5.note_box?.text) < 80) add("slide 5 note box needs a concrete reading/research direction");
+
+  const s6 = slide(6);
+  const s6Rows = tableRows(s6.weekly_table);
+  if (s6Rows.length < 6 || s6Rows.some(row => filledCellCount(row) < 4)) add("slide 6 weekly plan needs 6 fully populated weekly rows");
+  if (cardArray(s6.scenario_cards).length < 5) add("slide 6 needs 5 school-life scenario cards");
+
+  const s7 = slide(7);
+  if (cardArray(s7.role_cards, "role").length < 5 || bulletCount(s7.role_cards) < 15) add("slide 7 needs 5 support role cards with concrete responsibilities");
+
+  const s8 = slide(8);
+  if (cardArray(s8.output_cards).length < 4 || bulletCount(s8.output_cards) < 12) add("slide 8 needs 4 final output cards with concrete content");
+
+  const s9 = slide(9);
+  if (tableRows(s9.admissions_table).length < 5) add("slide 9 admissions table needs at least 5 rows");
+  if (tableRows(s9.growth_table).length < 5) add("slide 9 growth table needs at least 5 rows");
+  if (textLength(s9.activity_list_example) < 140) add("slide 9 activity list example is too short");
+
+  const s10 = slide(10);
+  if (textLength(s10.summary) < 180) add("slide 10 core character summary is too short");
+  if (cardArray(s10.traits, "trait").length < 4) add("slide 10 needs 4 trait cards");
+  if (cardArray(s10.bottom_steps, "label").length < 4) add("slide 10 needs 4 concrete next steps");
+
+  return issues;
 }
 
 function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEME.navy) {
@@ -721,10 +926,14 @@ module.exports = async function handler(req, res) {
     let deck = null;
     let lastError = null;
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        const text = await callOpenAi(payload, model, attempt);
+        const text = await callOpenAi(payload, model, attempt, lastError?.message || "");
         deck = validateDeck(JSON.parse(text));
+        const qualityIssues = deckQualityIssues(deck);
+        if (qualityIssues.length) {
+          throw new Error(`Deck quality check failed: ${qualityIssues.slice(0, 10).join("; ")}`);
+        }
         lastError = null;
         break;
       } catch (error) {
