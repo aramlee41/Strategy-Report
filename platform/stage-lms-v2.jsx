@@ -214,10 +214,39 @@ function v2SignatureAiSchoolPayload(st = {}, schools = []) {
 }
 
 function v2NormalizeAiProposal(proposal = {}) {
+  const normalizeDeckComponent = component => ({
+    type: component.type || "card",
+    title: component.title || "",
+    text: component.text || "",
+    chips: Array.isArray(component.chips) ? component.chips : [],
+    bullets: Array.isArray(component.bullets) ? component.bullets : [],
+    headers: Array.isArray(component.headers) ? component.headers : [],
+    rows: Array.isArray(component.rows) ? component.rows.map(row => Array.isArray(row) ? row.map(cell => String(cell || "")) : []) : [],
+    cards: Array.isArray(component.cards) ? component.cards.map(card => ({
+      title: card.title || "",
+      text: card.text || "",
+      chips: Array.isArray(card.chips) ? card.chips : [],
+      bullets: Array.isArray(card.bullets) ? card.bullets : []
+    })) : [],
+    layoutNote: component.layoutNote || ""
+  });
+  const slides = Array.isArray(proposal.slides) ? proposal.slides.map((slide, idx) => ({
+    slideNumber: Number(slide.slideNumber) || idx + 1,
+    title: slide.title || "",
+    sectionLabel: slide.sectionLabel || "",
+    purpose: slide.purpose || "",
+    layout: slide.layout || "",
+    visualDirection: slide.visualDirection || "",
+    speakerNote: slide.speakerNote || "",
+    components: Array.isArray(slide.components) ? slide.components.map(normalizeDeckComponent) : []
+  })) : [];
   return {
     title: proposal.title || "Signature Project Proposal",
     subtitle: proposal.subtitle || "",
     meta: proposal.meta || "",
+    format: proposal.format || (slides.length ? "editable-slide-json" : ""),
+    designSystem: proposal.designSystem || null,
+    slides,
     sections: Array.isArray(proposal.sections) ? proposal.sections.map(section => ({
       title: section.title || "",
       body: section.body || "",
@@ -3499,6 +3528,78 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeep({ st, updat
 }
 function V2SignatureProposalView({ proposal }) {
   if (!proposal) return null;
+  if (Array.isArray(proposal.slides) && proposal.slides.length) {
+    return <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
+        <span className="pill p-blue">Editable Slide Deck JSON</span>
+        <h2 style={{ margin: "10px 0 4px", color: "#12344d" }}>{proposal.title}</h2>
+        <p style={{ margin: 0, fontSize: 16, color: "#28516d", fontWeight: 800 }}>{proposal.subtitle}</p>
+        <p className="small muted" style={{ marginTop: 8 }}>{proposal.meta}</p>
+      </div>
+      {(proposal.designSystem?.styleNotes || []).length > 0 && <div className="card" style={{ background: "#f8fbfe" }}>
+        <b>Design System</b>
+        <div className="right" style={{ flexWrap: "wrap", marginTop: 8 }}>
+          {(proposal.designSystem.palette || []).map(x => <span key={x} className="pill p-blue">{x}</span>)}
+          {(proposal.designSystem.fonts || []).map(x => <span key={x} className="pill p-green">{x}</span>)}
+        </div>
+        <p className="small muted" style={{ marginBottom: 0 }}>{proposal.designSystem.styleNotes.join(" · ")}</p>
+      </div>}
+      {proposal.slides.map(slide => <section key={`${slide.slideNumber}-${slide.title}`} className="card" style={{ border: "1px solid #bfd7ea", background: "#fbfdff", padding: 18 }}>
+        <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+          <div>
+            <span className="pill p-blue">Slide {slide.slideNumber}</span>
+            {slide.sectionLabel && <span className="pill" style={{ marginLeft: 6, background: "#ecfdf5", color: "#047857" }}>{slide.sectionLabel}</span>}
+            <h3 style={{ margin: "10px 0 6px", color: "#173b58" }}>{slide.title}</h3>
+            <p className="small muted" style={{ margin: 0 }}>{slide.purpose}</p>
+          </div>
+          <span className="pill" style={{ background: "#fff7ed", color: "#9a3412" }}>Editable</span>
+        </div>
+        <div className="grid g2">
+          <div className="card" style={{ background: "white", padding: 12 }}>
+            <b>Layout</b>
+            <p className="small" style={{ marginBottom: 0 }}>{slide.layout}</p>
+          </div>
+          <div className="card" style={{ background: "white", padding: 12 }}>
+            <b>Visual Direction</b>
+            <p className="small" style={{ marginBottom: 0 }}>{slide.visualDirection}</p>
+          </div>
+        </div>
+        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+          {(slide.components || []).map((component, idx) => <div key={`${slide.slideNumber}-${idx}`} className="card" style={{ background: "white", padding: 14 }}>
+            <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <div>
+                <span className="pill p-blue">{component.type}</span>
+                {component.title && <h4 style={{ margin: "8px 0 6px", color: "#173b58" }}>{component.title}</h4>}
+              </div>
+              <div className="right" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {(component.chips || []).map(chip => <span key={chip} className="pill" style={{ background: "#e0f2fe", color: "#075985", whiteSpace: "nowrap" }}>{chip}</span>)}
+              </div>
+            </div>
+            {component.text && <p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{component.text}</p>}
+            {(component.bullets || []).length > 0 && <ul style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.65 }}>
+              {component.bullets.map((x, i) => <li key={i}>{x}</li>)}
+            </ul>}
+            {(component.headers || []).length > 0 && (component.rows || []).length > 0 && <table className="table" style={{ marginTop: 10 }}>
+              <thead><tr>{component.headers.map(h => <th key={h} style={{ textAlign: "center", verticalAlign: "middle" }}>{h}</th>)}</tr></thead>
+              <tbody>{component.rows.map((row, ri) => <tr key={ri}>{row.map((cell, ci) => <td key={ci} style={{ textAlign: ci === 0 ? "center" : "left", verticalAlign: "middle" }}>{cell}</td>)}</tr>)}</tbody>
+            </table>}
+            {(component.cards || []).length > 0 && <div className="grid g2" style={{ marginTop: 10 }}>
+              {component.cards.map((card, ci) => <div key={`${card.title}-${ci}`} className="card" style={{ background: "#f8fbfe", padding: 12 }}>
+                <b>{card.title}</b>
+                <div className="right" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                  {(card.chips || []).map(chip => <span key={chip} className="pill p-green" style={{ whiteSpace: "nowrap" }}>{chip}</span>)}
+                </div>
+                {card.text && <p className="small" style={{ lineHeight: 1.65 }}>{card.text}</p>}
+                {(card.bullets || []).map((x, i) => <p className="small" key={i} style={{ margin: "4px 0", lineHeight: 1.55 }}>- {x}</p>)}
+              </div>)}
+            </div>}
+            {component.layoutNote && <p className="small muted" style={{ margin: "10px 0 0" }}>Layout note: {component.layoutNote}</p>}
+          </div>)}
+        </div>
+        {slide.speakerNote && <p className="small muted" style={{ margin: "12px 0 0" }}>Speaker note: {slide.speakerNote}</p>}
+      </section>)}
+    </div>;
+  }
   return <div style={{ display: "grid", gap: 18 }}>
     <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
       <span className="pill p-blue">Signature Project Proposal</span>
