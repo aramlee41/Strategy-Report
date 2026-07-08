@@ -98,58 +98,269 @@ function responseText(data) {
   return chunks.join("\n").trim();
 }
 
+function compactText(value, max = 700) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function compactList(value, maxItems = 6, maxChars = 220) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => compactText(item, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function compactInterest(item = {}) {
+  return {
+    school: compactText(item.school || item.name, 90),
+    reason: compactText(item.reason || item.note || item.memo, 240)
+  };
+}
+
+function compactTest(item = {}) {
+  return {
+    type: compactText(item.type || item.testType, 40),
+    date: compactText(item.date || item.testDate, 40),
+    level: compactText(item.level || item.testLevel, 40),
+    total: compactText(item.total || item.overall || item.score, 50),
+    percentile: compactText(item.percentile || item.overallPercentile, 50),
+    sections: compactText(item.detail || item.sections || item.subscores || item.comment, 420),
+    nextDate: compactText(item.nextDate || item.nextTestDate, 40)
+  };
+}
+
+function compactTranscript(item = {}) {
+  return {
+    school: compactText(item.school, 90),
+    grade: compactText(item.grade || item.gradeLevel, 40),
+    year: compactText(item.year, 40),
+    term: compactText(item.term || item.season, 40),
+    gpa: compactText(item.gpa || item.termGpa || item.calculatedScore, 50),
+    rank: compactText(item.rank, 50),
+    subjects: Array.isArray(item.subjects)
+      ? item.subjects.slice(0, 8).map(subject => ({
+          category: compactText(subject.category, 50),
+          name: compactText(subject.name || subject.subject, 80),
+          grade: compactText(subject.grade || subject.letterGrade || subject.rawGrade, 40),
+          comment: compactText(subject.comment || subject.teacherComment, 180)
+        }))
+      : compactText(item.comment || item.teacherComment || item.detail, 700)
+  };
+}
+
+function compactAward(item = {}) {
+  return {
+    title: compactText(item.title || item.awardName || item.name, 100),
+    level: compactText(item.level, 50),
+    competition: compactText(item.competition, 100),
+    date: compactText(item.date || item.yearMonth || item.month, 40),
+    note: compactText(item.note || item.description, 220)
+  };
+}
+
+function compactEc(item = {}) {
+  return {
+    category: compactText(item.category || item.cat, 50),
+    name: compactText(item.name || item.activityName || item.sport, 120),
+    team: compactText(item.team || item.clubName, 100),
+    status: compactText(item.status, 40),
+    period: compactText([item.from || item.startDate, item.to || item.endDate].filter(Boolean).join(" - "), 80),
+    hoursPerWeek: compactText(item.hours || item.hoursPerWeek, 40),
+    weeksPerYear: compactText(item.weeks || item.weeksPerYear, 40),
+    level: compactText(item.level || item.levelOther, 80),
+    position: compactText(item.position || item.role, 100),
+    description: compactText(item.description || item.impact || item.story || item.note, 360),
+    awards: Array.isArray(item.awards) ? item.awards.slice(0, 3).map(compactAward) : []
+  };
+}
+
+function compactRecommendation(item = {}) {
+  return {
+    candidate: compactText(item.candidate || item.name, 90),
+    role: compactText(item.role || item.subject, 90),
+    currentStrength: compactText(item.currentStrength, 50),
+    targetStrength: compactText(item.targetStrength, 50),
+    evidence: compactText(item.evidence || item.notes, 260),
+    currentTeacher: compactText(item.currentTeacher, 20),
+    specialtyRecommendation: compactText(item.specialtyRecommendation, 20)
+  };
+}
+
+function compactProject(project = {}) {
+  return {
+    title: compactText(project.title, 140),
+    badge: compactText(project.badge, 70),
+    sourceActivityNames: compactList(project.sourceActivityNames, 5, 90),
+    bigIdea: compactText(project.bigIdea || project.rationale, 900),
+    boardingFit: compactText(project.boardingFit, 700),
+    academicTalent: compactText(project.academicTalent, 700),
+    communityContribution: compactText(project.communityContribution, 700),
+    currentEvidence: compactText(project.currentEvidence || project.currentState, 700),
+    targetOutput: compactText(project.targetOutput || project.targetState, 700),
+    evidenceNeeded: compactList(project.evidenceNeeded, 8, 240),
+    risks: compactList(project.risks, 6, 240),
+    nextActions: compactList(project.nextActions, 8, 240),
+    applicationUsage: compactList(project.applicationUsage, 6, 240),
+    semesterRoadmap: Array.isArray(project.semesterRoadmap)
+      ? project.semesterRoadmap.slice(0, 8).map(row => ({
+          period: compactText(row.period, 60),
+          focus: compactText(row.focus, 220),
+          deliverable: compactText(row.deliverable, 220),
+          checkpoint: compactText(row.checkpoint, 160)
+        }))
+      : []
+  };
+}
+
+function compactSchool(s = {}) {
+  return {
+    name: compactText(s.name, 100),
+    programs: compactText(s.programs, 520),
+    sports: compactText(s.sports, 360),
+    arts: compactText(s.arts, 320),
+    fit: compactText(s.fit, 500),
+    risk: compactText(s.risk, 420),
+    interview: compactText(s.interview, 360),
+    englishRequirements: compactText(
+      typeof s.englishRequirements === "string" ? s.englishRequirements : JSON.stringify(s.englishRequirements || {}),
+      360
+    )
+  };
+}
+
+function payloadCharLength(payload) {
+  return JSON.stringify(payload).length;
+}
+
+function enforcePayloadBudget(payload, maxChars = 42000) {
+  if (payloadCharLength(payload) <= maxChars) return payload;
+  const next = JSON.parse(JSON.stringify(payload));
+  next._compactionNotice = "The original Prep LMS data was larger than the AI context budget, so nonessential long fields were shortened before generation.";
+  next.rough_report_text = compactText(next.rough_report_text, 2200);
+  next.student.hookNotes = compactText(next.student.hookNotes, 500);
+  next.student.transcripts = (next.student.transcripts || []).slice(0, 5).map(row => ({
+    ...row,
+    subjects: Array.isArray(row.subjects) ? row.subjects.slice(0, 5).map(subject => ({ ...subject, comment: compactText(subject.comment, 90) })) : compactText(row.subjects, 300)
+  }));
+  next.student.ecs = (next.student.ecs || []).slice(0, 8).map(ec => ({
+    ...ec,
+    description: compactText(ec.description, 180),
+    awards: (ec.awards || []).slice(0, 2)
+  }));
+  next.student.awards = (next.student.awards || []).slice(0, 6);
+  next.student.recommendations = (next.student.recommendations || []).slice(0, 4).map(rec => ({ ...rec, evidence: compactText(rec.evidence, 140) }));
+  next.project.bigIdea = compactText(next.project.bigIdea, 520);
+  next.project.boardingFit = compactText(next.project.boardingFit, 360);
+  next.project.academicTalent = compactText(next.project.academicTalent, 360);
+  next.project.communityContribution = compactText(next.project.communityContribution, 360);
+  next.project.currentEvidence = compactText(next.project.currentEvidence, 360);
+  next.project.targetOutput = compactText(next.project.targetOutput, 360);
+  next.project.evidenceNeeded = compactList(next.project.evidenceNeeded, 5, 160);
+  next.project.risks = compactList(next.project.risks, 4, 160);
+  next.project.nextActions = compactList(next.project.nextActions, 5, 160);
+  next.project.applicationUsage = compactList(next.project.applicationUsage, 4, 160);
+  next.project.semesterRoadmap = (next.project.semesterRoadmap || []).slice(0, 5).map(row => ({
+    period: row.period,
+    focus: compactText(row.focus, 120),
+    deliverable: compactText(row.deliverable, 120),
+    checkpoint: compactText(row.checkpoint, 100)
+  }));
+  next.schools = (next.schools || []).slice(0, 4).map(s => ({
+    name: s.name,
+    programs: compactText(s.programs, 260),
+    sports: compactText(s.sports, 180),
+    arts: compactText(s.arts, 160),
+    fit: compactText(s.fit, 220),
+    risk: compactText(s.risk, 180),
+    interview: compactText(s.interview, 160),
+    englishRequirements: compactText(s.englishRequirements, 160)
+  }));
+  return payloadCharLength(next) <= maxChars ? next : {
+    mode: next.mode,
+    generatedAt: next.generatedAt,
+    _compactionNotice: next._compactionNotice,
+    student: {
+      name: next.student.name,
+      englishName: next.student.englishName,
+      currentGrade: next.student.currentGrade,
+      targetYear: next.student.targetYear,
+      targetGrade: next.student.targetGrade,
+      target: next.student.target,
+      currentSchool: next.student.currentSchool,
+      citizenship: next.student.citizenship,
+      interests: next.student.interests,
+      tests: next.student.tests,
+      ecs: next.student.ecs.slice(0, 5),
+      awards: next.student.awards.slice(0, 4),
+      hookNotes: compactText(next.student.hookNotes, 300)
+    },
+    rough_report_text: compactText(next.rough_report_text, 1400),
+    project: {
+      title: next.project.title,
+      badge: next.project.badge,
+      sourceActivityNames: next.project.sourceActivityNames,
+      bigIdea: compactText(next.project.bigIdea, 360),
+      boardingFit: compactText(next.project.boardingFit, 260),
+      academicTalent: compactText(next.project.academicTalent, 260),
+      communityContribution: compactText(next.project.communityContribution, 260),
+      currentEvidence: compactText(next.project.currentEvidence, 260),
+      targetOutput: compactText(next.project.targetOutput, 260),
+      evidenceNeeded: next.project.evidenceNeeded.slice(0, 4),
+      risks: next.project.risks.slice(0, 3),
+      nextActions: next.project.nextActions.slice(0, 4),
+      applicationUsage: next.project.applicationUsage.slice(0, 3)
+    },
+    schools: next.schools.slice(0, 3)
+  };
+}
+
 function compactPayload(body) {
   const student = body.student || {};
   const project = body.project || {};
+  const compactedProject = compactProject(project);
   const roughReportText = [
-    `Project title: ${project.title || ""}`,
-    `Project badge/theme: ${project.badge || ""}`,
-    `Source activities: ${(project.sourceActivityNames || []).join(", ")}`,
-    `Big idea: ${project.bigIdea || project.rationale || ""}`,
-    `Boarding-school fit: ${project.boardingFit || ""}`,
-    `Academic talent: ${project.academicTalent || ""}`,
-    `Community contribution: ${project.communityContribution || ""}`,
-    `Current evidence: ${project.currentEvidence || project.currentState || ""}`,
-    `Target output: ${project.targetOutput || project.targetState || ""}`,
-    `Evidence needed: ${(project.evidenceNeeded || []).join(" / ")}`,
-    `Risks and gaps: ${(project.risks || []).join(" / ")}`,
-    `Recommended next actions: ${(project.nextActions || []).join(" / ")}`,
-    `Application usage: ${(project.applicationUsage || []).join(" / ")}`
+    `Project title: ${compactedProject.title}`,
+    `Project badge/theme: ${compactedProject.badge}`,
+    `Source activities: ${(compactedProject.sourceActivityNames || []).join(", ")}`,
+    `Big idea: ${compactedProject.bigIdea}`,
+    `Boarding-school fit: ${compactedProject.boardingFit}`,
+    `Academic talent: ${compactedProject.academicTalent}`,
+    `Community contribution: ${compactedProject.communityContribution}`,
+    `Current evidence: ${compactedProject.currentEvidence}`,
+    `Target output: ${compactedProject.targetOutput}`,
+    `Evidence needed: ${(compactedProject.evidenceNeeded || []).join(" / ")}`,
+    `Risks and gaps: ${(compactedProject.risks || []).join(" / ")}`,
+    `Recommended next actions: ${(compactedProject.nextActions || []).join(" / ")}`,
+    `Application usage: ${(compactedProject.applicationUsage || []).join(" / ")}`
   ].filter(line => !/:\s*$/.test(line)).join("\n");
 
-  return {
+  const payload = {
     mode: body.mode || "generate",
     generatedAt: new Date().toISOString(),
     student: {
-      name: student.name || "",
-      englishName: student.en || student.englishName || "",
-      currentGrade: student.grade || student.currentGrade || "",
-      targetYear: student.targetYear || "",
-      targetGrade: student.targetGrade || "",
-      target: student.target || "",
-      currentSchool: student.school || "",
-      citizenship: student.citizenship || student.usStatus || "",
-      interests: student.interests || [],
-      tests: student.tests || [],
-      transcripts: student.transcripts || [],
-      ecs: student.ecs || [],
-      awards: student.awards || [],
-      recommendations: student.recommendations || [],
-      hookNotes: student.profile || student.hookNotes || ""
+      name: compactText(student.name, 80),
+      englishName: compactText(student.en || student.englishName, 80),
+      currentGrade: compactText(student.grade || student.currentGrade, 40),
+      targetYear: compactText(student.targetYear, 40),
+      targetGrade: compactText(student.targetGrade, 40),
+      target: compactText(student.target, 120),
+      currentSchool: compactText(student.school, 100),
+      citizenship: compactText(student.citizenship || student.usStatus, 120),
+      interests: (Array.isArray(student.interests) ? student.interests : []).slice(0, 6).map(compactInterest),
+      tests: (Array.isArray(student.tests) ? student.tests : []).slice(0, 8).map(compactTest),
+      transcripts: (Array.isArray(student.transcripts) ? student.transcripts : []).slice(0, 8).map(compactTranscript),
+      ecs: (Array.isArray(student.ecs) ? student.ecs : []).slice(0, 12).map(compactEc),
+      awards: (Array.isArray(student.awards) ? student.awards : []).slice(0, 10).map(compactAward),
+      recommendations: (Array.isArray(student.recommendations) ? student.recommendations : []).slice(0, 6).map(compactRecommendation),
+      hookNotes: compactText(student.profile || student.hookNotes, 900)
     },
-    rough_report_text: roughReportText,
-    project,
-    schools: (Array.isArray(body.schools) ? body.schools : []).slice(0, 8).map(s => ({
-      name: s.name || "",
-      programs: s.programs || "",
-      sports: s.sports || "",
-      arts: s.arts || "",
-      fit: s.fit || "",
-      risk: s.risk || "",
-      interview: s.interview || "",
-      englishRequirements: s.englishRequirements || {}
-    }))
+    rough_report_text: compactText(roughReportText, 4500),
+    project: compactedProject,
+    schools: (Array.isArray(body.schools) ? body.schools : []).slice(0, 6).map(compactSchool)
   };
+  return enforcePayloadBudget(payload);
 }
 
 function defaultLayout(no) {
