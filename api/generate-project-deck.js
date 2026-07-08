@@ -440,6 +440,22 @@ function addText(slide, text, options) {
   });
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === "object") return Object.values(value);
+  return [value];
+}
+
+function asObject(value, fallbackKey = "text") {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  return { [fallbackKey]: String(value || "") };
+}
+
+function cardArray(value, titleKey = "title") {
+  return asArray(value).map(item => asObject(item, titleKey)).filter(item => Object.values(item).some(Boolean));
+}
+
 function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEME.navy) {
   slide.addShape(pptx.ShapeType.roundRect, {
     x, y, w, h: 0.26,
@@ -495,7 +511,7 @@ function addFooter(slide, deck, index) {
 
 function addTable(slide, table, x, y, w, h, fontSize = 6.8) {
   const headers = arr(table?.headers, 6);
-  const rows = (Array.isArray(table?.rows) ? table.rows : []).slice(0, 8);
+  const rows = asArray(table?.rows).slice(0, 8);
   if (!headers.length || !rows.length) return;
   const tableData = [
     headers.map(header => ({
@@ -527,7 +543,7 @@ function renderCoverSlide(pptx, deck, slideData, index) {
   addText(s, slideData.title_en || deck.deck_title || "Signature Project Proposal", { x: 0.78, y: 1.38, w: 6.4, h: 0.88, fontSize: 27, bold: true, color: THEME.white, max: 90 });
   addText(s, slideData.subtitle_ko || deck.consultant_transformation_summary?.parent_value_proposition || "", { x: 0.82, y: 2.34, w: 5.9, h: 0.9, fontSize: 13, color: THEME.softMint, max: 190 });
   arr(slideData.badges, 4).forEach((badge, idx) => addPill(s, pptx, badge, 0.82 + idx * 1.1, 3.35, 1, THEME.softBlue, THEME.navy));
-  (Array.isArray(slideData.info_rows) ? slideData.info_rows : []).slice(0, 4).forEach((row, idx) => addCard(s, pptx, {
+  cardArray(slideData.info_rows, "label").slice(0, 4).forEach((row, idx) => addCard(s, pptx, {
     x: 7.2, y: 1.12 + idx * 1.18, w: 4.95, h: 0.92,
     title: row.label || "",
     text: row.value || "",
@@ -544,8 +560,8 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
   addCard(s, pptx, { x: 0.58, y: 1.58, w: 6.8, h: 2.35, title: main.heading || "Project Concept", text: arr(main.paragraphs, 3).join("\n\n"), fill: THEME.white, accent: THEME.blue });
   const side = slideData.side_card || {};
   addCard(s, pptx, { x: 7.62, y: 1.58, w: 5.1, h: 2.35, title: side.heading || "Research Direction", bullets: side.bullets || [], fill: "F8FBFE", accent: THEME.mint });
-  (slideData.process_cards || []).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 4.22, w: 2.75, h: 1.18, title: card.title, text: card.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.gold }));
-  (slideData.metrics || []).slice(0, 5).forEach((metric, idx) => {
+  cardArray(slideData.process_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 4.22, w: 2.75, h: 1.18, title: card.title, text: card.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.gold }));
+  cardArray(slideData.metrics, "label").slice(0, 5).forEach((metric, idx) => {
     s.addShape(pptx.ShapeType.roundRect, { x: 0.58 + idx * 2.46, y: 5.72, w: 2.15, h: 0.75, rectRadius: 0.06, fill: { color: THEME.navy }, line: { color: THEME.navy } });
     addText(s, metric.value || "", { x: 0.68 + idx * 2.46, y: 5.84, w: 1.95, h: 0.22, fontSize: 13, bold: true, color: THEME.white, align: "center", max: 18 });
     addText(s, metric.label || "", { x: 0.68 + idx * 2.46, y: 6.12, w: 1.95, h: 0.16, fontSize: 6.8, color: THEME.softBlue, align: "center", max: 18 });
@@ -556,17 +572,17 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
 function renderWhyProjectSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  (slideData.cards || []).slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: card.heading, bullets: card.bullets || [], fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx] }));
+  cardArray(slideData.cards, "heading").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: card.heading || card.title, bullets: card.bullets || [], fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx] }));
   addCard(s, pptx, { x: 0.58, y: 4.38, w: 8.15, h: 1.35, title: slideData.message_box?.heading || "Why This Project Matters", text: slideData.message_box?.text || "", fill: THEME.softMint, accent: THEME.mint });
   addCard(s, pptx, { x: 9.02, y: 4.38, w: 3.7, h: 1.35, title: "핵심 문장", text: slideData.quote || "", fill: THEME.white, accent: THEME.gold });
-  (slideData.skill_chips || []).slice(0, 5).forEach((chip, idx) => addPill(s, pptx, `${chip.label || ""} · ${chip.caption || ""}`, 0.72 + idx * 2.45, 6.1, 2.15, THEME.softBlue, THEME.navy));
+  cardArray(slideData.skill_chips, "label").slice(0, 5).forEach((chip, idx) => addPill(s, pptx, `${chip.label || ""} · ${chip.caption || ""}`, 0.72 + idx * 2.45, 6.1, 2.15, THEME.softBlue, THEME.navy));
   addFooter(s, deck, index);
 }
 
 function renderStudentTasksSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  (slideData.workflow || []).slice(0, 5).forEach((step, idx) => addCard(s, pptx, { x: 0.58 + idx * 2.48, y: 1.55, w: 2.18, h: 1.18, title: step.title, text: step.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue }));
+  cardArray(slideData.workflow).slice(0, 5).forEach((step, idx) => addCard(s, pptx, { x: 0.58 + idx * 2.48, y: 1.55, w: 2.18, h: 1.18, title: step.title, text: step.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue }));
   addText(s, slideData.checking_table?.title || "이해도 확인 방식", { x: 0.58, y: 2.96, w: 5.8, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
   addTable(s, slideData.checking_table, 0.58, 3.26, 5.95, 2.28, 6.3);
   addText(s, slideData.evidence_log_table?.title || "Evidence Log 예시", { x: 6.82, y: 2.96, w: 5.8, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
@@ -578,7 +594,7 @@ function renderStudentTasksSlide(pptx, deck, slideData, index) {
 function renderWeeklyPlan1Slide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  (slideData.phase_chips || []).slice(0, 4).forEach((chip, idx) => addPill(s, pptx, chip, 0.58 + idx * 2.85, 1.48, 2.45, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
+  arr(slideData.phase_chips, 4).forEach((chip, idx) => addPill(s, pptx, chip, 0.58 + idx * 2.85, 1.48, 2.45, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
   addTable(s, slideData.weekly_table, 0.58, 1.92, 12.14, 3.95, 6.2);
   addCard(s, pptx, { x: 0.58, y: 6.05, w: 12.14, h: 0.72, title: slideData.note_box?.heading || "자료 읽기 방향", text: slideData.note_box?.text || "", fill: THEME.white, accent: THEME.mint });
   addFooter(s, deck, index);
@@ -589,14 +605,14 @@ function renderWeeklyPlan2Slide(pptx, deck, slideData, index) {
   addHeader(s, pptx, deck, slideData, index);
   addTable(s, slideData.weekly_table, 0.58, 1.52, 12.14, 3.55, 6.2);
   addText(s, slideData.scenario_section_title || "학교생활 장면별 예시 문제", { x: 0.58, y: 5.28, w: 5, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
-  (slideData.scenario_cards || []).slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 2.45, y: 5.62, w: 2.16, h: 1.02, title: card.title, text: card.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue }));
+  cardArray(slideData.scenario_cards).slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 2.45, y: 5.62, w: 2.16, h: 1.02, title: card.title, text: card.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue }));
   addFooter(s, deck, index);
 }
 
 function renderSupportStructureSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  (slideData.role_cards || []).slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 3) * 4.12, y: 1.55 + Math.floor(idx / 3) * 2.42, w: idx < 3 ? 3.75 : 5.88, h: 2.02, title: card.role, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx % 3] }));
+  cardArray(slideData.role_cards, "role").slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 3) * 4.12, y: 1.55 + Math.floor(idx / 3) * 2.42, w: idx < 3 ? 3.75 : 5.88, h: 2.02, title: card.role || card.title, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx % 3] }));
   addPill(s, pptx, arr(slideData.process_flow, 4).join("  →  ") || "학생 초안 → 멘토 피드백 → 최종 결과물", 3.45, 6.35, 6.6, THEME.softBlue, THEME.navy);
   addFooter(s, deck, index);
 }
@@ -604,7 +620,7 @@ function renderSupportStructureSlide(pptx, deck, slideData, index) {
 function renderFinalOutputsSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  (slideData.output_cards || []).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 2) * 6.15, y: 1.55 + Math.floor(idx / 2) * 2.28, w: 5.75, h: 1.88, title: `${card.title || ""}${card.chip ? ` · ${card.chip}` : ""}`, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: idx < 2 ? THEME.blue : THEME.mint }));
+  cardArray(slideData.output_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 2) * 6.15, y: 1.55 + Math.floor(idx / 2) * 2.28, w: 5.75, h: 1.88, title: `${card.title || ""}${card.chip ? ` · ${card.chip}` : ""}`, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: idx < 2 ? THEME.blue : THEME.mint }));
   addPill(s, pptx, arr(slideData.flow, 4).join("  →  "), 1.15, 6.35, 11, THEME.softMint, THEME.navy);
   addFooter(s, deck, index);
 }
@@ -616,7 +632,7 @@ function renderAdmissionsLearningValueSlide(pptx, deck, slideData, index) {
   addTable(s, slideData.admissions_table, 0.58, 1.84, 5.8, 2.4, 6.2);
   addText(s, slideData.growth_table?.title || "교육적 성장", { x: 6.75, y: 1.52, w: 5.6, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
   addTable(s, slideData.growth_table, 6.75, 1.84, 5.98, 2.4, 6.2);
-  (slideData.school_cards || []).slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 4.55, w: 3.85, h: 1.28, title: card.school, text: card.connection, fill: idx % 2 ? "F8FBFE" : THEME.white, accent: THEME.gold }));
+  cardArray(slideData.school_cards, "school").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 4.55, w: 3.85, h: 1.28, title: card.school || card.title, text: card.connection || card.text, fill: idx % 2 ? "F8FBFE" : THEME.white, accent: THEME.gold }));
   addCard(s, pptx, { x: 0.58, y: 6.05, w: 12.14, h: 0.72, title: "Activity List Example", text: slideData.activity_list_example || "", fill: THEME.softMint, accent: THEME.mint });
   addFooter(s, deck, index);
 }
@@ -625,9 +641,9 @@ function renderCoreCharacterSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   addCard(s, pptx, { x: 0.58, y: 1.55, w: 12.14, h: 1.28, title: slideData.core_title || "Core Character", text: slideData.summary || "", fill: THEME.white, accent: THEME.gold });
-  (slideData.traits || []).slice(0, 4).forEach((trait, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52, title: trait.trait, text: trait.description, fill: idx % 2 ? "F8FBFE" : THEME.softMint, accent: THEME.blue }));
+  cardArray(slideData.traits, "trait").slice(0, 4).forEach((trait, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52, title: trait.trait || trait.title, text: trait.description || trait.text, fill: idx % 2 ? "F8FBFE" : THEME.softMint, accent: THEME.blue }));
   addCard(s, pptx, { x: 0.58, y: 5.02, w: 7.05, h: 1.05, title: "최종 인상", text: slideData.final_quote || "", fill: THEME.white, accent: THEME.mint });
-  (slideData.bottom_steps || []).slice(0, 4).forEach((step, idx) => addPill(s, pptx, `${step.label || ""}: ${step.text || ""}`, 7.95, 5.02 + idx * 0.38, 4.55, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
+  cardArray(slideData.bottom_steps, "label").slice(0, 4).forEach((step, idx) => addPill(s, pptx, `${step.label || ""}: ${step.text || ""}`, 7.95, 5.02 + idx * 0.38, 4.55, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
   addFooter(s, deck, index);
 }
 
