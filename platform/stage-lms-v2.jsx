@@ -247,6 +247,10 @@ function v2NormalizeAiProposal(proposal = {}) {
     format: proposal.format || (slides.length ? "editable-slide-json" : ""),
     designSystem: proposal.designSystem || null,
     slides,
+    pptxFileName: proposal.pptxFileName || "",
+    pptxBase64: proposal.pptxBase64 || "",
+    pdfFileName: proposal.pdfFileName || "",
+    pdfBase64: proposal.pdfBase64 || "",
     sections: Array.isArray(proposal.sections) ? proposal.sections.map(section => ({
       title: section.title || "",
       body: section.body || "",
@@ -280,6 +284,16 @@ async function v2GenerateAiSignatureProposal({ st, project, schools, endpoint, m
     ...data,
     proposal: v2NormalizeAiProposal(data.proposal || {})
   };
+}
+
+function v2DownloadBase64File(base64, fileName, mimeType) {
+  if (!base64) return;
+  const link = document.createElement("a");
+  link.href = `data:${mimeType};base64,${base64}`;
+  link.download = fileName || "download";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function v2EcStrength(ec = {}) {
@@ -3528,6 +3542,34 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeep({ st, updat
 }
 function V2SignatureProposalView({ proposal }) {
   if (!proposal) return null;
+  if (proposal.pptxBase64) {
+    return <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
+        <span className="pill p-green">PPTX 생성 완료</span>
+        <h2 style={{ margin: "10px 0 4px", color: "#12344d" }}>{proposal.title}</h2>
+        <p style={{ margin: 0, fontSize: 16, color: "#28516d", fontWeight: 800 }}>{proposal.subtitle}</p>
+        <p className="small muted" style={{ marginTop: 8 }}>AI가 생성한 slide deck data를 기반으로 편집 가능한 PPTX 파일을 생성했습니다.</p>
+      </div>
+      <div className="card" style={{ background: "#f8fbfe", borderColor: "#bfd7ea" }}>
+        <h3 style={{ marginTop: 0 }}>다운로드</h3>
+        <p className="small muted">PPTX 안의 텍스트, 카드, 표, 도형은 편집 가능한 요소로 구성됩니다. Google Slides에서는 이 PPTX를 가져오기(import)하면 됩니다.</p>
+        <div className="right" style={{ gap: 10, flexWrap: "wrap" }}>
+          <button type="button" className="btn primary" onClick={() => v2DownloadBase64File(proposal.pptxBase64, proposal.pptxFileName || "project_proposal.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")}>PPTX 다운로드</button>
+          {proposal.pdfBase64 && <button type="button" className="btn ghost" onClick={() => v2DownloadBase64File(proposal.pdfBase64, proposal.pdfFileName || "project_proposal.pdf", "application/pdf")}>PDF 미리보기 다운로드</button>}
+        </div>
+      </div>
+      <div className="grid g2">
+        <div className="card">
+          <b>파일명</b>
+          <p className="small" style={{ marginBottom: 0 }}>{proposal.pptxFileName || "project_proposal.pptx"}</p>
+        </div>
+        <div className="card">
+          <b>구성</b>
+          <p className="small" style={{ marginBottom: 0 }}>10-slide editable proposal deck · PPTX import 가능</p>
+        </div>
+      </div>
+    </div>;
+  }
   if (Array.isArray(proposal.slides) && proposal.slides.length) {
     return <div style={{ display: "grid", gap: 18 }}>
       <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
@@ -3683,16 +3725,23 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
     setAiError("");
     try {
       const result = await v2GenerateAiSignatureProposal({ st, project: p, schools, endpoint });
+      const proposalWithFiles = v2NormalizeAiProposal({
+        ...result.proposal,
+        pptxFileName: result.pptxFileName || result.proposal?.pptxFileName || "",
+        pptxBase64: result.pptxBase64 || result.proposal?.pptxBase64 || "",
+        pdfFileName: result.pdfFileName || result.proposal?.pdfFileName || "",
+        pdfBase64: result.pdfBase64 || result.proposal?.pdfBase64 || ""
+      });
       const nextProject = v2NormalizeSignatureProject({
         ...p,
-        proposal: result.proposal,
+        proposal: proposalWithFiles,
         aiQualityReview: result.qualityReview,
         aiModel: result.model,
         aiGeneratedAt: result.generatedAt || new Date().toISOString(),
         proposalSavedAt: new Date().toISOString(),
         schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA
       });
-      setAiPreviewProposal(result.proposal);
+      setAiPreviewProposal(proposalWithFiles);
       onSave?.(nextProject);
       setProposalOpen(true);
     } catch (error) {
