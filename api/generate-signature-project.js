@@ -1,135 +1,41 @@
-const SIGNATURE_PROJECT_SCHEMA = {
+const fs = require("fs");
+const path = require("path");
+
+const DECK_TRANSFORMATION_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    proposal: {
+    deck_title: { type: "string" },
+    student_summary: {
       type: "object",
       additionalProperties: false,
       properties: {
-        title: { type: "string" },
-        subtitle: { type: "string" },
-        meta: { type: "string" },
-        format: { type: "string" },
-        designSystem: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            palette: { type: "array", items: { type: "string" } },
-            fonts: { type: "array", items: { type: "string" } },
-            styleNotes: { type: "array", items: { type: "string" } }
-          },
-          required: ["palette", "fonts", "styleNotes"]
-        },
-        slides: {
-          type: "array",
-          minItems: 10,
-          maxItems: 10,
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              slideNumber: { type: "number" },
-              title: { type: "string" },
-              sectionLabel: { type: "string" },
-              purpose: { type: "string" },
-              layout: { type: "string" },
-              visualDirection: { type: "string" },
-              speakerNote: { type: "string" },
-              components: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    type: { type: "string" },
-                    title: { type: "string" },
-                    text: { type: "string" },
-                    chips: { type: "array", items: { type: "string" } },
-                    bullets: { type: "array", items: { type: "string" } },
-                    headers: { type: "array", items: { type: "string" } },
-                    rows: {
-                      type: "array",
-                      items: {
-                        type: "array",
-                        items: { type: "string" }
-                      }
-                    },
-                    cards: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        additionalProperties: false,
-                        properties: {
-                          title: { type: "string" },
-                          text: { type: "string" },
-                          chips: { type: "array", items: { type: "string" } },
-                          bullets: { type: "array", items: { type: "string" } }
-                        },
-                        required: ["title", "text", "chips", "bullets"]
-                      }
-                    },
-                    layoutNote: { type: "string" }
-                  },
-                  required: ["type", "title", "text", "chips", "bullets", "headers", "rows", "cards", "layoutNote"]
-                }
-              }
-            },
-            required: ["slideNumber", "title", "sectionLabel", "purpose", "layout", "visualDirection", "speakerNote", "components"]
-          }
-        },
-        sections: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              title: { type: "string" },
-              body: { type: "string" },
-              bullets: { type: "array", items: { type: "string" } },
-              subsections: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    title: { type: "string" },
-                    body: { type: "string" }
-                  },
-                  required: ["title", "body"]
-                }
-              }
-            },
-            required: ["title", "body", "bullets", "subsections"]
-          }
-        },
-        timeline: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              label: { type: "string" },
-              tasks: { type: "array", items: { type: "string" } }
-            },
-            required: ["label", "tasks"]
-          }
-        }
+        name_ko: { type: "string" },
+        name_en: { type: "string" },
+        current_grade: { type: "string" },
+        current_school: { type: "string" },
+        target_entry: { type: "string" },
+        target_schools: { type: "array", items: { type: "string" } },
+        current_activity: { type: "string" },
+        project_theme: { type: "string" }
       },
-      required: ["title", "subtitle", "meta", "format", "designSystem", "slides", "sections", "timeline"]
+      required: ["name_ko", "name_en", "current_grade", "current_school", "target_entry", "target_schools", "current_activity", "project_theme"]
     },
-    qualityReview: {
+    consultant_transformation_summary: {
       type: "object",
       additionalProperties: false,
       properties: {
-        score: { type: "number" },
-        strengths: { type: "array", items: { type: "string" } },
-        weaknesses: { type: "array", items: { type: "string" } },
-        revisionNotes: { type: "array", items: { type: "string" } }
+        project_reframing: { type: "string" },
+        main_weakness_fixed: { type: "string" },
+        parent_value_proposition: { type: "string" },
+        student_growth_value: { type: "string" },
+        admissions_value: { type: "string" }
       },
-      required: ["score", "strengths", "weaknesses", "revisionNotes"]
-    }
+      required: ["project_reframing", "main_weakness_fixed", "parent_value_proposition", "student_growth_value", "admissions_value"]
+    },
+    slides: { type: "array", minItems: 10, maxItems: 10, items: { type: "object", additionalProperties: true } }
   },
-  required: ["proposal", "qualityReview"]
+  required: ["deck_title", "student_summary", "consultant_transformation_summary", "slides"]
 };
 
 const PPTX_THEME = {
@@ -618,3 +524,5 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: error.message || "Unexpected server error" });
   }
 };
+
+module.exports = require("./generate-project-deck");

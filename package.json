@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "check:api": "node --check api/generate-signature-project.js"
+    "check:api": "node --check api/generate-project-deck.js && node --check api/generate-signature-project.js"
   },
   "dependencies": {
     "pptxgenjs": "^3.12.0"

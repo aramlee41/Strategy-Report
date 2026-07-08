@@ -150,10 +150,14 @@ const V2_EC_ROADMAP_DOMAINS = ["Sports", "Arts", "Leadership", "Community Servic
 function v2SignatureAiEndpoint() {
   try {
     const saved = localStorage.getItem(V2_SIGNATURE_AI_ENDPOINT_KEY) || "";
-    if (saved) return saved;
+    if (saved) {
+      const migrated = saved.replace(/\/api\/generate-signature-project$/i, "/api/generate-project-deck");
+      if (migrated !== saved) localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, migrated);
+      return migrated;
+    }
   } catch (e) {}
   if (typeof window !== "undefined" && /vercel\.app$/i.test(window.location.hostname)) {
-    return `${window.location.origin}/api/generate-signature-project`;
+    return `${window.location.origin}/api/generate-project-deck`;
   }
   return "";
 }
@@ -161,7 +165,9 @@ function v2SignatureAiEndpoint() {
 function v2SetSignatureAiEndpoint(value) {
   const clean = String(value || "").trim().replace(/\/$/, "");
   if (!clean) return "";
-  const endpoint = /\/api\/generate-signature-project$/i.test(clean) ? clean : `${clean}/api/generate-signature-project`;
+  const endpoint = /\/api\/generate-(signature-project|project-deck)$/i.test(clean)
+    ? clean.replace(/\/api\/generate-signature-project$/i, "/api/generate-project-deck")
+    : `${clean}/api/generate-project-deck`;
   try { localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, endpoint); } catch (e) {}
   return endpoint;
 }
@@ -3567,6 +3573,19 @@ function V2SignatureProposalView({ proposal }) {
           <b>구성</b>
           <p className="small" style={{ marginBottom: 0 }}>10-slide editable proposal deck · PPTX import 가능</p>
         </div>
+      </div>
+    </div>;
+  }
+  if (Array.isArray(proposal.slides) && proposal.slides.length) {
+    return <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ borderBottom: "2px solid #173b58", paddingBottom: 12 }}>
+        <span className="pill p-amber">PPTX 생성 대기</span>
+        <h2 style={{ margin: "10px 0 4px", color: "#12344d" }}>{proposal.title || "Signature Project Proposal"}</h2>
+        <p className="small muted" style={{ marginTop: 8 }}>AI가 제안서 구조를 만들었지만 PPTX 파일이 아직 연결되지 않았습니다. AI 고급 생성을 다시 실행해 PPTX 다운로드 파일을 생성해주세요.</p>
+      </div>
+      <div className="card" style={{ background: "#fff7ed", borderColor: "#fed7aa" }}>
+        <b>내부 생성 데이터는 화면에 표시하지 않습니다.</b>
+        <p className="small muted" style={{ marginBottom: 0 }}>고객에게 전달되는 결과물은 PPTX 다운로드 파일 기준으로만 확인합니다.</p>
       </div>
     </div>;
   }
