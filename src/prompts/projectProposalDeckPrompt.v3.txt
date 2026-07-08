@@ -156,6 +156,7 @@ Quality requirements:
 - admissions_table rows must cover Activity List, Essay, Interview, Recommendation, Supplement.
 - growth_table rows must cover reading, research thinking, analysis, writing, presentation.
 - school_cards must connect to target schools if provided. Do not make official factual claims unless present in input; instead use careful school-fit language.
+- Each school_cards item must include school plus one of connection, fit, strategy, text, or description. A school name alone is a failed card.
 - activity_list_example must be polished English and specific.
 
 Slide 10, layout "core_character"
@@ -170,6 +171,7 @@ Quality requirements:
 - core_title must be specific and memorable, not generic.
 - summary must synthesize the student's ECs, academic interest, project, and community contribution in one strong Korean paragraph.
 - traits must explain the student's admissions character.
+- Each traits item must include trait plus description or text. A trait label alone is not acceptable.
 - bottom_steps must each have label + text and must not be truncated fragments.
 
 TOP-LEVEL JSON SHAPE

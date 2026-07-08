@@ -10,12 +10,19 @@ const CARD_SCHEMA = {
   type: "object",
   additionalProperties: true,
   properties: {
+    label: { type: "string" },
+    value: { type: "string" },
+    caption: { type: "string" },
     title: { type: "string" },
     heading: { type: "string" },
     text: { type: "string" },
     role: { type: "string" },
     school: { type: "string" },
     connection: { type: "string" },
+    fit: { type: "string" },
+    strategy: { type: "string" },
+    why: { type: "string" },
+    risk: { type: "string" },
     trait: { type: "string" },
     description: { type: "string" },
     chip: { type: "string" },
@@ -215,7 +222,8 @@ const THEME = {
 
 function clip(value, max = 420) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+  const effectiveMax = Math.max(Number(max) || 0, 220);
+  return text.length > effectiveMax ? text.slice(0, effectiveMax).trim() : text;
 }
 
 function arr(value, max = 6) {
@@ -760,6 +768,35 @@ function cardArray(value, titleKey = "title") {
   return asArray(value).map(item => asObject(item, titleKey)).filter(item => Object.values(item).some(Boolean));
 }
 
+function firstTextValue(item, keys = []) {
+  if (!item || typeof item !== "object") return String(item || "").trim();
+  for (const key of keys) {
+    const value = item[key];
+    if (Array.isArray(value)) {
+      const joined = value.map(x => String(x || "").trim()).filter(Boolean).join(" / ");
+      if (joined) return joined;
+    } else if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function cardTitle(item, fallback = "") {
+  return firstTextValue(item, ["label", "title", "heading", "school", "role", "trait", "name", "chip", "value"]) || fallback;
+}
+
+function cardBody(item, keys = ["text", "connection", "description", "fit", "strategy", "why", "risk", "caption", "value"]) {
+  const body = firstTextValue(item, keys);
+  if (body) return body;
+  const bullets = asArray(item?.bullets).map(x => String(x || "").trim()).filter(Boolean);
+  return bullets.join("\n");
+}
+
+function cardBullets(item) {
+  return asArray(item?.bullets).map(x => String(x || "").trim()).filter(Boolean);
+}
+
 function textLength(value) {
   if (Array.isArray(value)) return value.reduce((sum, item) => sum + textLength(item), 0);
   if (value && typeof value === "object") return Object.values(value).reduce((sum, item) => sum + textLength(item), 0);
@@ -828,11 +865,18 @@ function deckQualityIssues(deck) {
   const s9 = slide(9);
   if (tableRows(s9.admissions_table).length < 5) add("slide 9 admissions table needs at least 5 rows");
   if (tableRows(s9.growth_table).length < 5) add("slide 9 growth table needs at least 5 rows");
+  const schoolCards = cardArray(s9.school_cards, "school");
+  if (schoolCards.length < 3 || schoolCards.some(card => textLength(cardBody(card, ["connection", "fit", "strategy", "why", "text", "description", "value"])) < 60)) {
+    add("slide 9 target school cards need school-specific explanation, not title-only cards");
+  }
   if (textLength(s9.activity_list_example) < 140) add("slide 9 activity list example is too short");
 
   const s10 = slide(10);
   if (textLength(s10.summary) < 180) add("slide 10 core character summary is too short");
-  if (cardArray(s10.traits, "trait").length < 4) add("slide 10 needs 4 trait cards");
+  const traitCards = cardArray(s10.traits, "trait");
+  if (traitCards.length < 4 || traitCards.some(card => textLength(cardBody(card, ["description", "text", "evidence", "value", "caption"])) < 35)) {
+    add("slide 10 needs 4 trait cards with explanations, not title-only labels");
+  }
   if (cardArray(s10.bottom_steps, "label").length < 4) add("slide 10 needs 4 concrete next steps");
 
   return issues;
@@ -855,7 +899,7 @@ function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEM
   });
 }
 
-function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = THEME.white, accent = THEME.blue }) {
+function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = THEME.white, accent = THEME.blue, bodyMax = 760, titleMax = 80, bodyFontSize = 7.1 }) {
   slide.addShape(pptx.ShapeType.roundRect, {
     x, y, w, h,
     rectRadius: 0.08,
@@ -863,9 +907,9 @@ function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = TH
     line: { color: THEME.border, pt: 0.8 }
   });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.05, h, fill: { color: accent }, line: { color: accent } });
-  addText(slide, title || "", { x: x + 0.18, y: y + 0.14, w: w - 0.34, h: 0.26, fontSize: 10.2, bold: true, color: THEME.navy, max: 80 });
+  addText(slide, title || "", { x: x + 0.18, y: y + 0.14, w: w - 0.34, h: 0.26, fontSize: 10.2, bold: true, color: THEME.navy, max: titleMax });
   const body = [text, ...arr(bullets, 6).map(item => `• ${item}`)].filter(Boolean).join("\n");
-  addText(slide, body, { x: x + 0.18, y: y + 0.48, w: w - 0.34, h: Math.max(0.3, h - 0.58), fontSize: 7.1, color: THEME.ink, valign: "mid", max: 760 });
+  addText(slide, body, { x: x + 0.18, y: y + 0.48, w: w - 0.34, h: Math.max(0.3, h - 0.58), fontSize: bodyFontSize, color: THEME.ink, valign: "mid", max: bodyMax });
 }
 
 function addHeader(slide, pptx, deck, slideData, index) {
@@ -883,11 +927,11 @@ function addHeader(slide, pptx, deck, slideData, index) {
 }
 
 function addFooter(slide, deck, index) {
-  addText(slide, `${deck.deck_title || "Signature Project Proposal"} · ${index + 1}/10`, {
-    x: 0.58, y: 7.12, w: 7.4, h: 0.18,
+  addText(slide, `YES Study Abroad · ${index + 1}/10`, {
+    x: 0.58, y: 7.12, w: 3.4, h: 0.18,
     fontSize: 6.8,
     color: THEME.gray,
-    max: 90
+    max: 40
   });
 }
 
@@ -939,14 +983,15 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   const main = slideData.main_card || {};
-  addCard(s, pptx, { x: 0.58, y: 1.58, w: 6.8, h: 2.35, title: main.heading || "Project Concept", text: arr(main.paragraphs, 3).join("\n\n"), fill: THEME.white, accent: THEME.blue });
+  addCard(s, pptx, { x: 0.58, y: 1.58, w: 6.8, h: 2.35, title: main.heading || "Project Concept", text: arr(main.paragraphs, 3).join("\n\n"), fill: THEME.white, accent: THEME.blue, bodyMax: 1450, bodyFontSize: 6.4 });
   const side = slideData.side_card || {};
   addCard(s, pptx, { x: 7.62, y: 1.58, w: 5.1, h: 2.35, title: side.heading || "Research Direction", bullets: side.bullets || [], fill: "F8FBFE", accent: THEME.mint });
-  cardArray(slideData.process_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 4.22, w: 2.75, h: 1.18, title: card.title, text: card.text, fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.gold }));
+  cardArray(slideData.process_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 4.22, w: 2.75, h: 1.18, title: cardTitle(card), text: cardBody(card), fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.gold, bodyMax: 360, bodyFontSize: 6.6 }));
   cardArray(slideData.metrics, "label").slice(0, 5).forEach((metric, idx) => {
-    s.addShape(pptx.ShapeType.roundRect, { x: 0.58 + idx * 2.46, y: 5.72, w: 2.15, h: 0.75, rectRadius: 0.06, fill: { color: THEME.navy }, line: { color: THEME.navy } });
-    addText(s, metric.value || "", { x: 0.68 + idx * 2.46, y: 5.84, w: 1.95, h: 0.22, fontSize: 13, bold: true, color: THEME.white, align: "center", max: 18 });
-    addText(s, metric.label || "", { x: 0.68 + idx * 2.46, y: 6.12, w: 1.95, h: 0.16, fontSize: 6.8, color: THEME.softBlue, align: "center", max: 18 });
+    const cellX = 0.58 + idx * 2.46;
+    s.addShape(pptx.ShapeType.roundRect, { x: cellX, y: 5.68, w: 2.22, h: 0.88, rectRadius: 0.06, fill: { color: THEME.navy }, line: { color: THEME.navy } });
+    addText(s, metric.value || cardBody(metric, ["value", "text", "description"]) || "", { x: cellX + 0.1, y: 5.79, w: 2.02, h: 0.28, fontSize: 9.6, bold: true, color: THEME.white, align: "center", max: 58 });
+    addText(s, metric.label || cardTitle(metric), { x: cellX + 0.1, y: 6.15, w: 2.02, h: 0.18, fontSize: 5.8, color: THEME.softBlue, align: "center", max: 46 });
   });
   addFooter(s, deck, index);
 }
@@ -954,10 +999,15 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
 function renderWhyProjectSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  cardArray(slideData.cards, "heading").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: card.heading || card.title, bullets: card.bullets || [], fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx] }));
+  cardArray(slideData.cards, "heading").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: cardTitle(card), text: cardBody(card, ["text", "description", "caption"]), bullets: cardBullets(card), fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx], bodyMax: 860, bodyFontSize: 6.8 }));
   addCard(s, pptx, { x: 0.58, y: 4.38, w: 8.15, h: 1.35, title: slideData.message_box?.heading || "Why This Project Matters", text: slideData.message_box?.text || "", fill: THEME.softMint, accent: THEME.mint });
   addCard(s, pptx, { x: 9.02, y: 4.38, w: 3.7, h: 1.35, title: "핵심 문장", text: slideData.quote || "", fill: THEME.white, accent: THEME.gold });
-  cardArray(slideData.skill_chips, "label").slice(0, 5).forEach((chip, idx) => addPill(s, pptx, `${chip.label || ""} · ${chip.caption || ""}`, 0.72 + idx * 2.45, 6.1, 2.15, THEME.softBlue, THEME.navy));
+  cardArray(slideData.skill_chips, "label").slice(0, 5).forEach((chip, idx) => {
+    const label = cardTitle(chip);
+    const caption = cardBody(chip, ["caption", "text", "description", "value"]);
+    const text = [label, caption && caption !== label ? caption : ""].filter(Boolean).join(" · ");
+    if (text) addPill(s, pptx, text, 0.72 + idx * 2.45, 6.1, 2.15, THEME.softBlue, THEME.navy, 72);
+  });
   addFooter(s, deck, index);
 }
 
@@ -1014,8 +1064,17 @@ function renderAdmissionsLearningValueSlide(pptx, deck, slideData, index) {
   addTable(s, slideData.admissions_table, 0.58, 1.84, 5.8, 2.4, 6.2);
   addText(s, slideData.growth_table?.title || "교육적 성장", { x: 6.75, y: 1.52, w: 5.6, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
   addTable(s, slideData.growth_table, 6.75, 1.84, 5.98, 2.4, 6.2);
-  cardArray(slideData.school_cards, "school").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 4.55, w: 3.85, h: 1.28, title: card.school || card.title, text: card.connection || card.text, fill: idx % 2 ? "F8FBFE" : THEME.white, accent: THEME.gold }));
-  addCard(s, pptx, { x: 0.58, y: 6.05, w: 12.14, h: 0.72, title: "Activity List Example", text: slideData.activity_list_example || "", fill: THEME.softMint, accent: THEME.mint });
+  cardArray(slideData.school_cards, "school").slice(0, 3).forEach((card, idx) => addCard(s, pptx, {
+    x: 0.58 + idx * 4.18, y: 4.48, w: 3.85, h: 1.45,
+    title: cardTitle(card, `Target School ${idx + 1}`),
+    text: cardBody(card, ["connection", "fit", "strategy", "why", "text", "description", "value"]),
+    bullets: cardBullets(card),
+    fill: idx % 2 ? "F8FBFE" : THEME.white,
+    accent: THEME.gold,
+    bodyMax: 520,
+    bodyFontSize: 6.5
+  }));
+  addCard(s, pptx, { x: 0.58, y: 6.08, w: 12.14, h: 0.66, title: "Activity List Example", text: slideData.activity_list_example || "", fill: THEME.softMint, accent: THEME.mint, bodyMax: 520, bodyFontSize: 6.2 });
   addFooter(s, deck, index);
 }
 
@@ -1023,7 +1082,16 @@ function renderCoreCharacterSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   addCard(s, pptx, { x: 0.58, y: 1.55, w: 12.14, h: 1.28, title: slideData.core_title || "Core Character", text: slideData.summary || "", fill: THEME.white, accent: THEME.gold });
-  cardArray(slideData.traits, "trait").slice(0, 4).forEach((trait, idx) => addCard(s, pptx, { x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52, title: trait.trait || trait.title, text: trait.description || trait.text, fill: idx % 2 ? "F8FBFE" : THEME.softMint, accent: THEME.blue }));
+  cardArray(slideData.traits, "trait").slice(0, 4).forEach((trait, idx) => addCard(s, pptx, {
+    x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52,
+    title: cardTitle(trait),
+    text: cardBody(trait, ["description", "text", "evidence", "value", "caption"]),
+    bullets: cardBullets(trait),
+    fill: idx % 2 ? "F8FBFE" : THEME.softMint,
+    accent: THEME.blue,
+    bodyMax: 420,
+    bodyFontSize: 6.4
+  }));
   addCard(s, pptx, { x: 0.58, y: 5.02, w: 7.05, h: 1.05, title: "최종 인상", text: slideData.final_quote || "", fill: THEME.white, accent: THEME.mint });
   cardArray(slideData.bottom_steps, "label").slice(0, 4).forEach((step, idx) => {
     const y = 4.95 + idx * 0.43;
