@@ -1007,7 +1007,21 @@ function ensureCardList(existing, defaults, count) {
   for (let idx = 0; idx < count; idx += 1) {
     const base = cloneJson(defaults[idx] || defaults[defaults.length - 1] || {});
     const value = cloneJson(current[idx] || {});
-    merged.push({ ...base, ...value });
+    const next = { ...base };
+    Object.entries(value).forEach(([key, raw]) => {
+      if (Array.isArray(raw)) {
+        const clean = raw.map(item => normalizeDisplayText(item)).filter(item => isMeaningfulText(item, 1));
+        if (clean.length) next[key] = clean;
+        return;
+      }
+      if (raw && typeof raw === "object") {
+        if (textLength(raw) > 0) next[key] = raw;
+        return;
+      }
+      const clean = normalizeDisplayText(raw);
+      if (isMeaningfulText(clean, 2)) next[key] = clean;
+    });
+    merged.push(next);
   }
   return merged;
 }
