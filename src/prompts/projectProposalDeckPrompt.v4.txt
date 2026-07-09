@@ -10,6 +10,15 @@ CORE STANDARD
 - Every card must explain what the student will do, why it matters, what output will exist, and how it helps admissions.
 - The deck must be specific enough that a student and parent could begin execution without asking "so what do we actually do?"
 
+DESIGN READABILITY RULES
+- Write for a PPTX slide, not a memo.
+- Do not overload cards with long sentences.
+- Card titles should usually be 3-8 words.
+- Bullet points should usually be one short sentence.
+- Table cells should be concise and action-oriented.
+- Use depth through specificity, not through long paragraphs inside every small card.
+- Slide 2 may contain longer explanatory paragraphs. Most other cards should be easy to scan in 5-10 seconds.
+
 ABSOLUTE OUTPUT RULES
 - Return only valid JSON.
 - Do not output Markdown.

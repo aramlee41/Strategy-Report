@@ -220,7 +220,7 @@ const THEME = {
   softBlue: "E7F2F8"
 };
 
-const RENDERER_VERSION = "ai-deck-renderer-20260709.3";
+const RENDERER_VERSION = "ai-deck-renderer-20260709.4";
 
 const REFERENCE_SLIDE_CONTRACTS = [
   {
@@ -905,7 +905,7 @@ async function repairDeckStructureWithOpenAi(payload, malformedDeck, model, reas
 function addText(slide, text, options) {
   slide.addText(clip(text, options.max || 600), {
     fontFace: "Noto Sans KR",
-    fit: "shrink",
+    fit: options.fit || "shrink",
     margin: 0.04,
     breakLine: false,
     ...options
@@ -1384,7 +1384,7 @@ function addPill(slide, pptx, text, x, y, w, fill = THEME.softMint, color = THEM
   });
 }
 
-function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = THEME.white, accent = THEME.blue, bodyMax = 760, titleMax = 80, bodyFontSize = 7.1 }) {
+function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = THEME.white, accent = THEME.blue, bodyMax = 760, titleMax = 80, bodyFontSize = 8.2 }) {
   slide.addShape(pptx.ShapeType.roundRect, {
     x, y, w, h,
     rectRadius: 0.08,
@@ -1392,9 +1392,46 @@ function addCard(slide, pptx, { x, y, w, h, title, text, bullets = [], fill = TH
     line: { color: THEME.border, pt: 0.8 }
   });
   slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.05, h, fill: { color: accent }, line: { color: accent } });
-  addText(slide, title || "", { x: x + 0.18, y: y + 0.14, w: w - 0.34, h: 0.26, fontSize: 10.2, bold: true, color: THEME.navy, max: titleMax });
-  const body = [text, ...arr(bullets, 6).map(item => `• ${item}`)].filter(Boolean).join("\n");
-  addText(slide, body, { x: x + 0.18, y: y + 0.48, w: w - 0.34, h: Math.max(0.3, h - 0.58), fontSize: bodyFontSize, color: THEME.ink, valign: "mid", max: bodyMax });
+  addText(slide, title || "", {
+    x: x + 0.2, y: y + 0.13, w: w - 0.38, h: 0.3,
+    fontSize: 11.2,
+    bold: true,
+    color: THEME.navy,
+    max: titleMax
+  });
+  const cleanText = normalizeDisplayText(text);
+  const cleanBullets = arr(bullets, 5);
+  const bodyX = x + 0.22;
+  const bodyW = w - 0.42;
+  let cursorY = y + 0.53;
+  const bodyBottom = y + h - 0.12;
+
+  if (cleanText) {
+    const textHeight = cleanBullets.length ? Math.min(0.58, Math.max(0.34, bodyBottom - cursorY - cleanBullets.length * 0.3)) : Math.max(0.3, bodyBottom - cursorY);
+    addText(slide, cleanText, {
+      x: bodyX, y: cursorY, w: bodyW, h: textHeight,
+      fontSize: bodyFontSize,
+      color: THEME.ink,
+      valign: "top",
+      max: cleanBullets.length ? Math.min(bodyMax, 220) : bodyMax
+    });
+    cursorY += textHeight + 0.08;
+  }
+
+  if (cleanBullets.length) {
+    const available = Math.max(0.18, bodyBottom - cursorY);
+    const rowH = Math.max(0.24, available / cleanBullets.length);
+    cleanBullets.forEach((item, idx) => {
+      const rowY = cursorY + idx * rowH;
+      addText(slide, `- ${item}`, {
+        x: bodyX, y: rowY, w: bodyW, h: Math.max(0.2, rowH - 0.02),
+        fontSize: Math.max(7.2, bodyFontSize - 0.2),
+        color: THEME.ink,
+        valign: "top",
+        max: Math.max(90, Math.floor(bodyMax / Math.max(1, cleanBullets.length)))
+      });
+    });
+  }
 }
 
 function addIconCard(slide, pptx, { x, y, w, h, icon, title, text, fill = THEME.white, accent = THEME.blue, bodyMax = 360 }) {
@@ -1411,8 +1448,8 @@ function addIconCard(slide, pptx, { x, y, w, h, icon, title, text, fill = THEME.
     line: { color: accent }
   });
   addText(slide, icon || "", {
-    x: x + 0.19, y: y + 0.27, w: 0.32, h: 0.12,
-    fontSize: 6.2,
+    x: x + 0.19, y: y + 0.25, w: 0.32, h: 0.15,
+    fontSize: 7.2,
     bold: true,
     color: THEME.white,
     align: "center",
@@ -1420,14 +1457,14 @@ function addIconCard(slide, pptx, { x, y, w, h, icon, title, text, fill = THEME.
   });
   addText(slide, title || "", {
     x: x + 0.68, y: y + 0.16, w: w - 0.86, h: 0.24,
-    fontSize: 9.2,
+    fontSize: 10.2,
     bold: true,
     color: THEME.navy,
     max: 42
   });
   addText(slide, text || "", {
     x: x + 0.18, y: y + 0.62, w: w - 0.34, h: Math.max(0.25, h - 0.75),
-    fontSize: 6.3,
+    fontSize: 7.4,
     color: THEME.ink,
     valign: "mid",
     max: bodyMax
@@ -1440,24 +1477,24 @@ function addHeader(slide, pptx, deck, slideData, index) {
   addPill(slide, pptx, slideData.section_label || `Slide ${index + 1}`, 0.55, 0.38, 2.3, THEME.softBlue, THEME.navy);
   addText(slide, slideData.title || slideData.title_en || slideData.core_title || deck.deck_title || "Project Proposal", {
     x: 0.58, y: 0.72, w: 8.9, h: 0.38,
-    fontSize: 18,
+    fontSize: 20,
     bold: true,
     color: THEME.navy,
     max: 86
   });
-  addText(slide, slideData.page_context || "", { x: 0.6, y: 1.13, w: 11.8, h: 0.24, fontSize: 8.2, color: THEME.gray, max: 170 });
+  addText(slide, slideData.page_context || "", { x: 0.6, y: 1.14, w: 11.8, h: 0.27, fontSize: 9.2, color: THEME.gray, max: 170 });
 }
 
 function addFooter(slide, deck, index) {
   addText(slide, `YES Study Abroad · ${index + 1}/10`, {
     x: 0.58, y: 7.12, w: 3.4, h: 0.18,
-    fontSize: 6.8,
+    fontSize: 7.2,
     color: THEME.gray,
     max: 40
   });
 }
 
-function addTable(slide, table, x, y, w, h, fontSize = 6.8) {
+function addTable(slide, table, x, y, w, h, fontSize = 7.2) {
   const headers = arr(table?.headers, 6);
   const rows = asArray(table?.rows).slice(0, 8);
   if (!headers.length || !rows.length) return;
@@ -1476,7 +1513,7 @@ function addTable(slide, table, x, y, w, h, fontSize = 6.8) {
     border: { type: "solid", color: THEME.border, pt: 0.55 },
     fontFace: "Noto Sans KR",
     fontSize,
-    margin: 0.045,
+    margin: 0.06,
     valign: "mid",
     fit: "shrink"
   });
@@ -1505,15 +1542,15 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   const main = slideData.main_card || {};
-  addCard(s, pptx, { x: 0.58, y: 1.58, w: 6.8, h: 2.35, title: main.heading || "Project Concept", text: arr(main.paragraphs, 3).join("\n\n"), fill: THEME.white, accent: THEME.blue, bodyMax: 1450, bodyFontSize: 6.4 });
+  addCard(s, pptx, { x: 0.58, y: 1.58, w: 6.8, h: 2.35, title: main.heading || "Project Concept", text: arr(main.paragraphs, 3).join("\n\n"), fill: THEME.white, accent: THEME.blue, bodyMax: 1050, bodyFontSize: 7.4 });
   const side = slideData.side_card || {};
   addCard(s, pptx, { x: 7.62, y: 1.58, w: 5.1, h: 2.35, title: side.heading || "Research Direction", bullets: side.bullets || [], fill: "F8FBFE", accent: THEME.mint });
   cardArray(slideData.process_cards).slice(0, 4).forEach((card, idx) => addIconCard(s, pptx, { x: 0.58 + idx * 3.05, y: 4.22, w: 2.75, h: 1.18, icon: card.icon || `0${idx + 1}`, title: cardTitle(card), text: cardBody(card), fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.gold, bodyMax: 360 }));
   cardArray(slideData.metrics, "label").slice(0, 5).forEach((metric, idx) => {
     const cellX = 0.58 + idx * 2.46;
     s.addShape(pptx.ShapeType.roundRect, { x: cellX, y: 5.68, w: 2.22, h: 0.88, rectRadius: 0.06, fill: { color: THEME.navy }, line: { color: THEME.navy } });
-    addText(s, metric.value || cardBody(metric, ["value", "text", "description"]) || "", { x: cellX + 0.1, y: 5.79, w: 2.02, h: 0.28, fontSize: 9.6, bold: true, color: THEME.white, align: "center", max: 58 });
-    addText(s, metric.label || cardTitle(metric), { x: cellX + 0.1, y: 6.15, w: 2.02, h: 0.18, fontSize: 5.8, color: THEME.softBlue, align: "center", max: 46 });
+    addText(s, metric.value || cardBody(metric, ["value", "text", "description"]) || "", { x: cellX + 0.1, y: 5.78, w: 2.02, h: 0.3, fontSize: 10.8, bold: true, color: THEME.white, align: "center", max: 58 });
+    addText(s, metric.label || cardTitle(metric), { x: cellX + 0.1, y: 6.14, w: 2.02, h: 0.22, fontSize: 7.1, color: THEME.softBlue, align: "center", max: 46 });
   });
   addFooter(s, deck, index);
 }
@@ -1521,7 +1558,7 @@ function renderProjectConceptSlide(pptx, deck, slideData, index) {
 function renderWhyProjectSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  cardArray(slideData.cards, "heading").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: cardTitle(card), text: cardBody(card, ["text", "description", "caption"]), bullets: cardBullets(card), fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx], bodyMax: 860, bodyFontSize: 6.8 }));
+  cardArray(slideData.cards, "heading").slice(0, 3).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + idx * 4.18, y: 1.58, w: 3.85, h: 2.55, title: cardTitle(card), text: cardBody(card, ["text", "description", "caption"]), bullets: cardBullets(card), fill: idx === 1 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx], bodyMax: 760, bodyFontSize: 7.6 }));
   addCard(s, pptx, { x: 0.58, y: 4.38, w: 8.15, h: 1.35, title: slideData.message_box?.heading || "Why This Project Matters", text: slideData.message_box?.text || "", fill: THEME.softMint, accent: THEME.mint });
   addCard(s, pptx, { x: 9.02, y: 4.38, w: 3.7, h: 1.35, title: "핵심 문장", text: slideData.quote || "", fill: THEME.white, accent: THEME.gold });
   cardArray(slideData.skill_chips, "label").slice(0, 5).forEach((chip, idx) => {
@@ -1538,9 +1575,9 @@ function renderStudentTasksSlide(pptx, deck, slideData, index) {
   addHeader(s, pptx, deck, slideData, index);
   cardArray(slideData.workflow).slice(0, 5).forEach((step, idx) => addIconCard(s, pptx, { x: 0.58 + idx * 2.48, y: 1.55, w: 2.18, h: 1.18, icon: step.icon || String(idx + 1), title: cardTitle(step), text: cardBody(step), fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue, bodyMax: 260 }));
   addText(s, slideData.checking_table?.title || "이해도 확인 방식", { x: 0.58, y: 2.96, w: 5.8, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
-  addTable(s, slideData.checking_table, 0.58, 3.26, 5.95, 2.28, 6.3);
+  addTable(s, slideData.checking_table, 0.58, 3.26, 5.95, 2.28, 7);
   addText(s, slideData.evidence_log_table?.title || "Evidence Log 예시", { x: 6.82, y: 2.96, w: 5.8, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
-  addTable(s, slideData.evidence_log_table, 6.82, 3.26, 5.9, 2.28, 6.3);
+  addTable(s, slideData.evidence_log_table, 6.82, 3.26, 5.9, 2.28, 7);
   addCard(s, pptx, { x: 0.58, y: 5.85, w: 12.14, h: 0.72, title: "Guiding Question", text: slideData.guiding_question || "", fill: THEME.white, accent: THEME.gold });
   addFooter(s, deck, index);
 }
@@ -1549,7 +1586,7 @@ function renderWeeklyPlan1Slide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   arr(slideData.phase_chips, 4).forEach((chip, idx) => addPill(s, pptx, chip, 0.58 + idx * 2.85, 1.48, 2.45, idx % 2 ? THEME.softMint : THEME.softBlue, THEME.navy));
-  addTable(s, slideData.weekly_table, 0.58, 1.92, 12.14, 3.95, 6.2);
+  addTable(s, slideData.weekly_table, 0.58, 1.92, 12.14, 3.95, 7);
   addCard(s, pptx, { x: 0.58, y: 6.05, w: 12.14, h: 0.72, title: slideData.note_box?.heading || "자료 읽기 방향", text: slideData.note_box?.text || "", fill: THEME.white, accent: THEME.mint });
   addFooter(s, deck, index);
 }
@@ -1557,7 +1594,7 @@ function renderWeeklyPlan1Slide(pptx, deck, slideData, index) {
 function renderWeeklyPlan2Slide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  addTable(s, slideData.weekly_table, 0.58, 1.52, 12.14, 3.55, 6.2);
+  addTable(s, slideData.weekly_table, 0.58, 1.52, 12.14, 3.55, 7);
   addText(s, slideData.scenario_section_title || "학교생활 장면별 예시 문제", { x: 0.58, y: 5.28, w: 5, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
   cardArray(slideData.scenario_cards).slice(0, 5).forEach((card, idx) => addIconCard(s, pptx, { x: 0.58 + idx * 2.45, y: 5.62, w: 2.16, h: 1.02, icon: String(idx + 1), title: cardTitle(card), text: cardBody(card), fill: idx % 2 ? THEME.white : THEME.softMint, accent: THEME.blue, bodyMax: 220 }));
   addFooter(s, deck, index);
@@ -1566,7 +1603,7 @@ function renderWeeklyPlan2Slide(pptx, deck, slideData, index) {
 function renderSupportStructureSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  cardArray(slideData.role_cards, "role").slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 3) * 4.12, y: 1.55 + Math.floor(idx / 3) * 2.42, w: idx < 3 ? 3.75 : 5.88, h: 2.02, title: card.role || card.title, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx % 3] }));
+  cardArray(slideData.role_cards, "role").slice(0, 5).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 3) * 4.12, y: 1.55 + Math.floor(idx / 3) * 2.42, w: idx < 3 ? 3.75 : 5.88, h: 2.02, title: card.role || card.title, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: [THEME.blue, THEME.mint, THEME.gold][idx % 3], bodyFontSize: 7.5 }));
   addPill(s, pptx, arr(slideData.process_flow, 4).join("  →  ") || "학생 초안 → 멘토 피드백 → 최종 결과물", 3.45, 6.35, 6.6, THEME.softBlue, THEME.navy);
   addFooter(s, deck, index);
 }
@@ -1574,7 +1611,7 @@ function renderSupportStructureSlide(pptx, deck, slideData, index) {
 function renderFinalOutputsSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  cardArray(slideData.output_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 2) * 6.15, y: 1.55 + Math.floor(idx / 2) * 2.28, w: 5.75, h: 1.88, title: `${card.title || ""}${card.chip ? ` · ${card.chip}` : ""}`, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: idx < 2 ? THEME.blue : THEME.mint }));
+  cardArray(slideData.output_cards).slice(0, 4).forEach((card, idx) => addCard(s, pptx, { x: 0.58 + (idx % 2) * 6.15, y: 1.48 + Math.floor(idx / 2) * 2.42, w: 5.75, h: 2.08, title: `${card.title || ""}${card.chip ? ` | ${card.chip}` : ""}`, bullets: card.bullets || [], fill: idx % 2 ? "F8FBFE" : THEME.white, accent: idx < 2 ? THEME.blue : THEME.mint, bodyFontSize: 7.4 }));
   addPill(s, pptx, arr(slideData.flow, 4).join("  →  "), 1.15, 6.35, 11, THEME.softMint, THEME.navy);
   addFooter(s, deck, index);
 }
@@ -1583,56 +1620,56 @@ function renderAdmissionsLearningValueSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
   addText(s, slideData.admissions_table?.title || "보딩스쿨 입시 활용", { x: 0.58, y: 1.52, w: 5.6, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
-  addTable(s, slideData.admissions_table, 0.58, 1.84, 5.8, 2.4, 6.2);
+  addTable(s, slideData.admissions_table, 0.58, 1.84, 5.8, 2.4, 6.9);
   addText(s, slideData.growth_table?.title || "교육적 성장", { x: 6.75, y: 1.52, w: 5.6, h: 0.22, fontSize: 9.5, bold: true, color: THEME.navy });
-  addTable(s, slideData.growth_table, 6.75, 1.84, 5.98, 2.4, 6.2);
+  addTable(s, slideData.growth_table, 6.75, 1.84, 5.98, 2.4, 6.9);
   cardArray(slideData.school_cards, "school").slice(0, 3).forEach((card, idx) => addCard(s, pptx, {
-    x: 0.58 + idx * 4.18, y: 4.48, w: 3.85, h: 1.45,
+    x: 0.58 + idx * 4.18, y: 4.42, w: 3.85, h: 1.58,
     title: cardTitle(card, `Target School ${idx + 1}`),
     text: cardBody(card, ["connection", "fit", "strategy", "why", "text", "description", "value"]),
     bullets: cardBullets(card),
     fill: idx % 2 ? "F8FBFE" : THEME.white,
     accent: THEME.gold,
     bodyMax: 520,
-    bodyFontSize: 6.5
+    bodyFontSize: 7.2
   }));
-  addCard(s, pptx, { x: 0.58, y: 6.08, w: 12.14, h: 0.66, title: "Activity List Example", text: slideData.activity_list_example || "", fill: THEME.softMint, accent: THEME.mint, bodyMax: 520, bodyFontSize: 6.2 });
+  addCard(s, pptx, { x: 0.58, y: 6.12, w: 12.14, h: 0.74, title: "Activity List Example", text: slideData.activity_list_example || "", fill: THEME.softMint, accent: THEME.mint, bodyMax: 440, bodyFontSize: 7.1 });
   addFooter(s, deck, index);
 }
 
 function renderCoreCharacterSlide(pptx, deck, slideData, index) {
   const s = pptx.addSlide();
   addHeader(s, pptx, deck, slideData, index);
-  addCard(s, pptx, { x: 0.58, y: 1.55, w: 12.14, h: 1.28, title: slideData.core_title || "Core Character", text: slideData.summary || "", fill: THEME.white, accent: THEME.gold });
+  addCard(s, pptx, { x: 0.58, y: 1.55, w: 12.14, h: 1.35, title: slideData.core_title || "Core Character", text: slideData.summary || "", fill: THEME.white, accent: THEME.gold, bodyMax: 520, bodyFontSize: 7.6 });
   cardArray(slideData.traits, "trait").slice(0, 4).forEach((trait, idx) => addCard(s, pptx, {
-    x: 0.58 + idx * 3.05, y: 3.18, w: 2.75, h: 1.52,
+    x: 0.58 + idx * 3.05, y: 3.2, w: 2.75, h: 1.62,
     title: cardTitle(trait),
     text: cardBody(trait, ["description", "text", "evidence", "value", "caption"]),
     bullets: cardBullets(trait),
     fill: idx % 2 ? "F8FBFE" : THEME.softMint,
     accent: THEME.blue,
     bodyMax: 420,
-    bodyFontSize: 6.4
+    bodyFontSize: 7.3
   }));
-  addCard(s, pptx, { x: 0.58, y: 5.02, w: 7.05, h: 1.05, title: "최종 인상", text: slideData.final_quote || "", fill: THEME.white, accent: THEME.mint });
+  addCard(s, pptx, { x: 0.58, y: 5.08, w: 7.05, h: 1.08, title: "최종 인상", text: slideData.final_quote || "", fill: THEME.white, accent: THEME.mint, bodyFontSize: 7.8 });
   cardArray(slideData.bottom_steps, "label").slice(0, 4).forEach((step, idx) => {
-    const y = 4.95 + idx * 0.43;
+    const y = 4.96 + idx * 0.48;
     s.addShape(pptx.ShapeType.roundRect, {
-      x: 7.95, y, w: 4.55, h: 0.34,
+      x: 7.95, y, w: 4.55, h: 0.39,
       rectRadius: 0.05,
       fill: { color: idx % 2 ? THEME.softMint : THEME.softBlue },
       line: { color: idx % 2 ? THEME.softMint : THEME.softBlue }
     });
     addText(s, step.label || `Step ${idx + 1}`, {
-      x: 8.06, y: y + 0.06, w: 0.95, h: 0.13,
-      fontSize: 6.2,
+      x: 8.06, y: y + 0.07, w: 0.95, h: 0.15,
+      fontSize: 7,
       bold: true,
       color: THEME.navy,
       max: 24
     });
     addText(s, step.text || step.description || "", {
-      x: 9.02, y: y + 0.045, w: 3.28, h: 0.19,
-      fontSize: 5.7,
+      x: 9.02, y: y + 0.055, w: 3.28, h: 0.21,
+      fontSize: 6.5,
       color: THEME.ink,
       max: 120
     });
