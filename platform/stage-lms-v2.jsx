@@ -1089,6 +1089,7 @@ function v2SignatureProjectText(project = {}) {
 }
 function v2SignatureProjectHasStructuredBrief(project = {}) {
   const p = v2NormalizeSignatureProject(project);
+  if (p.proposal?.pptxBase64 || p.proposal?.slides?.length || p.proposal?.pptxFileName) return true;
   const text = v2SignatureProjectText(p);
   const compactLength = text.replace(/\s/g, "").length;
   const markerCount = ["무엇을", "어떻게", "의도", "프로젝트"].filter(marker => text.includes(marker)).length;
@@ -1138,7 +1139,12 @@ function v2MergeSignatureProject(saved = {}, generated = {}) {
     legacySummary: [s.rationale, s.currentState, s.targetState].filter(Boolean).join("\n"),
     generatedAt: g.generatedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    manuallyEdited: !!s.manuallyEdited
+    manuallyEdited: !!s.manuallyEdited,
+    proposal: s.proposal || g.proposal,
+    proposalSavedAt: s.proposalSavedAt || g.proposalSavedAt,
+    aiQualityReview: s.aiQualityReview || g.aiQualityReview,
+    aiModel: s.aiModel || g.aiModel,
+    aiGeneratedAt: s.aiGeneratedAt || g.aiGeneratedAt
   });
 }
 function v2ResolveSignatureProjects(st = {}, schools = [], projectSource = null) {
@@ -3532,7 +3538,23 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeep({ st, updat
     const endpoint = v2PromptSignatureAiEndpoint(true);
     if (endpoint) window.alert(`AI API endpoint saved:\n${endpoint}`);
   };
-  const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
+  const editOne = (idx, nextProject) => {
+    const normalizedNext = v2NormalizeSignatureProject(nextProject);
+    const nextId = normalizedNext.id || projects[idx]?.id;
+    const base = v2ResolveSignatureProjects({ ...st, signatureProjects: saved }, schools).map(v2NormalizeSignatureProject);
+    let replaced = false;
+    const next = base.map((p, i) => {
+      const sameId = nextId && p.id === nextId;
+      const sameIndex = !nextId && i === idx;
+      if (sameId || sameIndex) {
+        replaced = true;
+        return v2NormalizeSignatureProject({ ...p, ...normalizedNext, id: nextId || normalizedNext.id || p.id });
+      }
+      return p;
+    });
+    if (!replaced) next.splice(idx, 0, v2NormalizeSignatureProject({ ...normalizedNext, id: nextId || normalizedNext.id }));
+    saveAll(next.slice(0, 4));
+  };
   return <V2Section title="Signature Project / 3대 스파이크 기획">
     <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
       <p className="small muted" style={{ margin: 0, maxWidth: 760 }}>Hook Strategy를 실제 지원서에서 기억되게 만드는 프로젝트 설계입니다. 핵심 EC, 관심학교, EC 영역별 준비도, 남은 지원 기간을 바탕으로 자동 생성되며, 상담 방향에 맞게 수정해 저장할 수 있습니다.</p>
@@ -3840,7 +3862,23 @@ V2SignatureProjectsSection = function V2SignatureProjectsSectionDeepFinal({ st, 
     const endpoint = v2PromptSignatureAiEndpoint(true);
     if (endpoint) window.alert(`AI API endpoint saved:\n${endpoint}`);
   };
-  const editOne = (idx, nextProject) => saveAll(projects.map((p, i) => i === idx ? nextProject : p));
+  const editOne = (idx, nextProject) => {
+    const normalizedNext = v2NormalizeSignatureProject(nextProject);
+    const nextId = normalizedNext.id || projects[idx]?.id;
+    const base = v2ResolveSignatureProjects({ ...st, signatureProjects: saved }, schools).map(v2NormalizeSignatureProject);
+    let replaced = false;
+    const next = base.map((p, i) => {
+      const sameId = nextId && p.id === nextId;
+      const sameIndex = !nextId && i === idx;
+      if (sameId || sameIndex) {
+        replaced = true;
+        return v2NormalizeSignatureProject({ ...p, ...normalizedNext, id: nextId || normalizedNext.id || p.id });
+      }
+      return p;
+    });
+    if (!replaced) next.splice(idx, 0, v2NormalizeSignatureProject({ ...normalizedNext, id: nextId || normalizedNext.id }));
+    saveAll(next.slice(0, 4));
+  };
   return <V2Section title="Signature Project / 3대 스파이크 기획">
     <div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
       <p className="small muted" style={{ margin: 0, maxWidth: 820 }}>Stage 1의 핵심 EC와 관심학교 데이터를 바탕으로, 학생의 Hook을 실제 원서에서 사용할 수 있는 Signature Project로 변환합니다. 각 프로젝트는 학업적 재능, 보딩스쿨 fit, 사회적 기여, 증거자료, 학기별 로드맵까지 함께 생성되며 필요하면 상담 방향에 맞게 수정해 저장할 수 있습니다.</p>
