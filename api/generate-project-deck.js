@@ -220,16 +220,32 @@ const THEME = {
   softBlue: "E7F2F8"
 };
 
+const RENDERER_VERSION = "ai-deck-renderer-20260709.2";
+
 function clip(value, max = 420) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   const effectiveMax = Math.max(Number(max) || 0, 220);
   return text.length > effectiveMax ? text.slice(0, effectiveMax).trim() : text;
 }
 
+function normalizeDisplayText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[·•|/\\\-\s]+|[·•|/\\\-\s]+$/g, "")
+    .trim();
+}
+
+function isMeaningfulText(value, min = 2) {
+  const text = normalizeDisplayText(value);
+  if (!text) return false;
+  if (/^[·•|/\\\-\s.]+$/.test(String(value || ""))) return false;
+  return text.length >= min;
+}
+
 function arr(value, max = 6) {
-  if (Array.isArray(value)) return value.map(x => String(x || "").trim()).filter(Boolean).slice(0, max);
+  if (Array.isArray(value)) return value.map(x => normalizeDisplayText(x)).filter(x => isMeaningfulText(x, 1)).slice(0, max);
   if (!value) return [];
-  return String(value).split(/\n|;|•/).map(x => x.trim()).filter(Boolean).slice(0, max);
+  return String(value).split(/\n|;|•/).map(x => normalizeDisplayText(x)).filter(x => isMeaningfulText(x, 1)).slice(0, max);
 }
 
 function safeName(value) {
@@ -238,6 +254,10 @@ function safeName(value) {
 
 function todayId() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function rendererBuildId() {
+  return RENDERER_VERSION.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function readDeckPrompt() {
@@ -769,14 +789,18 @@ function cardArray(value, titleKey = "title") {
 }
 
 function firstTextValue(item, keys = []) {
-  if (!item || typeof item !== "object") return String(item || "").trim();
+  if (!item || typeof item !== "object") {
+    const text = normalizeDisplayText(item);
+    return isMeaningfulText(text, 1) ? text : "";
+  }
   for (const key of keys) {
     const value = item[key];
     if (Array.isArray(value)) {
-      const joined = value.map(x => String(x || "").trim()).filter(Boolean).join(" / ");
+      const joined = value.map(x => normalizeDisplayText(x)).filter(x => isMeaningfulText(x, 1)).join(" / ");
       if (joined) return joined;
-    } else if (value !== undefined && value !== null && String(value).trim()) {
-      return String(value).trim();
+    } else if (value !== undefined && value !== null) {
+      const text = normalizeDisplayText(value);
+      if (isMeaningfulText(text, 1)) return text;
     }
   }
   return "";
@@ -794,7 +818,7 @@ function cardBody(item, keys = ["text", "connection", "description", "fit", "str
 }
 
 function cardBullets(item) {
-  return asArray(item?.bullets).map(x => String(x || "").trim()).filter(Boolean);
+  return asArray(item?.bullets).map(x => normalizeDisplayText(x)).filter(x => isMeaningfulText(x, 1));
 }
 
 function textLength(value) {
@@ -823,6 +847,10 @@ function containsTruncatedText(value) {
   return /(\.\.\.|…)\s*$/.test(String(value || "").trim());
 }
 
+function meaningfulCardText(item, keys) {
+  return normalizeDisplayText([cardTitle(item), cardBody(item, keys), ...cardBullets(item)].filter(Boolean).join(" "));
+}
+
 function deckQualityIssues(deck) {
   const issues = [];
   const slide = no => deck.slides?.[no - 1] || {};
@@ -840,6 +868,8 @@ function deckQualityIssues(deck) {
   const s3 = slide(3);
   if (cardArray(s3.cards, "heading").length < 3 || bulletCount(s3.cards) < 9) add("slide 3 needs 3 reason cards with detailed bullets");
   if (textLength(s3.message_box?.text) < 120) add("slide 3 message box is too shallow");
+  const skillChips = cardArray(s3.skill_chips, "label").map(chip => meaningfulCardText(chip, ["caption", "text", "description", "value"])).filter(text => isMeaningfulText(text, 4));
+  if (skillChips.length < 3) add("slide 3 needs meaningful skill chips, not blank dot separators");
 
   const s4 = slide(4);
   if (cardArray(s4.workflow).length < 5) add("slide 4 needs a 5-step workflow");
@@ -1155,7 +1185,7 @@ async function renderPptx(deck, payload) {
   const buffer = await pptx.write({ outputType: "nodebuffer" });
   const studentName = payload.student?.englishName || payload.student?.name || "student";
   return {
-    fileName: `project_proposal_${safeName(studentName)}_${todayId()}.pptx`,
+    fileName: `project_proposal_${safeName(studentName)}_${todayId()}_${rendererBuildId()}.pptx`,
     base64: Buffer.from(buffer).toString("base64")
   };
 }
@@ -1233,6 +1263,7 @@ module.exports = async function handler(req, res) {
       model,
       generatedAt: payload.generatedAt,
       qualityReviewScore: review?.score,
+      rendererVersion: RENDERER_VERSION,
       provider: "openai-responses"
     });
   } catch (error) {

@@ -11,6 +11,8 @@ ABSOLUTE RULES
 - Do not output speaker notes, design notes, or internal planning text.
 - Do not use placeholders or filler.
 - Do not write "to be refined", "based on available data", "will be supplemented later", "additional materials needed", or similar weak disclaimers.
+- Do not output decorative-only strings such as "·", "-", empty chips, empty labels, or title-only cards.
+- Never rely on a renderer to infer missing card body text. Every chip, school card, trait card, output card, and role card must contain its own visible content.
 - If evidence is missing, convert it into a concrete project task, evidence log item, interview question, or mentor checkpoint.
 - Do not invent awards, scores, acceptances, official school policies, doctors, coaches, or factual claims not provided in the input.
 - Do not guarantee admission.
@@ -89,6 +91,7 @@ Quality requirements:
 - Each card has 4 specific bullets.
 - message_box.text must connect the student's existing EC/academic profile to the project.
 - quote must be one memorable parent-facing sentence.
+- skill_chips must contain at least 3 meaningful label/caption items. Do not use empty separators or dots.
 
 Slide 4, layout "student_tasks"
 Purpose: Show what the student will actually do.
@@ -202,7 +205,8 @@ Before returning JSON, silently verify:
 1. Exactly 10 slides.
 2. No placeholders.
 3. No truncated-looking text such as "...", "..." at the end of card labels, or orphan labels.
-4. Slides 5 and 6 have complete 6-row weekly tables.
-5. Slide 8 output cards each explain inside/format/importance/later use.
-6. Slide 10 creates a student image that a parent can remember.
-7. Every slide is useful without human rewriting.
+4. No decorative-only dots, blank chips, or title-only school/trait cards.
+5. Slides 5 and 6 have complete 6-row weekly tables.
+6. Slide 8 output cards each explain inside/format/importance/later use.
+7. Slide 10 creates a student image that a parent can remember.
+8. Every slide is useful without human rewriting.
