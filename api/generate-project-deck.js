@@ -591,15 +591,61 @@ function defaultLayout(no) {
   ][no - 1] || "content";
 }
 
+function slideKeyOrder(key) {
+  const text = String(key || "").toLowerCase();
+  const numeric = text.match(/(?:slide|page|p)[_\-\s]*(\d+)/) || text.match(/^(\d+)$/);
+  if (numeric) return Number(numeric[1]);
+  const layouts = [
+    "cover",
+    "project_concept",
+    "why_project",
+    "student_tasks",
+    "weekly_plan_1",
+    "weekly_plan_2",
+    "support_structure",
+    "final_outputs",
+    "admissions_learning_value",
+    "core_character"
+  ];
+  const layoutIndex = layouts.indexOf(text);
+  return layoutIndex >= 0 ? layoutIndex + 1 : 999;
+}
+
+function normalizeSlidesCandidate(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value)
+    .sort(([a], [b]) => slideKeyOrder(a) - slideKeyOrder(b))
+    .map(([, slide]) => slide)
+    .filter(Boolean);
+}
+
+function extractSlides(deck) {
+  if (!deck || typeof deck !== "object") return [];
+  const direct = normalizeSlidesCandidate(deck.slides);
+  if (direct.length) return direct;
+  for (const key of ["deck", "presentation", "content", "data", "result", "proposal"]) {
+    const nested = normalizeSlidesCandidate(deck[key]?.slides);
+    if (nested.length) return nested;
+  }
+  const topLevelSlides = Object.entries(deck)
+    .filter(([key]) => slideKeyOrder(key) !== 999)
+    .sort(([a], [b]) => slideKeyOrder(a) - slideKeyOrder(b))
+    .map(([, slide]) => slide)
+    .filter(Boolean);
+  return topLevelSlides;
+}
+
 function validateDeck(deck) {
   if (!deck || typeof deck !== "object") throw new Error("OpenAI response is not a JSON object.");
-  if (!Array.isArray(deck.slides) || deck.slides.length !== 10) {
-    throw new Error("OpenAI response must contain exactly 10 slides.");
+  const slides = extractSlides(deck);
+  if (slides.length !== 10) {
+    throw new Error(`OpenAI response must contain exactly 10 slides. Received ${slides.length}.`);
   }
-  deck.slides = deck.slides.map((slide, index) => ({
-    ...slide,
-    slide_no: Number(slide.slide_no) || index + 1,
-    layout: slide.layout || defaultLayout(index + 1)
+  deck.slides = slides.slice(0, 10).map((slide, index) => ({
+    ...(slide && typeof slide === "object" ? slide : { title: String(slide || "") }),
+    slide_no: Number(slide && typeof slide === "object" ? slide.slide_no : 0) || index + 1,
+    layout: (slide && typeof slide === "object" ? slide.layout : "") || defaultLayout(index + 1)
   }));
   return deck;
 }
@@ -759,7 +805,36 @@ async function reviseDeckWithOpenAi(payload, deck, review, model) {
     "Senior reviewer feedback:",
     JSON.stringify(review, null, 2)
   ].join("\n\n");
-  return validateDeck(JSON.parse(await callOpenAiSchema(model, instructions, message, "project_proposal_deck_revision", DECK_SCHEMA)));
+  const revised = JSON.parse(await callOpenAiSchema(model, instructions, message, "project_proposal_deck_revision", DECK_SCHEMA));
+  try {
+    return validateDeck(revised);
+  } catch (error) {
+    if (!/exactly 10 slides/i.test(error.message || "")) throw error;
+    return repairDeckStructureWithOpenAi(payload, revised, model, error.message);
+  }
+}
+
+async function repairDeckStructureWithOpenAi(payload, malformedDeck, model, reason) {
+  const instructions = [
+    readDeckPrompt(),
+    "",
+    "STRUCTURE REPAIR MODE",
+    "The previous response did not validate as exactly 10 slides.",
+    "Convert the provided JSON into the required top-level deck object with a top-level slides array of exactly 10 slide objects.",
+    "Do not summarize, omit, or merge required slides.",
+    "Use these layouts in this exact order:",
+    "1 cover, 2 project_concept, 3 why_project, 4 student_tasks, 5 weekly_plan_1, 6 weekly_plan_2, 7 support_structure, 8 final_outputs, 9 admissions_learning_value, 10 core_character.",
+    "If the malformed response lacks a slide, write a complete parent-ready slide from the payload and project blueprint.",
+    "Return only valid JSON."
+  ].join("\n");
+  const message = [
+    `Validation failure: ${reason || "slides array was not exactly 10 items"}`,
+    "Student payload and project blueprint:",
+    JSON.stringify(payload, null, 2),
+    "Malformed previous response:",
+    JSON.stringify(malformedDeck, null, 2)
+  ].join("\n\n");
+  return validateDeck(JSON.parse(await callOpenAiSchema(model, instructions, message, "project_proposal_deck_repaired", DECK_SCHEMA)));
 }
 
 function addText(slide, text, options) {
@@ -1228,7 +1303,13 @@ module.exports = async function handler(req, res) {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         const text = await callOpenAi(deckPayload, model, attempt, lastError?.message || "");
-        deck = validateDeck(JSON.parse(text));
+        const parsedDeck = JSON.parse(text);
+        try {
+          deck = validateDeck(parsedDeck);
+        } catch (validationError) {
+          if (!/exactly 10 slides/i.test(validationError.message || "")) throw validationError;
+          deck = await repairDeckStructureWithOpenAi(deckPayload, parsedDeck, model, validationError.message);
+        }
         const qualityIssues = deckQualityIssues(deck);
         if (qualityIssues.length) {
           throw new Error(`Deck quality check failed: ${qualityIssues.slice(0, 10).join("; ")}`);
