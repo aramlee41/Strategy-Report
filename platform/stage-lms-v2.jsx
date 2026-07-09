@@ -146,14 +146,28 @@ const V2_EMPTY_RECOMMENDATION = () => ({ candidate: "", role: "", roleOther: "",
 const V2_DATA_MODEL_VERSION = "prep-lms-separated-analysis-v1";
 const V2_SIGNATURE_AI_ENDPOINT_KEY = "yes_prep_signature_ai_endpoint";
 const V2_EC_ROADMAP_DOMAINS = ["Sports", "Arts", "Leadership", "Community Service", "STEM", "Academics", "Internship/Work"];
+const V2_DEFAULT_SIGNATURE_AI_ORIGIN = "https://strategy-report.vercel.app";
+
+function v2LooksInvalidSignatureAiEndpoint(value = "") {
+  try {
+    const url = new URL(value);
+    return /github\.io$/i.test(url.hostname) || /githubusercontent\.com$/i.test(url.hostname) || !/\/api\/generate-project-deck$/i.test(url.pathname);
+  } catch (e) {
+    return true;
+  }
+}
 
 function v2SignatureAiEndpoint() {
   try {
     const saved = localStorage.getItem(V2_SIGNATURE_AI_ENDPOINT_KEY) || "";
     if (saved) {
       const migrated = saved.replace(/\/api\/generate-signature-project$/i, "/api/generate-project-deck");
-      if (migrated !== saved) localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, migrated);
-      return migrated;
+      if (v2LooksInvalidSignatureAiEndpoint(migrated)) {
+        localStorage.removeItem(V2_SIGNATURE_AI_ENDPOINT_KEY);
+      } else {
+        if (migrated !== saved) localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, migrated);
+        return migrated;
+      }
     }
   } catch (e) {}
   if (typeof window !== "undefined" && /vercel\.app$/i.test(window.location.hostname)) {
@@ -168,6 +182,10 @@ function v2SetSignatureAiEndpoint(value) {
   const endpoint = /\/api\/generate-(signature-project|project-deck)$/i.test(clean)
     ? clean.replace(/\/api\/generate-signature-project$/i, "/api/generate-project-deck")
     : `${clean}/api/generate-project-deck`;
+  if (v2LooksInvalidSignatureAiEndpoint(endpoint)) {
+    window.alert("GitHub Pages 주소가 아니라 Vercel 프로젝트 주소를 입력해야 합니다. 예: https://strategy-report.vercel.app");
+    return "";
+  }
   try { localStorage.setItem(V2_SIGNATURE_AI_ENDPOINT_KEY, endpoint); } catch (e) {}
   return endpoint;
 }
@@ -176,8 +194,8 @@ function v2PromptSignatureAiEndpoint(force = false) {
   const current = v2SignatureAiEndpoint();
   if (current && !force) return current;
   const next = window.prompt(
-    "Vercel API 주소를 입력해주세요. 예: https://your-project.vercel.app",
-    current || "https://your-project.vercel.app"
+    "Vercel API 주소를 입력해주세요. GitHub Pages 주소가 아니라 .vercel.app 주소여야 합니다.",
+    current || V2_DEFAULT_SIGNATURE_AI_ORIGIN
   );
   return v2SetSignatureAiEndpoint(next);
 }
@@ -274,16 +292,21 @@ function v2NormalizeAiProposal(proposal = {}) {
 }
 
 async function v2GenerateAiSignatureProposal({ st, project, schools, endpoint, mode = "generate" }) {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      mode,
-      student: v2SignatureAiStudentPayload(st),
-      project: v2NormalizeSignatureProject(project),
-      schools: v2SignatureAiSchoolPayload(st, schools)
-    })
-  });
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode,
+        student: v2SignatureAiStudentPayload(st),
+        project: v2NormalizeSignatureProject(project),
+        schools: v2SignatureAiSchoolPayload(st, schools)
+      })
+    });
+  } catch (error) {
+    throw new Error(`AI API에 연결하지 못했습니다. Vercel API 주소를 확인해주세요: ${endpoint}`);
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `AI API request failed (${response.status})`);
   return {

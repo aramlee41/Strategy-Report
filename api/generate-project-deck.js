@@ -349,10 +349,10 @@ function readDeckPrompt() {
 }
 
 function setCors(req, res) {
-  const configured = process.env.ALLOWED_ORIGIN || "https://aramlee41.github.io";
+  const configured = process.env.ALLOWED_ORIGIN || "https://aramlee41.github.io,http://127.0.0.1:8765,http://localhost:8765,http://127.0.0.1:8000,http://localhost:8000";
   const allowed = configured.split(",").map(x => x.trim()).filter(Boolean);
   const origin = req.headers.origin || "";
-  const match = allowed.includes("*") ? "*" : allowed.find(x => x === origin) || allowed[0] || origin;
+  const match = allowed.includes("*") ? "*" : allowed.find(x => x === origin) || (/^https:\/\/[^/]+\.vercel\.app$/i.test(origin) ? origin : allowed[0] || origin);
   res.setHeader("Access-Control-Allow-Origin", match);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -1752,7 +1752,7 @@ function frontendProposal(deck, pptxFile) {
   };
 }
 
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -1823,4 +1823,7 @@ module.exports = async function handler(req, res) {
       details: error.details || undefined
     });
   }
-};
+}
+
+module.exports = handler;
+module.exports.config = { maxDuration: 300 };
