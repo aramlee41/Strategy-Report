@@ -1004,6 +1004,7 @@ function sourceActivitiesFrom(payload, max = 4) {
 function ensureCardList(existing, defaults, count) {
   const current = cardArray(existing);
   const merged = [];
+  const bodyKeys = new Set(["text", "description", "connection", "fit", "strategy", "why", "risk", "caption", "value", "evidence"]);
   for (let idx = 0; idx < count; idx += 1) {
     const base = cloneJson(defaults[idx] || defaults[defaults.length - 1] || {});
     const value = cloneJson(current[idx] || {});
@@ -1019,6 +1020,7 @@ function ensureCardList(existing, defaults, count) {
         return;
       }
       const clean = normalizeDisplayText(raw);
+      if (bodyKeys.has(key) && textLength(clean) < 35 && textLength(next[key]) >= 35) return;
       if (isMeaningfulText(clean, 2)) next[key] = clean;
     });
     merged.push(next);
