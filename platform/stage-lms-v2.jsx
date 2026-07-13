@@ -1579,6 +1579,61 @@ function v2SignatureIdeaBlock({ what, how, intent, project }) {
     `어떤 프로젝트로 정의되는가: ${project}`
   ].join("\n\n");
 }
+
+function v2StripIdeaLabel(text = "") {
+  return String(text || "").trim().replace(/^[^:\n]{1,48}:\s*/, "").trim();
+}
+
+function v2SignatureIdeaParts(project = {}) {
+  const p = v2NormalizeSignatureProject(project);
+  const chunks = String(p.bigIdea || "")
+    .split(/\n\s*\n/)
+    .map(v2StripIdeaLabel)
+    .filter(Boolean);
+  return {
+    what: chunks[0] || p.bigIdea || `${p.title || "Signature Project"}의 핵심 방향을 정리합니다.`,
+    how: chunks[1] || p.currentEvidence || "현재 활동 기록을 바탕으로 주간 실행 로그, 피드백, 결과물을 차례로 정리합니다.",
+    intent: chunks[2] || p.boardingFit || "이 프로젝트를 통해 학생의 강점이 보딩스쿨 공동체 안에서 어떻게 읽힐 수 있는지 보여줍니다.",
+    project: chunks[3] || p.targetOutput || "최종 결과물은 원서, 인터뷰, 추천서 자료로 사용할 수 있는 포트폴리오로 정리합니다."
+  };
+}
+
+function V2SignatureVisualIcon({ type, color }) {
+  const common = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.1, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" };
+  if (type === "how") return <svg {...common}><path d="M4 6h16" /><path d="M4 12h12" /><path d="M4 18h8" /><path d="M17 15l3 3l-3 3" /></svg>;
+  if (type === "why") return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /><path d="M12 2v3" /></svg>;
+  if (type === "output") return <svg {...common}><path d="M4 5h7l2 3h7v11H4z" /><path d="M8 13h8" /><path d="M8 16h5" /></svg>;
+  return <svg {...common}><circle cx="10.5" cy="10.5" r="5.5" /><path d="M15 15l5 5" /><path d="M10.5 8.2v2.3" /><path d="M10.5 13h.01" /></svg>;
+}
+
+function V2SignatureBriefCards({ project, accent }) {
+  const parts = v2SignatureIdeaParts(project);
+  const cards = [
+    { type: "what", title: "무슨 프로젝트인가요?", text: parts.what },
+    { type: "how", title: "어떻게 하나요?", text: parts.how },
+    { type: "why", title: "왜 이 프로젝트를 하나요?", text: parts.intent },
+    { type: "output", title: "어떤 결과물이 남나요?", text: parts.project }
+  ];
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+    {cards.map(card => <div key={card.type} style={{ border: "1px solid #d7e8f5", borderRadius: 12, background: "#f8fcff", padding: 14, minHeight: 146 }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 9 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center", color: accent, background: "#eaf6ff", border: `1px solid ${accent}33`, flex: "0 0 auto" }}>
+          <V2SignatureVisualIcon type={card.type} color={accent} />
+        </div>
+        <b style={{ color: "#11344f", fontSize: 15 }}>{card.title}</b>
+      </div>
+      <p style={{ margin: 0, lineHeight: 1.72, color: "#25465d", fontSize: 13.5, whiteSpace: "pre-line" }}>{card.text}</p>
+    </div>)}
+  </div>;
+}
+
+function V2SignatureChipList({ items = [], accent }) {
+  const clean = (items || []).map(x => String(x || "").trim()).filter(Boolean);
+  if (!clean.length) return null;
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    {clean.map((item, i) => <span key={`${item}-${i}`} style={{ border: "1px solid #cfe2f3", background: "#f7fbff", color: "#183f5d", borderRadius: 999, padding: "7px 10px", fontSize: 12.5, fontWeight: 700, lineHeight: 1.25 }}>{item}</span>)}
+  </div>;
+}
 v2GenerateSignatureProjects = function v2GenerateSignatureProjectsDepthV2(st = {}, schools = []) {
   const hook = v2BuildHookStrategy(st, schools);
   const insights = hook.activityInsights || [];
@@ -3846,25 +3901,31 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
       <V2Text label="Recommended Next Actions" val={(draft.nextActions || []).join("\n")} set={v => setArray("nextActions", v)} minHeight={110} />
       <V2Text label="Application Usage" val={(draft.applicationUsage || []).join("\n")} set={v => setArray("applicationUsage", v)} minHeight={110} />
     </div> : <div>
-      <div style={{ ...sectionStyle, marginTop: 14 }}>
-        <b>Big Idea / 핵심 기획</b>
-        <p style={{ lineHeight: 1.8, marginBottom: 0, whiteSpace: "pre-line" }}>{p.bigIdea}</p>
+      <div style={{ ...sectionStyle, marginTop: 14, background: "#f5fbff", borderColor: "#cfe2f3" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <b style={{ color: "#12344d", fontSize: 16 }}>핵심 기획 요약</b>
+            <p className="small muted" style={{ margin: "4px 0 0", lineHeight: 1.5 }}>긴 설명을 4개의 질문으로 나누어 프로젝트의 목적, 실행 방식, 전략적 의도, 결과물을 한눈에 볼 수 있게 정리했습니다.</p>
+          </div>
+          <span className="pill" style={{ background: "#eaf6ff", color: accent }}>Project Brief</span>
+        </div>
+        <V2SignatureBriefCards project={p} accent={accent} />
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
-        <div style={sectionStyle}><b>Boarding School Fit</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.boardingFit}</p></div>
-        <div style={sectionStyle}><b>Academic Talent</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.academicTalent}</p></div>
-        <div style={sectionStyle}><b>Community Contribution</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.communityContribution}</p></div>
+        <div style={sectionStyle}><b>보딩스쿨 Fit</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.boardingFit}</p></div>
+        <div style={sectionStyle}><b>학업적 재능</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.academicTalent}</p></div>
+        <div style={sectionStyle}><b>커뮤니티 기여</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.communityContribution}</p></div>
       </div>
       <div className="grid g2" style={{ marginTop: 12 }}>
-        <div><b>Current Evidence</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.currentEvidence}</p></div>
-        <div><b>Target Output</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.targetOutput}</p></div>
+        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>현재 근거</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.currentEvidence}</p></div>
+        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>최종 산출물</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.targetOutput}</p><V2SignatureChipList items={p.evidenceNeeded || []} accent={accent} /></div>
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
-        <div><b>Evidence Needed</b>{(p.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>
-        <div><b>Recommended Next Actions</b>{(p.nextActions || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>
-        <div><b>Application Usage</b>{(p.applicationUsage || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>
+        <div style={sectionStyle}><b>확보할 증거</b>{(p.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
+        <div style={sectionStyle}><b>다음 액션</b>{(p.nextActions || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
+        <div style={{ ...sectionStyle, background: "#fffdf6", borderColor: "#ead9a4" }}><b>입시 활용처</b>{(p.applicationUsage || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
       </div>
-      {(p.risks || []).length > 0 && <div style={{ marginTop: 10 }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.55 }}>- {x}</p>)}</div>}
+      {(p.risks || []).length > 0 && <div style={{ ...sectionStyle, marginTop: 12, background: "#fff7ed", borderColor: "#fed7aa" }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>}
       {(p.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{p.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
     </div>}
     {proposalOpen && <V2SignatureProposalModal proposal={modalProposal} onClose={() => setProposalOpen(false)} onSave={editable ? saveProposal : null} />}
