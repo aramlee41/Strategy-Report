@@ -1115,6 +1115,29 @@ function v2SignatureProjectHasStructuredBrief(project = {}) {
   if (p.proposal?.pptxBase64 || p.proposal?.slides?.length || p.proposal?.pptxFileName) return true;
   const text = v2SignatureProjectText(p);
   const compactLength = text.replace(/\s/g, "").length;
+  const lowerText = text.toLowerCase();
+  const shallowPatternCount = [
+    "어려운 문제를 어떻게 정의하고",
+    "대표 문제나 탐구 주제를 정하고",
+    "단순 참여 기록",
+    "훈련 로그",
+    "evidence log를 남깁니다",
+    "academic research portfolio"
+  ].filter(marker => lowerText.includes(marker.toLowerCase())).length;
+  const strategicDepthCount = [
+    "stakeholder",
+    "toolkit",
+    "problem map",
+    "pilot",
+    "feedback",
+    "community contribution",
+    "보딩스쿨 생활",
+    "공동체 기여",
+    "이해관계자",
+    "실행",
+    "산출물"
+  ].filter(marker => lowerText.includes(marker.toLowerCase())).length;
+  if (shallowPatternCount >= 1 && strategicDepthCount < 4) return false;
   const markerCount = ["무엇을", "어떻게", "의도", "프로젝트"].filter(marker => text.includes(marker)).length;
   const fieldCount = ["bigIdea", "boardingFit", "academicTalent", "communityContribution", "currentEvidence", "targetOutput"]
     .filter(key => String(p[key] || "").trim().replace(/\s/g, "").length >= 80).length;
@@ -1681,10 +1704,14 @@ function v2HealthSignatureTopic(text = "") {
       label: "청소년 건강·비만·웰니스",
       title: "Boarding Student Wellness & Performance Research Portfolio",
       toolkitTitle: "Healthy Boarding Life & Body Confidence Toolkit",
-      issue: "식사 선택, 운동 루틴, 수면, 스트레스, body image, 팀 스포츠 참여",
+      issue: "식사 선택, 운동 루틴, 수면, 스트레스, body image, 팀 스포츠 참여, 친구 관계, 기숙사 생활 리듬",
       lenses: "Biology, Nutrition, Psychology, Sports Science, Public Health, Boarding Life",
       communityNeed: "보딩스쿨 학생들이 건강한 생활 루틴과 긍정적인 자기 인식을 만들 수 있도록",
       supportModel: "학생용 wellness guide, 팀 스포츠용 회복 루틴, dining hall 선택 가이드, dorm discussion guide",
+      coreQuestion: "보딩스쿨 학생들은 식사, 운동, 수면, 스트레스, body image가 한꺼번에 흔들리는 환경에서 어떻게 건강한 루틴을 만들 수 있으며, 학교 공동체는 이를 어떤 방식으로 도울 수 있는가?",
+      stakeholderMap: "학생, 룸메이트/친구, advisor, dorm parent, coach, dining hall, school nurse/counselor",
+      method: "school-life problem map, evidence log, stakeholder scenario, weekly wellness experiment, toolkit prototype, pilot feedback",
+      socialValue: "건강을 개인 의지의 문제가 아니라 학교생활 구조와 공동체 지원의 문제로 해석해, 학생이 empathy와 practical problem solving을 함께 보여주도록 합니다.",
       outputName: "Boarding Student Wellness & Performance Research Portfolio"
     };
   }
@@ -1712,23 +1739,41 @@ v2GenerateSignatureProjects = function v2GenerateSignatureProjectsDepthV2(st = {
     projects.push(v2SignatureProject(hasHealthTopic ? `signature-${healthTopic.key}-research-v2` : "signature-academic-research-v2", title, "Academic Research Spike", "cyan", stem.slice(0, 2), "Research / STEM", st, {
       schools,
       bigIdea: hasHealthTopic ? v2SignatureIdeaBlock({
-        what: `${studentName} 학생이 ${healthTopic.label}을 단순한 건강 주제가 아니라 보딩스쿨 생활 안에서 실제로 나타나는 문제로 재정의하는 리서치 포트폴리오를 만듭니다. 핵심은 ${healthTopic.issue}이 서로 어떻게 연결되는지를 학생의 언어로 구조화하고, 학교 공동체가 이해할 수 있는 해결 방향을 제시하는 것입니다.`,
-        how: `매주 논문, 기사, 병원/공공기관 자료, 학교 보건·상담·체육 관련 자료를 1-2개씩 읽고 evidence log를 작성합니다. 각 자료마다 핵심 내용, 기존 해결책의 한계, 보딩스쿨 생활에 적용할 수 있는 개선 방향을 정리합니다. 이후 문제를 ${healthTopic.lenses}의 관점으로 나누어 분석하고, 최종적으로 5-8페이지 research brief와 5분 발표자료로 정리합니다.`,
-        intent: "이 프로젝트의 의도는 STEM 역량을 단순 대회나 활동명으로 보여주는 것이 아니라, 실제 사회 문제를 학업적 탐구로 이해하고 해결 방향을 설계할 수 있는 학생이라는 이미지를 만드는 것입니다. 보딩스쿨은 수업에서 질문하고, 자료를 읽고, 토론하고, 배운 것을 공동체 안에서 적용하는 학생을 선호합니다. 따라서 이 프로젝트는 학업 준비도와 커뮤니티 기여 가능성을 동시에 보여주는 핵심 증거가 됩니다.",
-        project: `최종 결과물은 ${healthTopic.outputName}입니다. 구성은 research question, literature/evidence log, school-life problem map, proposed support model, bibliography, teacher/mentor feedback로 잡습니다. 원서에서는 Activity List, STEM supplement, Interview, 추천서 evidence sheet에 모두 사용할 수 있습니다.`
+        what: healthTopic.key === "obesity"
+          ? `${studentName} 학생이 청소년 비만과 웰니스 문제를 "개인 의지 부족"이 아니라 보딩스쿨 생활 구조 안에서 발생하는 복합 문제로 다시 정의하는 프로젝트입니다. Dining hall 선택, 팀 스포츠 훈련, 수면, 스트레스, body image, 친구 관계, 기숙사 생활 리듬이 서로 어떻게 영향을 주는지 School-Life Problem Map으로 정리하고, 학생이 실제로 사용할 수 있는 지원 모델을 설계합니다.`
+          : `${studentName} 학생이 ${healthTopic.label}을 단순한 건강 주제가 아니라 보딩스쿨 생활 안에서 실제로 나타나는 문제로 재정의하는 리서치 포트폴리오를 만듭니다. 핵심은 ${healthTopic.issue}이 서로 어떻게 연결되는지를 학생의 언어로 구조화하고, 학교 공동체가 이해할 수 있는 해결 방향을 제시하는 것입니다.`,
+        how: healthTopic.key === "obesity"
+          ? `먼저 Biology, Nutrition, Psychology, Sports Science, Public Health, Boarding Life 관점에서 자료를 읽고 evidence log를 작성합니다. 이후 ${healthTopic.stakeholderMap}처럼 실제 보딩스쿨 생활에 관여하는 사람들을 나누어, 각자가 겪는 어려움과 도울 수 있는 지점을 scenario card로 만듭니다. 마지막으로 2주짜리 small pilot을 설계해 학생용 체크리스트나 팀 스포츠 회복 루틴을 적용해 보고, 피드백을 받아 toolkit을 수정합니다.`
+          : `매주 논문, 기사, 병원/공공기관 자료, 학교 보건·상담·체육 관련 자료를 1-2개씩 읽고 evidence log를 작성합니다. 각 자료마다 핵심 내용, 기존 해결책의 한계, 보딩스쿨 생활에 적용할 수 있는 개선 방향을 정리합니다. 이후 문제를 ${healthTopic.lenses}의 관점으로 나누어 분석하고, 최종적으로 5-8페이지 research brief와 5분 발표자료로 정리합니다.`,
+        intent: healthTopic.key === "obesity"
+          ? "이 프로젝트의 의도는 학생을 단순히 STEM이나 건강 주제에 관심 있는 학생으로 보이게 하는 데 있지 않습니다. 학생이 복잡한 사회·건강 문제를 정의하고, 사람들의 행동과 환경을 함께 고려하며, 실행 가능한 해결안을 만들어 보는 사람이라는 이미지를 만드는 것입니다. 특히 보딩스쿨 입장에서는 이 학생이 기숙사, 팀, 수업, 친구 관계 안에서 문제를 발견하고 더 건강한 공동체 문화를 제안할 수 있다는 점이 강하게 읽힙니다."
+          : "이 프로젝트의 의도는 STEM 역량을 단순 대회나 활동명으로 보여주는 것이 아니라, 실제 사회 문제를 학업적 탐구로 이해하고 해결 방향을 설계할 수 있는 학생이라는 이미지를 만드는 것입니다. 보딩스쿨은 수업에서 질문하고, 자료를 읽고, 토론하고, 배운 것을 공동체 안에서 적용하는 학생을 선호합니다. 따라서 이 프로젝트는 학업 준비도와 커뮤니티 기여 가능성을 동시에 보여주는 핵심 증거가 됩니다.",
+        project: healthTopic.key === "obesity"
+          ? `최종 결과물은 ${healthTopic.outputName}입니다. 1) research question, 2) evidence log, 3) boarding school wellness problem map, 4) stakeholder scenario cards, 5) healthy routine toolkit prototype, 6) pilot feedback summary, 7) mentor/teacher feedback를 포함합니다. 원서에서는 Activity List, STEM/Public Health supplement, Interview, 추천서 evidence sheet, 그리고 보딩스쿨 fit을 설명하는 자료로 사용할 수 있습니다.`
+          : `최종 결과물은 ${healthTopic.outputName}입니다. 구성은 research question, literature/evidence log, school-life problem map, proposed support model, bibliography, teacher/mentor feedback로 잡습니다. 원서에서는 Activity List, STEM supplement, Interview, 추천서 evidence sheet에 모두 사용할 수 있습니다.`
       }) : v2SignatureIdeaBlock({
         what: `${studentName} 학생이 ${stem[0].name}을 중심으로 어려운 문제를 어떻게 정의하고, 어떤 방식으로 접근하고, 실패한 풀이를 어떻게 수정해 결과물로 발전시키는지를 보여주는 학업 포트폴리오를 만듭니다.`,
         how: "대표 문제나 탐구 주제를 정하고, 매주 접근 과정과 풀이/조사 과정을 evidence log로 남깁니다. 단순 정답이나 수상 결과보다 질문 설정, 시도한 방법, 막힌 지점, 수정한 전략, 최종 설명 방식을 기록합니다.",
         intent: "의도는 대회 참여 사실을 나열하는 것이 아니라, 학생의 사고력과 자기주도적 학습 태도를 보딩스쿨이 이해할 수 있는 증거로 바꾸는 것입니다.",
         project: "최종 결과물은 Academic Research Portfolio입니다. 대표 문제풀이/탐구 노트, 발표자료, 교사 피드백, 원서용 활동 설명을 포함합니다."
       }),
-      boardingFit: `${schoolText}에서는 지적 호기심이 교실 안에만 머무르지 않고 클럽, 연구, 토론, peer tutoring, 기숙사 대화로 이어지는지를 중요하게 봅니다. 이 프로젝트는 학생이 배운 지식을 실제 생활 문제에 적용하고, 그 결과를 친구와 교사에게 설명할 수 있다는 점을 보여줍니다.`,
+      boardingFit: hasHealthTopic && healthTopic.key === "obesity"
+        ? `${schoolText}에서는 학생이 건강한 생활 리듬, 팀 활동, 기숙사 공동체, 또래 관계 안에서 성숙하게 행동할 수 있는지를 중요하게 봅니다. 이 프로젝트는 ${studentName} 학생이 청소년 건강 문제를 추상적인 연구 주제로만 다루지 않고, 실제 보딩스쿨에서 학생들이 매일 마주하는 dining hall 선택, 운동 루틴, body image, 스트레스, 수면 문제로 번역해 해결책을 제안할 수 있다는 점을 보여줍니다.`
+        : `${schoolText}에서는 지적 호기심이 교실 안에만 머무르지 않고 클럽, 연구, 토론, peer tutoring, 기숙사 대화로 이어지는지를 중요하게 봅니다. 이 프로젝트는 학생이 배운 지식을 실제 생활 문제에 적용하고, 그 결과를 친구와 교사에게 설명할 수 있다는 점을 보여줍니다.`,
       academicTalent: `${v2ProjectAcademicEvidence(st)} 특히 이 프로젝트는 자료 독해, 문제 정의, 근거 비교, 결론 작성, 발표 능력을 모두 보여주므로 학업적 재능을 구체적으로 증명하는 축이 됩니다.`,
-      communityContribution: hasHealthTopic ? "리서치가 개인 탐구에서 끝나지 않도록, 다음 단계에서는 학생/교사/코치/기숙사 어드바이저가 실제로 참고할 수 있는 안내자료로 확장합니다. 이렇게 해야 '똑똑한 학생'을 넘어 배운 것을 공동체에 환원하는 학생으로 읽힙니다." : "학업 포트폴리오를 후배나 또래가 이해할 수 있는 설명 자료로 바꾸면, 학생의 학업 역량이 공동체 안에서의 지적 기여로 이어집니다.",
+      communityContribution: hasHealthTopic && healthTopic.key === "obesity"
+        ? "리서치가 개인 탐구에서 끝나지 않도록, 학생용 wellness checklist, 팀 스포츠용 recovery routine, 친구/룸메이트용 대화 가이드, advisor/coach용 관찰 포인트로 확장합니다. 가능하면 2주 동안 한 가지 루틴을 실제로 적용해 보고, 친구나 코치의 피드백을 받아 수정합니다. 이렇게 해야 '건강 주제를 조사한 학생'이 아니라 학교 공동체가 더 건강한 문화를 만들도록 돕는 학생으로 읽힙니다."
+        : hasHealthTopic ? "리서치가 개인 탐구에서 끝나지 않도록, 다음 단계에서는 학생/교사/코치/기숙사 어드바이저가 실제로 참고할 수 있는 안내자료로 확장합니다. 이렇게 해야 '똑똑한 학생'을 넘어 배운 것을 공동체에 환원하는 학생으로 읽힙니다." : "학업 포트폴리오를 후배나 또래가 이해할 수 있는 설명 자료로 바꾸면, 학생의 학업 역량이 공동체 안에서의 지적 기여로 이어집니다.",
       currentEvidence: `${v2ProjectActivityText(stem)} 활동이 현재 근거입니다. 다만 활동명만으로는 충분하지 않으므로, 학생이 어떤 질문을 붙잡았고 어떤 자료를 읽었으며 어떤 결론에 도달했는지를 보여주는 기록이 필요합니다.`,
-      targetOutput: hasHealthTopic ? "5-8페이지 research brief, 5분 발표자료, 참고문헌 10개 이상, 학생/교사용 1페이지 요약 가이드, 가능하면 보건교사·생명과학 교사·체육 코치·상담교사 피드백 1회 이상을 목표로 합니다." : "대표 탐구 포트폴리오, 설명 자료, 발표자료, 교사 피드백, 원서용 활동 설명을 목표로 합니다.",
-      evidenceNeeded: ["Research question 2-3개", "주간 evidence log", "문제 정의와 기존 해결책의 한계", "최종 research brief", "발표자료", "교사/멘토 피드백"],
-      nextActions: ["핵심 질문을 2-3개로 좁힙니다.", "자료 10개 수집 계획을 세웁니다.", "evidence log 양식을 만들고 이번 주부터 기록합니다.", "피드백을 받을 교사/멘토 후보를 정합니다."]
+      targetOutput: hasHealthTopic && healthTopic.key === "obesity"
+        ? "8-10페이지 research brief, School-Life Problem Map, stakeholder scenario cards, 1페이지 student wellness guide, team recovery checklist, 5분 발표자료, 2주 pilot feedback summary, mentor/teacher feedback 1회 이상을 목표로 합니다."
+        : hasHealthTopic ? "5-8페이지 research brief, 5분 발표자료, 참고문헌 10개 이상, 학생/교사용 1페이지 요약 가이드, 가능하면 보건교사·생명과학 교사·체육 코치·상담교사 피드백 1회 이상을 목표로 합니다." : "대표 탐구 포트폴리오, 설명 자료, 발표자료, 교사 피드백, 원서용 활동 설명을 목표로 합니다.",
+      evidenceNeeded: hasHealthTopic && healthTopic.key === "obesity"
+        ? ["Research question 2-3개", "주간 evidence log", "School-Life Problem Map", "Stakeholder scenario cards", "Toolkit prototype", "2주 pilot feedback", "교사/멘토 피드백"]
+        : ["Research question 2-3개", "주간 evidence log", "문제 정의와 기존 해결책의 한계", "최종 research brief", "발표자료", "교사/멘토 피드백"],
+      nextActions: hasHealthTopic && healthTopic.key === "obesity"
+        ? ["비만을 개인 책임이 아니라 보딩스쿨 생활 구조의 문제로 바꾸는 핵심 질문을 2-3개로 좁힙니다.", "Dining hall, 운동, 수면, 스트레스, body image를 포함한 Problem Map 초안을 만듭니다.", "학생·친구·코치·advisor 관점의 scenario card를 각각 1개씩 작성합니다.", "2주 동안 실제로 검증할 작은 wellness routine을 하나 정합니다."]
+        : ["핵심 질문을 2-3개로 좁힙니다.", "자료 10개 수집 계획을 세웁니다.", "evidence log 양식을 만들고 이번 주부터 기록합니다.", "피드백을 받을 교사/멘토 후보를 정합니다."]
     }));
   }
   if (hasHealthTopic) {
