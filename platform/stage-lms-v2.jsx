@@ -1427,8 +1427,17 @@ function v2ProjectSchoolText(st = {}, schools = []) {
   const names = (st.interests || []).map(x => x.school).filter(Boolean).slice(0, 3);
   if (!names.length) return "관심 보딩스쿨";
   const matched = names.map(name => v2FindSchool(schools, name)).filter(Boolean);
-  const hints = matched.flatMap(s => [s.programs, s.sports, s.arts, s.fit].filter(Boolean)).slice(0, 3);
-  return hints.length ? `${names.join(", ")}의 ${hints.join(" / ")} 맥락` : names.join(", ");
+  const rawContext = matched.flatMap(s => [s.programs, s.sports, s.arts, s.fit].filter(Boolean)).join(" ").toLowerCase();
+  const tags = [];
+  if (/stem|math|science|research|humanities|academic|intellectual|leadership/.test(rawContext)) tags.push("학업적 호기심");
+  if (/sport|athletic|soccer|ski|baseball|basketball|crew|lacrosse|tennis|track|swim|hockey|cross country|volleyball|golf|mountain/.test(rawContext)) tags.push("팀 스포츠와 시즌 활동");
+  if (/art|music|theater|theatre|visual|portfolio|club/.test(rawContext)) tags.push("예술·클럽 참여");
+  if (/boarding|residential|dorm|community|fit/.test(rawContext)) tags.push("기숙사 공동체 생활");
+  const context = [...new Set(tags)].slice(0, 3);
+  const schoolLabel = names.join(", ");
+  return context.length
+    ? `${schoolLabel}처럼 ${context.join("·")}이 학교생활 안에서 연결되는 관심학교`
+    : `${schoolLabel} 같은 관심 보딩스쿨`;
 }
 function v2ProjectAcademicEvidence(st = {}) {
   const tests = (st.tests || []).filter(t => t.type || t.overall || t.total || t.percentile).slice(0, 3).map(t => `${t.type || "시험"} ${t.overall || t.total || t.score || ""}${t.percentile ? ` / ${t.percentile}%ile` : ""}`.trim());
