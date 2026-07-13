@@ -1439,6 +1439,22 @@ function v2ProjectSchoolText(st = {}, schools = []) {
     ? `${schoolLabel}처럼 ${context.join("·")}이 학교생활 안에서 연결되는 관심학교`
     : `${schoolLabel} 같은 관심 보딩스쿨`;
 }
+
+function v2CleanSignatureSchoolDump(text = "", st = {}, schools = []) {
+  const value = String(text || "");
+  if (!value) return "";
+  const looksLikeSchoolDataDump = /\/|,\s*(Crew|Cross Country|Mountain Biking|Soccer|Alpine Skiing|Basketball|Ice Hockey|Visual arts|music|theater|STEM, humanities)/i.test(value);
+  if (!looksLikeSchoolDataDump || !/맥락에서는/.test(value)) return value;
+  return value.replace(/^[\s\S]*?맥락에서는/, `${v2ProjectSchoolText(st, schools)} 맥락에서는`);
+}
+
+function v2CleanSignatureProjectForDisplay(project = {}, st = {}, schools = []) {
+  const p = v2NormalizeSignatureProject(project);
+  return {
+    ...p,
+    boardingFit: v2CleanSignatureSchoolDump(p.boardingFit, st, schools)
+  };
+}
 function v2ProjectAcademicEvidence(st = {}) {
   const tests = (st.tests || []).filter(t => t.type || t.overall || t.total || t.percentile).slice(0, 3).map(t => `${t.type || "시험"} ${t.overall || t.total || t.score || ""}${t.percentile ? ` / ${t.percentile}%ile` : ""}`.trim());
   const transcriptCount = (st.transcripts || []).reduce((sum, term) => sum + ((term.subjects || []).filter(s => s.subjectName || s.grade).length), 0);
@@ -3839,7 +3855,8 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
     setEditing(false);
   };
   const p = editing ? draft : normalized;
-  const proposal = p.proposal || v2BuildSignatureProjectProposal(st, p, schools);
+  const displayP = editing ? p : v2CleanSignatureProjectForDisplay(p, st, schools);
+  const proposal = displayP.proposal || v2BuildSignatureProjectProposal(st, displayP, schools);
   const modalProposal = aiPreviewProposal || proposal;
   const saveProposal = () => {
     onSave?.(v2NormalizeSignatureProject({ ...p, proposal: modalProposal, proposalSavedAt: new Date().toISOString(), schemaVersion: V2_SIGNATURE_PROJECT_SCHEMA }));
@@ -3852,7 +3869,7 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
     setAiLoading(true);
     setAiError("");
     try {
-      const result = await v2GenerateAiSignatureProposal({ st, project: p, schools, endpoint });
+      const result = await v2GenerateAiSignatureProposal({ st, project: displayP, schools, endpoint });
       const proposalWithFiles = v2NormalizeAiProposal({
         ...result.proposal,
         pptxFileName: result.pptxFileName || result.proposal?.pptxFileName || "",
@@ -3918,24 +3935,24 @@ V2SignatureProjectCard = function V2SignatureProjectCardDeepFinal({ project, ind
           </div>
           <span className="pill" style={{ background: "#eaf6ff", color: accent }}>Project Brief</span>
         </div>
-        <V2SignatureBriefCards project={p} accent={accent} />
+      <V2SignatureBriefCards project={displayP} accent={accent} />
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
-        <div style={sectionStyle}><b>보딩스쿨 Fit</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.boardingFit}</p></div>
-        <div style={sectionStyle}><b>학업적 재능</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.academicTalent}</p></div>
-        <div style={sectionStyle}><b>커뮤니티 기여</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{p.communityContribution}</p></div>
+        <div style={sectionStyle}><b>보딩스쿨 Fit</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{displayP.boardingFit}</p></div>
+        <div style={sectionStyle}><b>학업적 재능</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{displayP.academicTalent}</p></div>
+        <div style={sectionStyle}><b>커뮤니티 기여</b><p className="small" style={{ lineHeight: 1.72, whiteSpace: "pre-line" }}>{displayP.communityContribution}</p></div>
       </div>
       <div className="grid g2" style={{ marginTop: 12 }}>
-        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>현재 근거</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.currentEvidence}</p></div>
-        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>최종 산출물</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{p.targetOutput}</p><V2SignatureChipList items={p.evidenceNeeded || []} accent={accent} /></div>
+        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>현재 근거</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{displayP.currentEvidence}</p></div>
+        <div style={{ ...sectionStyle, background: "#ffffff" }}><b>최종 산출물</b><p className="small" style={{ lineHeight: 1.7, whiteSpace: "pre-line" }}>{displayP.targetOutput}</p><V2SignatureChipList items={displayP.evidenceNeeded || []} accent={accent} /></div>
       </div>
       <div className="grid g3" style={{ marginTop: 12 }}>
-        <div style={sectionStyle}><b>확보할 증거</b>{(p.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
-        <div style={sectionStyle}><b>다음 액션</b>{(p.nextActions || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
-        <div style={{ ...sectionStyle, background: "#fffdf6", borderColor: "#ead9a4" }}><b>입시 활용처</b>{(p.applicationUsage || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
+        <div style={sectionStyle}><b>확보할 증거</b>{(displayP.evidenceNeeded || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
+        <div style={sectionStyle}><b>다음 액션</b>{(displayP.nextActions || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
+        <div style={{ ...sectionStyle, background: "#fffdf6", borderColor: "#ead9a4" }}><b>입시 활용처</b>{(displayP.applicationUsage || []).map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>
       </div>
-      {(p.risks || []).length > 0 && <div style={{ ...sectionStyle, marginTop: 12, background: "#fff7ed", borderColor: "#fed7aa" }}><b>Risk / Gap</b>{p.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>}
-      {(p.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{p.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
+      {(displayP.risks || []).length > 0 && <div style={{ ...sectionStyle, marginTop: 12, background: "#fff7ed", borderColor: "#fed7aa" }}><b>Risk / Gap</b>{displayP.risks.map((x, i) => <p className="small" key={i} style={{ lineHeight: 1.58, margin: "8px 0 0" }}>- {x}</p>)}</div>}
+      {(displayP.semesterRoadmap || []).length > 0 && <table className="table" style={{ marginTop: 12 }}><thead><tr><th>학기</th><th>실행 초점</th><th>산출물</th><th>점검</th></tr></thead><tbody>{displayP.semesterRoadmap.map((row, i) => <tr key={`${row.period}-${i}`}><td>{row.period}</td><td style={{ lineHeight: 1.55 }}>{row.focus}</td><td style={{ lineHeight: 1.55 }}>{row.deliverable}</td><td>{row.checkpoint}</td></tr>)}</tbody></table>}
     </div>}
     {proposalOpen && <V2SignatureProposalModal proposal={modalProposal} onClose={() => setProposalOpen(false)} onSave={editable ? saveProposal : null} />}
   </div>;
