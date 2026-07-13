@@ -7,3 +7,6 @@ reports/private/*
 !reports/private/.gitkeep
 __pycache__/
 .pytest_cache/
+
+.vercel
+.env*
