@@ -9,6 +9,10 @@ export function shapeProfile(profile) {
   for (const key of ['addresses','nationalities','phones','firstLanguages','homeLanguages','communicationLanguages','siblings']) if (profile.basic[key] !== undefined && !Array.isArray(profile.basic[key])) throw new PortalError('기본 정보 형식을 확인해 주세요.');
   return profile;
 }
+export function sharedCalendar(workspaces,members) {
+  const names=new Map(members.map(m=>[m.user_id,m.name]));
+  return workspaces.filter(w=>names.has(w.user_id)).flatMap(w=>(Array.isArray(w.payload?.events)?w.payload.events:[]).filter(e=>e.visibility==='staff').map(e=>({id:e.id,title:e.title,date:e.date,time:e.time||'',timezone:e.timezone||'',ownerId:w.user_id,ownerName:names.get(w.user_id)})));
+}
 export function createService(db, model) {
   const requirePortal = (role,portal) => {
     // Older clients omit the entry channel; server membership still enforces data scope.
@@ -50,7 +54,10 @@ export function createService(db, model) {
     const rows=records.filter(r=>r.kind==='student' && (member.role!=='parent'||r.payload.parentPortal?.enabled));
     if (member.role==='parent') return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>model.publicStudent({...r.payload,id:r.id})),versions:versionsOf(rows)};
     const staff=check(await db.from('prep_members').select('user_id,email,name,role,active').in('role',['admin','staff']).eq('active',true));
-    return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>({...r.payload,id:r.id})),staffAccounts:staff.map(m=>({id:m.user_id,name:m.name,email:m.email,role:m.role})),schools:records.find(r=>r.id==='__schools')?.payload.schools,teamEvents:records.find(r=>r.id==='__settings')?.payload.teamEvents||[],versions:versionsOf(records)};
+    const workspaces=check(await db.from('prep_workspaces').select('user_id,payload,version'));
+    const mine=workspaces.find(w=>w.user_id===member.user_id);
+    const settings=records.find(r=>r.id==='__settings')?.payload||{};
+    return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>({...r.payload,id:r.id})),staffAccounts:staff.map(m=>({id:m.user_id,name:m.name,email:m.email,role:m.role})),schools:records.find(r=>r.id==='__schools')?.payload.schools,teamEvents:settings.teamEvents||[],opportunities:settings.opportunities,workspace:mine?.payload||{},workspaceVersion:mine?.version||0,sharedCalendar:sharedCalendar(workspaces,staff),versions:versionsOf(records)};
   }
   async function redeem(body,token) {
     if (!/^[a-f0-9]{64}$/.test(body.inviteToken||'')) throw new PortalError('유효하지 않은 초대입니다.',403,'INVALID_INVITATION');
@@ -83,6 +90,20 @@ export function createService(db, model) {
     const member=await memberFor(token);
     requirePortal(member.role,body.portal);
     if(body.action==='load') return load(member);
+    if(body.action==='revisions') {
+      const current=await load(member);
+      return {versions:current.versions,workspaceVersion:current.workspaceVersion||0};
+    }
+    if(body.action==='saveWorkspace') {
+      staffOnly(member);
+      const p=body.payload;
+      if(!Number.isSafeInteger(body.version)||body.version<0||!p||typeof p!=='object'||Array.isArray(p))throw new PortalError('개인 업무 저장 형식을 확인해 주세요.');
+      for(const key of ['events','tasks'])if(!Array.isArray(p[key])||p[key].length>2000)throw new PortalError('개인 업무 목록을 확인해 주세요.');
+      for(const e of p.events)if(!e.id||!e.title||!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!['private','staff'].includes(e.visibility))throw new PortalError('일정 제목·날짜·공개 범위를 확인해 주세요.');
+      const payload={events:p.events,tasks:p.tasks,subscriptions:{schoolIds:Array.isArray(p.subscriptions?.schoolIds)?p.subscriptions.schoolIds:[],staffIds:Array.isArray(p.subscriptions?.staffIds)?p.subscriptions.staffIds:[],team:!!p.subscriptions?.team,marketing:!!p.subscriptions?.marketing},readAt:String(p.readAt||'')};
+      const version=check(await db.rpc('prep_save_workspace',{actor:member.user_id,expected_version:body.version,content:payload}));
+      return {version,payload};
+    }
     if(body.action==='parentSave') {
       if(member.role!=='parent') throw new PortalError('학부모 계정으로 로그인해 주세요.',403,'ACCESS_DENIED');
       const r=await recordFor(member,body.studentId);
@@ -125,7 +146,32 @@ export function createService(db, model) {
           return {...p,authorId:member.user_id,authorName:member.name,publishedAt:new Date().toISOString(),status:'published'};
         });
         for(const old of prior?.publications||[]) if(!proposed.publications.some(x=>x.id===old.id)) proposed.publications.push(old);
+        const snapshots=Array.isArray(proposed.progressSnapshots)?proposed.progressSnapshots:[];
+        const oldSnapshots=Array.isArray(prior?.progressSnapshots)?prior.progressSnapshots:[];
+        proposed.progressSnapshots=snapshots.map(p=>{
+          const old=oldSnapshots.find(x=>x.id===p.id);
+          if(old)return {...old,status:old.status==='revoked'||p.status==='revoked'?'revoked':'published'};
+          if(!p.id||typeof p.summary!=='string')throw new PortalError('공개 진행상황 내용을 확인해 주세요.');
+          return {...p,status:'published',authorId:member.user_id,authorName:member.name,publishedAt:new Date().toISOString()};
+        });
+        for(const p of oldSnapshots)if(!proposed.progressSnapshots.some(x=>x.id===p.id))proposed.progressSnapshots.push(p);
         payload.parentPortal=proposed;
+        const incomingResumes=payload.operations?.resumeVersions;
+        if(incomingResumes!==undefined) {
+          if(!Array.isArray(incomingResumes)||incomingResumes.length>200)throw new PortalError('Resume 저장본 목록을 확인해 주세요.');
+          const oldResumes=existing?.payload.operations?.resumeVersions||[];
+          const immutable=incomingResumes.map(r=>oldResumes.find(x=>x.id===r.id)||{...r,authorId:member.user_id,authorName:member.name,createdAt:new Date().toISOString()});
+          for(const r of oldResumes)if(!immutable.some(x=>x.id===r.id))immutable.push(r);
+          payload.operations={...payload.operations,resumeVersions:immutable};
+        }
+        if(existing) {
+          const groups=[['기본 정보',['basic','school','previousSchools','program','owners','stage']],['학업·시험',['academicTerms','tests']],['EC·수상',['ecs','awards']],['지원·실행',['tasks','actionPlans','applications']]];
+          const changed=groups.filter(([,keys])=>keys.some(k=>JSON.stringify(existing.payload[k])!==JSON.stringify(payload[k]))).map(([name])=>name);
+          if(changed.length) {
+            const now=new Date().toISOString(),id='staff-update-'+member.user_id+'-'+now.slice(0,10),o=payload.operations||{},incomingUpdates=Array.isArray(o.updates)?o.updates:[],priorUpdates=[...new Map([...(existing.payload.operations?.updates||[]),...incomingUpdates].map(x=>[x.id,x])).values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+            payload.operations={...o,updates:[{id,title:'학생 자료 업데이트',detail:member.name+' · '+changed.join(', '),at:now,authorId:member.user_id},...priorUpdates.filter(x=>x.id!==id)].slice(0,300)};
+          }
+        }
         changes.push({...change,payload});
       }
       const versions=check(await db.rpc('prep_commit',{actor:member.user_id,event_name:'staff_save',changes}));

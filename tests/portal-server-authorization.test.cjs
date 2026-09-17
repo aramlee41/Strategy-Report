@@ -5,12 +5,12 @@ function fakeDatabase() {
  const members=[{user_id:'a',role:'admin',active:true,name:'Admin'}, {user_id:'s',role:'staff',active:true,name:'Staff'},{user_id:'p',role:'parent',active:true,name:'Parent'},{user_id:'q',role:'parent',active:true,name:'Other Parent'},{user_id:'disabled',role:'admin',active:false}];
  const profile={id:'one',name:'Student A',basic:{},tests:[],ecs:[],awards:[],academicTerms:[],owners:['s'],stagePlans:{private:'secret'}};
  const portal={...model.normalize(profile),enabled:true,publications:[{id:'r',status:'published',html:'approved',authorId:'a',authorName:'Admin',publishedAt:'2026-01-01'}, {id:'private',status:'draft',html:'never-share'}]};
- const tables={prep_members:members,prep_student_access:[{student_id:'one',user_id:'s',access_role:'staff'},{student_id:'one',user_id:'p',access_role:'parent'},{student_id:'two',user_id:'q',access_role:'parent'}],prep_records:[{id:'one',kind:'student',version:1,payload:{...profile,parentPortal:portal}},{id:'two',kind:'student',version:1,payload:{id:'two',name:'Private B',parentPortal:{...portal,publications:[]}}}],prep_invitations:[]};
+ const tables={prep_members:members,prep_student_access:[{student_id:'one',user_id:'s',access_role:'staff'},{student_id:'one',user_id:'p',access_role:'parent'},{student_id:'two',user_id:'q',access_role:'parent'}],prep_records:[{id:'one',kind:'student',version:1,payload:{...profile,parentPortal:portal}},{id:'two',kind:'student',version:1,payload:{id:'two',name:'Private B',parentPortal:{...portal,publications:[]}}}],prep_invitations:[],prep_workspaces:[]};
  const calls=[];
  const db={auth:{getUser:async token=>({data:{user:members.some(m=>m.user_id===token)?{id:token}:null},error:null})},from(table){
    let rows=tables[table]; let one=false;const filters=[];let operation='select';let patch;
    const q={select(){return q;},eq(k,v){filters.push(x=>x[k]===v);return q;},in(k,vs){filters.push(x=>vs.includes(x[k]));return q;},order(){return q;},limit(){return q;},maybeSingle(){one=true;return q;},single(){one=true;return q;},update(v){operation='update';patch=v;return q;},insert(v){operation='insert';patch=v;return q;},then(resolve,reject){try{let result=rows.filter(x=>filters.every(fn=>fn(x)));if(operation==='update')result.forEach(x=>Object.assign(x,patch));if(operation==='insert'){tables[table].push(patch);result=[patch];}return Promise.resolve({data:one?(result[0]||null):result,error:null}).then(resolve,reject);}catch(e){return Promise.reject(e).then(resolve,reject);}}};return q;
- },async rpc(name,args){calls.push({name,args});if(name==='prep_commit'){
+ },async rpc(name,args){calls.push({name,args});if(name==='prep_save_workspace'){const old=tables.prep_workspaces.find(w=>w.user_id===args.actor);if((old?.version||0)!==args.expected_version)return {error:{code:'40001'}};const version=(old?.version||0)+1;if(old)Object.assign(old,{payload:args.content,version});else tables.prep_workspaces.push({user_id:args.actor,payload:args.content,version});return {data:version};}if(name==='prep_commit'){
    for(const c of args.changes){const row=tables.prep_records.find(r=>r.id===c.id);if(row&&row.version!==c.expectedVersion)return {error:{code:'40001',message:'VERSION_CONFLICT'}};}
    const versions={};for(const c of args.changes){let row=tables.prep_records.find(r=>r.id===c.id);if(row){row.payload=c.payload;row.version++;}else{row={...c,version:1};tables.prep_records.push(row);}versions[row.id]=row.version;}return {data:versions,error:null};
  }throw new Error('unexpected rpc '+name);}};
@@ -64,4 +64,27 @@ test('wrong entry channel cannot bypass checks through write actions',async()=>{
  await assert.rejects(()=>run({action:'save',portal:'parent',changes:[]},'a'),e=>e.code==='PORTAL_MISMATCH');
  await assert.rejects(()=>run({action:'parentSave',portal:'staff',studentId:'one',operation:'draft',version:1,profile:{basic:{}}},'p'),e=>e.code==='PORTAL_MISMATCH');
  assert.equal(calls.length,0);
+});
+test('staff receives only their own workspace and explicit shared-event projection',async()=>{
+ const {run,tables}=await setup();tables.prep_workspaces.push({user_id:'a',version:1,payload:{tasks:[{title:'Private task'}],events:[{id:'private',title:'Private meeting',visibility:'private'},{id:'shared',title:'Public time',date:'2026-09-17',visibility:'staff',notes:'Secret notes'}]}});
+ const data=await run({action:'load'},'s');assert.deepEqual(data.workspace,{});assert.equal(data.sharedCalendar.length,1);assert.equal(data.sharedCalendar[0].title,'Public time');assert(!JSON.stringify(data).includes('Private task'));assert(!JSON.stringify(data.sharedCalendar).includes('Secret notes'));
+});
+test('workspace saves use verified actor, enforce versions and deny parents',async()=>{
+ const {run,tables}=await setup();const payload={events:[],tasks:[],subscriptions:{}};
+ await assert.rejects(()=>run({action:'saveWorkspace',version:0,payload},'p'),e=>e.status===403);
+ await run({action:'saveWorkspace',version:0,userId:'a',payload},'s');assert.equal(tables.prep_workspaces[0].user_id,'s');
+ await assert.rejects(()=>run({action:'saveWorkspace',version:0,payload},'s'),e=>e.status===409);
+});
+test('public progress snapshots keep original content and server authorship',async()=>{
+ const {run,tables}=await setup();const payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));payload.parentPortal.progressSnapshots=[{id:'p1',summary:'Approved',authorId:'forged'}];
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:1,payload}]},'s');
+ const saved=tables.prep_records[0].payload;assert.equal(saved.parentPortal.progressSnapshots[0].authorId,'s');const patch=JSON.parse(JSON.stringify(saved));patch.parentPortal.progressSnapshots[0].summary='Changed';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:2,payload:patch}]},'s');assert.equal(tables.prep_records[0].payload.parentPortal.progressSnapshots[0].summary,'Approved');
+});
+test('resume versions remain immutable and revisions reveal only accessible record IDs',async()=>{
+ const {run,tables}=await setup();const payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));payload.operations={resumeVersions:[{id:'resume-1',name:'Original'}]};
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:1,payload}]},'s');
+ const next=JSON.parse(JSON.stringify(tables.prep_records[0].payload));next.operations.resumeVersions[0].name='Changed';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:2,payload:next}]},'s');assert.equal(tables.prep_records[0].payload.operations.resumeVersions[0].name,'Original');assert.equal(tables.prep_records[0].payload.operations.resumeVersions[0].authorId,'s');
+ const revisions=await run({action:'revisions'},'p');assert.deepEqual(Object.keys(revisions.versions),['one']);assert.equal(revisions.students,undefined);
 });

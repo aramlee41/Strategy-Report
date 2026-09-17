@@ -56,12 +56,14 @@ function PPCloudApp() {
   const [ready,setReady]=useState(false);const [loaded,setLoaded]=useState(null);const [error,setError]=useState("");
   const [status,setStatus]=useState("");const [epoch,setEpoch]=useState(0);const [busy,setBusy]=useState(false);
   const versions=React.useRef({});const shadow=React.useRef(null);const queue=React.useRef(Promise.resolve());const blocked=React.useRef(false);const pending=React.useRef(0);
+  const workspaceVersion=React.useRef(0);
+  const [remoteAvailable,setRemoteAvailable]=useState(false);
   const normalize=data=>{
     const schools=(data.schools||window.PREP_SCHOOLS||DEFAULT_SCHOOLS).map(v2NormalizeSchool);
     return {...data,cloudConnected:true,schools,schoolDataVersion:window.PREP_SCHOOL_DATA_VERSION,students:data.students.map(v2NormalizeStudent).map(st=>v2AttachAnalysis(st,schools))};
   };
   const refresh=async()=>{setBusy(true);setError("");try{
-    const result=await PC.call({action:"load"});versions.current=result.versions;blocked.current=false;
+    const result=await PC.call({action:"load"});versions.current=result.versions;workspaceVersion.current=result.workspaceVersion||0;blocked.current=false;setRemoteAvailable(false);
     const data=result.user.role==="parent"?result:normalize(result);shadow.current=data;setLoaded(data);setEpoch(e=>e+1);setStatus("공용 저장소 연결됨");
   }catch(e){
     setLoaded(null);shadow.current=null;setError(e.message);
@@ -86,7 +88,24 @@ function PPCloudApp() {
     task.then(()=>{pending.current--;if(!pending.current)setStatus("공용 저장 완료");},()=>{pending.current--;setStatus("저장되지 않은 변경사항이 있습니다.");});
     return task;
   };
+  const saveWorkspace=payload=>{
+    pending.current++;setStatus("개인 업무 저장 중…");
+    const task=queue.current.then(async()=>{
+      if(blocked.current)throw new Error("저장 오류를 확인한 후 다시 시도해 주세요.");
+      const result=await PC.call({action:"saveWorkspace",version:workspaceVersion.current,payload});
+      workspaceVersion.current=result.version;
+      return result.payload;
+    });
+    queue.current=task.catch(e=>{blocked.current=true;setError(e.message);});
+    task.then(()=>{pending.current--;if(!pending.current)setStatus("공용 저장 완료");},()=>{pending.current--;setStatus("개인 업무 저장 실패");});
+    return task;
+  };
   React.useEffect(()=>{const handler=e=>{if(pending.current||blocked.current){e.preventDefault();e.returnValue="";}};window.addEventListener("beforeunload",handler);return()=>window.removeEventListener("beforeunload",handler);},[]);
+  React.useEffect(()=>{
+    if(!loaded)return;
+    const poll=async()=>{if(document.visibilityState!=='visible'||pending.current||blocked.current)return;try{const result=await PC.call({action:'revisions'});if(pending.current)return;const ids=new Set([...Object.keys(versions.current),...Object.keys(result.versions)]);setRemoteAvailable([...ids].some(id=>versions.current[id]!==result.versions[id])||workspaceVersion.current!==result.workspaceVersion);}catch{/* Keep unsaved forms open during a transient connection error. */}};
+    const timer=setInterval(poll,60000);return()=>clearInterval(timer);
+  },[loaded?.user?.id,epoch]);
   const logout=async()=>{if((pending.current||blocked.current)&&!window.confirm("저장하지 못한 변경사항이 있습니다. 로그아웃할까요?"))return;await queue.current;await PC.authClient().auth.signOut();setLoaded(null);setError("");setStatus("");};
   const parentSave=async(id,p,operation)=>{
     const result=await PC.call({action:"parentSave",studentId:id,operation,version:versions.current[id],profile:p.draft,declarations:p.declarations,parentName:p.parentName,contactPhone:p.contactPhone});
@@ -116,7 +135,7 @@ function PPCloudApp() {
   if(!hasEntry)return <PPPortalChoice/>;
   if(!ready)return <main className="portal-login">로그인 상태를 확인하고 있습니다.</main>;
   if(!loaded)return <><PPCloudLogin inviteToken={inviteToken} onReady={()=>{setInviteToken(null);return refresh();}}/>{error&&<div className="portal-notice warn" role="alert">{error}<button className="btn ghost" onClick={refresh}>다시 연결</button></div>}</>;
-  if(loaded.user.role==="parent")return <><PPParentPortal key={epoch} students={loaded.students} saveStudent={parentSave} schools={window.PREP_SCHOOLS||DEFAULT_SCHOOLS} exit={logout}/><button className="btn ghost" style={{position:"fixed",bottom:12,right:12,zIndex:30}} onClick={()=>{if(window.confirm("작성 중인 내용이 있다면 먼저 임시저장해 주세요. 자료를 새로 불러올까요?"))refresh();}} disabled={busy}>새로 불러오기</button>{error&&<div className="portal-notice warn" role="alert">{error}</div>}</>;
-  return <><div className="cloud-status"><span role="status">{status}</span><div className="portal-actions"><button className="btn ghost" disabled={busy||!!pending.current} onClick={()=>{if(!blocked.current||window.confirm("저장하지 못한 변경을 닫고 공용 자료를 다시 불러올까요?"))refresh();}}>공용 자료 새로 불러오기</button></div></div>{error&&<div className="portal-notice warn" role="alert">{error}</div>}<V2App key={epoch} cloud={{data:loaded,user:loaded.user,save,logout,importLocal}}/></>;
+  if(loaded.user.role==="parent")return <>{remoteAvailable&&<div className="portal-notice" role="status">담당자가 자료를 업데이트했습니다. 저장 후 새로 불러오기를 눌러 확인해 주세요.</div>}<PPParentPortal key={epoch} students={loaded.students} saveStudent={parentSave} schools={window.PREP_SCHOOLS||DEFAULT_SCHOOLS} exit={logout}/><button className="btn ghost" style={{position:"fixed",bottom:12,right:12,zIndex:30}} onClick={()=>{if(window.confirm("작성 중인 내용이 있다면 먼저 임시저장해 주세요. 자료를 새로 불러올까요?"))refresh();}} disabled={busy}>새로 불러오기</button>{error&&<div className="portal-notice warn" role="alert">{error}</div>}</>;
+return <><div className="cloud-status"><span role="status">{remoteAvailable?"새 업데이트가 있습니다. 작성 내용을 저장한 후 공용 자료를 새로 불러와 주세요.":status}</span><div className="portal-actions"><button className="btn ghost" disabled={busy||!!pending.current} onClick={()=>{if(!blocked.current||window.confirm("저장하지 못한 변경을 닫고 공용 자료를 다시 불러올까요?"))refresh();}}>공용 자료 새로 불러오기</button></div></div>{error&&<div className="portal-notice warn" role="alert">{error}</div>}<V2App key={epoch} cloud={{data:loaded,user:loaded.user,save,logout,importLocal,saveWorkspace}}/></>;
 }
 ReactDOM.render(<PPEntry />, document.getElementById("root"));

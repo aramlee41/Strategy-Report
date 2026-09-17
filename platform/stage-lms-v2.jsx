@@ -685,10 +685,11 @@ function v2AcademicPillText(terms = []) {
   const latest = v2GpaSeries(v2SortTranscriptTerms(terms), "term").values[0]?.value;
   return `학업 추이 점수 ${latest || "미입력"}`;
 }
-function v2TestOverall(type, details, fallback) {
+function v2TestOverall(type, details, fallback, scoreScale = "120") {
   const n = k => Number(details?.[k] || 0);
   if (type === "SSAT") return n("Verbal Raw Score") + n("Quantitative Raw Score") + n("Reading Raw Score") || fallback || details?.Total || "";
   if (type === "TOEFL Jr") return n("Listening Comprehension") + n("Language Form and Meaning") + n("Reading Comprehension") || fallback || "";
+  if (type === "TOEFL" && String(scoreScale) === "6") { const values = ["Reading", "Listening", "Speaking", "Writing"].map(k => details?.[k]); return values.every(v => v !== "" && v != null && Number(v) >= 1 && Number(v) <= 6) ? Math.round(values.reduce((sum,v) => sum + Number(v), 0) / 4 * 2) / 2 : fallback || ""; }
   if (type === "TOEFL") return n("Reading") + n("Listening") + n("Speaking") + n("Writing") || fallback || "";
   if (type === "SAT" || type === "PSAT") return n("Reading and Writing") + n("Math") || details?.Total || fallback || "";
   if (type === "IELTS") {
@@ -773,12 +774,13 @@ function v2BuildEvaluationResult(st = {}, schools = []) {
   };
 }
 function v2TestGapEngine(st = {}, schools = []) {
-  const tests = (st.tests || []).filter(t => v2PrimaryTestScore(t));
+  const tests = (st.tests || []).filter(t => t.date && v2PrimaryTestScore(t));
   const interestSchools = (st.interests || []).map(x => v2FindSchool(schools, x.school)).filter(Boolean);
   return interestSchools.map(school => {
     const gaps = tests.map(test => {
       const type = String(test.type || "");
       const score = v2PrimaryTestScore(test);
+      if (type === "TOEFL" && String(test.scoreScale) === "6") return {type,score,targetRecommended:"",targetCompetitive:"",gapToRecommended:null,gapToCompetitive:null,weakestSection:v2WeakestTestSection(test),fit:"Insufficient Data",comment:`TOEFL ${score}/6점입니다. ${school.name}의 같은 점수 체계 기준을 확인한 후 목표 차이를 정하겠습니다.`};
       const benchmark = v2TestingBenchmark(school, type);
       const gapToRecommended = benchmark.recommended ? v2Round(benchmark.recommended - score, 1) : null;
       const gapToCompetitive = benchmark.competitive ? v2Round(benchmark.competitive - score, 1) : null;
@@ -2142,15 +2144,16 @@ function v2Round(value, digits = 2) {
   return Math.round((Number(value) || 0) * p) / p;
 }
 function v2LegacyFindTest(st, pattern) {
-  return (st.tests || []).find(t => pattern.test(String(t.type || ""))) || {};
+  return [...(st.tests || [])].filter(t => pattern.test(String(t.type || "")) && /^\d{4}-\d{2}-\d{2}$/.test(t.date || "")).sort((a,b) => String(b.date).localeCompare(String(a.date)))[0] || {};
 }
 function v2LegacyTestOverall(test) {
+  if (test?.type === "TOEFL" && String(test.scoreScale) === "6") return v2Num(test.comparableOverall120);
   if (/SSAT/i.test(String(test?.type || ""))) {
     const d = test?.details || {};
     const hasRaw = ["Verbal Raw Score", "Quantitative Raw Score", "Reading Raw Score"].some(k => v2Num(d[k]));
     return v2Num(d["Overall Percentile"] || d.Percentile || test?.percentile || (!hasRaw ? test?.overall : ""));
   }
-  return v2Num(test.overall || v2TestOverall(test.type, test.details || {}, ""));
+  return v2Num(test.overall || v2TestOverall(test.type, test.details || {}, "", test.scoreScale));
 }
 function v2LegacyToeflEval(st) {
   const test = v2LegacyFindTest(st, /TOEFL|IELTS|DET/i);
@@ -2673,6 +2676,14 @@ function V2SmartSchool({ label, val, set, schools }) {
   return <SmartSearchInput label={label} val={val} set={set} options={v2SchoolNames(schools)} />;
 }
 
+function v2PrepareCloudSave(previous,next) {
+  const schoolChanged=next.schools!==previous.schools;
+  const schools=schoolChanged?(next.schools||[]).map(v2NormalizeSchool):previous.schools;
+  const before=new Map(previous.students.map(s=>[s.id,s]));
+  // Unchanged students must not gain new analysis timestamps or become dirty writes.
+  const students=next.students.map(s=>!schoolChanged&&before.get(s.id)===s?s:v2AttachAnalysis(v2NormalizeStudent(s),schools));
+  return {...next,schools,students};
+}
 function V2App({ cloud = null }) {
   const [data, setData] = useState(() => cloud?.data || v2BaseData());
   const [user, setUser] = useState(cloud ? { ...cloud.user, cloud: true } : null);
@@ -2683,12 +2694,12 @@ function V2App({ cloud = null }) {
   const users = [...accounts, ...(data.staffAccounts || [])].map(a => ({ ...a, password: a.password || "prep2026" }));
   const persist = next => {
     if (!cloud) return v2Persist(setData, next);
-    const schools = (next.schools || []).map(v2NormalizeSchool);
-    const fixed = { ...next, schools, students: next.students.map(v2NormalizeStudent).map(st => v2AttachAnalysis(st, schools)) };
+    const fixed = v2PrepareCloudSave(data,next);
     setData(fixed);
     return cloud.save(fixed);
   };
   const logout = () => cloud ? cloud.logout() : setUser(null);
+  const saveWorkspace = async payload => { setData(old => ({ ...old, workspace: payload })); if (!cloud) return persist({ ...data, workspace: payload }); return cloud.saveWorkspace(payload); };
   const reportStudentId = new URLSearchParams(window.location.search).get("reportStudent");
   if (reportStudentId) {
     const reportStudent = data.students.find(s => s.id === reportStudentId) || data.students[0];
@@ -2700,17 +2711,18 @@ function V2App({ cloud = null }) {
   const updateStudent = patch => {
     if (!st) return;
     const nextPatch = typeof patch === "function" ? patch(st) : patch;
-    persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
+    return persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
   };
   const updateSchools = schools => persist({ ...data, schools: (schools || []).map(v2NormalizeSchool), schoolDataVersion: window.PREP_SCHOOL_DATA_VERSION || data.schoolDataVersion });
   if (view === "parents") return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPManager data={data} persist={persist} user={user} /></main></div>;
   if (view === "accounts" && cloud) return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPCloudAccounts students={visible} admin={user.role === "admin"} onImport={user.role === "admin" ? cloud.importLocal : undefined} /></main></div>;
-  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><Header view={view} />{view === "dashboard" && (user.role === "admin" ? <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} /> : <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />)}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [cloud ? user.id : (user.role === "admin" ? "aram" : user.id)], owner: cloud ? user.id : (user.role === "admin" ? "aram" : user.id) }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <V2Schedule data={data} persist={persist} students={visible} staff={data.staffAccounts || []} user={user} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
+  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><Header view={view} />{view === "dashboard" && <OpsWorkspace data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={s => { setSelected(s.id); setView("student"); }} />}{view === "students" && <OpsStudents students={visible} user={user} openStudent={s => { setSelected(s.id); setView("student"); }} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [cloud ? user.id : (user.role === "admin" ? "aram" : user.id)], owner: cloud ? user.id : (user.role === "admin" ? "aram" : user.id) }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} user={user} opportunities={data.opportunities} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <OpsWorkspace calendarOnly data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={s => { setSelected(s.id); setView("student"); }} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
 }
 function V2Sidebar({ user, view, setView, logout }) {
+  const [menuOpen,setMenuOpen]=useState(false);
   const items = [["dashboard", "대시보드"], ["students", "학생 관리"], ["schedule", "일정 관리"], ["reports", "보고서 제작"], ["parents", "학부모 포털"], ["admin", "어드민"]];
   if (user.cloud) items.splice(items.length - 1, 0, ["accounts", "계정 / 초대 관리"]);
-return <aside className="side"><div className="brand">YES STUDY ABROAD</div><div className="brand-title">Prep LMS</div><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "관리자" : "컨설턴트"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => setView(i[0])}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></aside>;
+return <aside className="side"><div className="ops-side-heading"><div><div className="brand">YES STUDY ABROAD</div><div className="brand-title">Prep LMS</div></div><button className="ops-mobile-menu navbtn" aria-label="업무 메뉴" aria-expanded={menuOpen} aria-controls="ops-staff-navigation" onClick={()=>setMenuOpen(!menuOpen)}><PPIcon name={menuOpen?'X':'Menu'}/></button></div><div id="ops-staff-navigation" className={'ops-side-content '+(menuOpen?'is-open':'')}><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "관리자" : "컨설턴트"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => {setView(i[0]);setMenuOpen(false);}}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></div></aside>;
 }
 function V2Dashboard({ students, setView, setSelected, setStage }) {
   return <div className="grid"><div className="grid g4"><Metric title="관리 학생" val={students.length} /><Metric title="평균 입력률" val={Math.round(students.reduce((n, s) => n + V2_STAGE_KEYS.reduce((a, [k]) => a + v2StageCompletion(s, k), 0) / 5, 0) / Math.max(students.length, 1)) + "%"} /><Metric title="Stage 1 완료" val={students.filter(s => v2StageCompletion(s, "stage1") >= 80).length} /><Metric title="원서 단계" val={students.filter(s => s.stage === "stage4").length} /></div><V2Section title="학생 Stage 현황">{students.map(s => {
@@ -2726,9 +2738,9 @@ function V2Students({ students, user, add, setSelected, setView, setStage }) {
     return <div className="card" key={s.id}><div className="right" style={{ justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1 }}><h3>{s.name || "신규 학생"}</h3><p className="small muted">{s.en} · {s.program || "프로그램 미정"} · {s.school || "학교 미입력"}</p><div className="right" style={{ gap: 10 }}><span className="pill p-blue">{V2_STAGE_KEYS.find(x => x[0] === currentStage)?.[1] || currentStage}</span><span className="small muted">{pct}% 완료</span></div><div className="progress" style={{ marginTop: 8 }}><div style={{ width: pct + "%" }} /></div></div><button className="btn ghost" onClick={() => { setSelected(s.id); setStage(currentStage); setView("student"); }}>열기</button></div></div>;
   })}</div>;
 }
-function V2StudentDetail({ st, update, schools, staff, stage, setStage }) {
+function V2StudentStages({ st, update, schools, staff, stage, setStage }) {
   const activeStage = st.stage || stage || "stage1";
-  return <div><div className="card" style={{ marginBottom: 14 }}><div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>{st.name || "신규 학생"} <span className="muted">{st.en}</span></h3><p className="small muted">{st.program || "프로그램 미정"} · {st.school || "학교 미입력"} · {st.targetYear || "지원연도 미정"}</p></div><span className="pill p-green">{v2AcademicPillText(st.academicTerms || [])}</span></div><div className="grid g5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 12 }}>{V2_STAGE_KEYS.map(([k, label]) => { const pct = v2StageCompletion(st, k); return <button key={k} className={"btn " + (activeStage === k ? "primary" : "ghost")} onClick={() => { setStage(k); update({ stage: k, status: label }); }}>{label}<br /><span className="small">{pct}%</span><div className="progress" style={{ marginTop: 6, background: "rgba(255,255,255,.35)" }}><div style={{ width: pct + "%" }} /></div></button>; })}</div></div>{activeStage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{activeStage === "stage3" && <V2StageThree st={st} update={update} schools={schools} />}{activeStage === "stage4" && <V2StageFour st={st} update={update} />}{activeStage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
+  return <div><div className="card" style={{ marginBottom: 14 }}><div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>{st.name || "신규 학생"} <span className="muted">{st.en}</span></h3><p className="small muted">{st.program || "프로그램 미정"} · {st.school || "학교 미입력"} · {st.targetYear || "지원연도 미정"}</p></div><span className="pill p-green">{v2AcademicPillText(st.academicTerms || [])}</span></div><div className="grid g5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 12 }}>{V2_STAGE_KEYS.map(([k, label]) => { const pct = v2StageCompletion(st, k); return <button key={k} className={"btn " + (activeStage === k ? "primary" : "ghost")} onClick={() => { setStage(k); update({ stage: k, status: label }); }}>{label}<br /><span className="small">{pct}%</span><div className="progress" style={{ marginTop: 6, background: "rgba(255,255,255,.35)" }}><div style={{ width: pct + "%" }} /></div></button>; })}</div></div>{activeStage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{activeStage === "stage3" && <V2StageThree st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage4" && <V2StageFour st={st} update={update} schools={schools} />}{activeStage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
 }
 
 function V2StageOne({ st, update, schools, staff }) {
@@ -2978,12 +2990,12 @@ function V2GpaChartModal({ open, onClose, terms }) {
     </div>
   </div>;
 }
-function v2TestMetricMax(type, label, value) {
+function v2TestMetricMax(type, label, value, scoreScale) {
   const t = String(type || "").toUpperCase();
   const l = String(label || "").toLowerCase();
   const n = Number(value) || 0;
   if (t === "TOEFL JR") return /overall|total/.test(l) ? 900 : 300;
-  if (t === "TOEFL") return /overall|total/.test(l) ? 120 : 30;
+  if (t === "TOEFL") return String(scoreScale) === "6" ? 6 : /overall|total/.test(l) ? 120 : 30;
   if (t === "IELTS") return 9;
   if (t === "DET") return 160;
   if (t === "SAT") return /overall|total/.test(l) ? 1600 : 800;
@@ -2996,18 +3008,18 @@ function v2TestChartRows(st) {
   return (st.tests || []).map((test, index) => {
     const details = test.details || {};
     const metrics = [];
-    const overall = v2TestOverall(test.type, details, test.overall);
-    if (overall !== "" && overall !== null && Number.isFinite(Number(overall))) metrics.push({ label: "Overall", value: Number(overall), max: v2TestMetricMax(test.type, "Overall", overall) });
+    const overall = v2TestOverall(test.type, details, test.overall, test.scoreScale);
+    if (overall !== "" && overall !== null && Number.isFinite(Number(overall))) metrics.push({ label: "Overall", value: Number(overall), max: v2TestMetricMax(test.type, "Overall", overall, test.scoreScale) });
     Object.entries(details).forEach(([label, raw]) => {
       if (/overall|total/i.test(label) && metrics.some(m => m.label === "Overall")) return;
       const value = Number(raw);
-      if (Number.isFinite(value)) metrics.push({ label, value, max: v2TestMetricMax(test.type, label, value) });
+      if (raw !== "" && raw != null && Number.isFinite(value)) metrics.push({ label, value, max: v2TestMetricMax(test.type, label, value, test.scoreScale) });
     });
     return { key: `${test.type || "Test"}-${test.date || index}`, type: test.type || "Test", date: test.date || "", metrics };
   }).filter(row => row.metrics.length);
 }
 function v2LatestTest(st, pattern) {
-  return [...(st.tests || [])].filter(t => pattern.test(String(t.type || ""))).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0] || null;
+  return [...(st.tests || [])].filter(t => pattern.test(String(t.type || "")) && /^\d{4}-\d{2}-\d{2}$/.test(t.date || "")).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0] || null;
 }
 function v2PrimaryTestScore(test) {
   if (!test) return null;
@@ -3016,7 +3028,7 @@ function v2PrimaryTestScore(test) {
     const hasRaw = ["Verbal Raw Score", "Quantitative Raw Score", "Reading Raw Score"].some(k => v2Num(d[k]));
     return v2Num(d["Overall Percentile"] || d.Percentile || test.percentile || (!hasRaw ? test.overall : ""));
   }
-  return v2Num(test.overall || v2TestOverall(test.type, d, ""));
+  return v2Num(test.overall || v2TestOverall(test.type, d, "", test.scoreScale));
 }
 function v2SchoolTestTier(school = {}) {
   const rank = v2Num(school.yesRank || school.nicheRank || 99);
@@ -3081,7 +3093,7 @@ function v2GeneralTestAnalysis(st) {
     strengths.push(`${english.type} ${score}점은 영어 공인시험 기반의 기본 학업 적응력을 보여주는 자료입니다.`);
     if (/TOEFL JR/i.test(english.type || "")) {
       next.push("TOEFL Jr는 Listening, Language Form and Meaning, Reading 세 영역의 균형을 확인해 보딩 수업 적응 가능성을 설명하는 자료로 활용해 주세요.");
-    } else if (/TOEFL/i.test(english.type || "")) {
+    } else if (/TOEFL/i.test(english.type || "") && String(english.scoreScale) !== "6") {
       if (v2Num(d.Speaking) < 24) weaknesses.push("TOEFL Speaking이 낮으면 인터뷰 유창성과 수업 토론 참여 가능성을 별도 자료로 보완해야 합니다.");
       if (v2Num(d.Writing) < 25) weaknesses.push("TOEFL Writing이 낮으면 English/History 등 writing-heavy 과목 적응성을 에세이 샘플과 교사 코멘트로 보완하는 것이 좋습니다.");
       next.push("TOEFL은 총점뿐 아니라 Speaking/Writing을 같이 끌어올리는 전략이 필요합니다.");
@@ -3096,7 +3108,7 @@ function v2GeneralTestAnalysis(st) {
 function v2SchoolSpecificTestAnalyses(st, schools = []) {
   const interestNames = (st.interests || []).map(x => x.school).filter(Boolean);
   if (!interestNames.length) return [];
-  const tests = (st.tests || []).filter(t => v2PrimaryTestScore(t));
+  const tests = (st.tests || []).filter(t => t.date && v2PrimaryTestScore(t));
   if (!tests.length) return [];
   return interestNames.map(name => {
     const school = v2FindSchool(schools, name) || { name };
@@ -3104,6 +3116,7 @@ function v2SchoolSpecificTestAnalyses(st, schools = []) {
       const type = String(test.type || "").toUpperCase();
       const score = v2PrimaryTestScore(test);
       const benchmark = v2TestingBenchmark(school, type);
+      if (type === "TOEFL" && String(test.scoreScale) === "6") return `TOEFL ${score}/6점으로 확인됩니다. ${school.name}의 1–6점 기준 또는 성적표에 함께 기재된 120점 비교 점수와 학교 요건을 확인하여 제출 계획을 정리하겠습니다.`;
       if (type === "TOEFL JR") return `${test.type} ${score}/900점은 Listening Comprehension, Language Form and Meaning, Reading Comprehension을 함께 보여주는 영어 준비도 자료입니다. ${school.name} 지원에서는 TOEFL Jr 인정 여부와 TOEFL iBT/IELTS 등 선호 시험 조건을 별도로 확인한 뒤, 현재 점수를 보조 자료로 활용하는 것이 좋습니다.`;
       if (type === "DET" && benchmark.source !== "official") return `${test.type} ${score}점은 참고 자료로 볼 수 있으나, ${school.name}의 DET 인정 여부와 선호 시험을 먼저 확인해야 합니다. 불확실한 경우 TOEFL 또는 IELTS 제출을 권장합니다.`;
       if (!benchmark.recommended) return `${test.type} ${score}점은 현재 입력된 학교 데이터만으로는 학교별 목표 점수와 직접 비교하기 어렵습니다. ${school.name}의 공식 시험 요구사항을 확인한 뒤, 이 점수를 보조 자료로 해석해 주세요.`;
@@ -3115,7 +3128,7 @@ function v2SchoolSpecificTestAnalyses(st, schools = []) {
       if (type === "SSAT" && (v2Num(d["Verbal Percentile"]) < benchmark.recommended || v2Num(d["Reading Percentile"]) < benchmark.recommended)) extra += " Verbal/Reading percentile은 학교 수준 대비 보완 여지가 있으므로 reading-heavy 수업 적응 근거를 함께 제시해 주세요.";
       return `${school.name}의 경쟁 수준을 고려하면 ${test.type} ${score}${type === "SSAT" ? " percentile" : "점"}은 현재 ${fit} 구간으로 볼 수 있습니다. 보다 안정적인 지원력을 만들기 위해서는 ${benchmark.recommended} 이상을 1차 목표로, ${benchmark.competitive} 이상을 경쟁력 있는 목표로 잡는 것이 좋습니다.${extra}`;
     });
-    const firstFit = tests[0] ? v2TestFit(v2PrimaryTestScore(tests[0]), v2TestingBenchmark(school, tests[0].type)) : "Insufficient Data";
+    const firstFit = tests[0] && !(tests[0].type === "TOEFL" && String(tests[0].scoreScale) === "6") ? v2TestFit(v2PrimaryTestScore(tests[0]), v2TestingBenchmark(school, tests[0].type)) : "Insufficient Data";
     return { school, fit: firstFit, comments };
   });
 }
@@ -3414,9 +3427,9 @@ function V2Tests({ st, update }) {
     const isSsat = r.type === "SSAT";
     const setDetail = (k, v) => {
       const nextDetails = { ...details, [k]: v };
-      edit(i, { details: nextDetails, overall: v2TestOverall(r.type, nextDetails, r.overall) });
+      edit(i, { details: nextDetails, overall: v2TestOverall(r.type, nextDetails, r.overall, r.scoreScale) });
     };
-    const overall = v2TestOverall(r.type, details, r.overall);
+    const overall = v2TestOverall(r.type, details, r.overall, r.scoreScale);
     if (isSsat) {
       return <div>
         <div className="grid g4">
@@ -3434,7 +3447,7 @@ function V2Tests({ st, update }) {
         <V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} />
       </div>;
     }
-    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Select label="최종 제출용 회차" val={r.finalSubmission || "미정"} set={v => setFinalSubmission(i, v)} options={["미정", "Yes", "No"]} /><V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production|Language Form/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
+    return <div><div className="grid g4"><V2Select label="시험 종류" val={r.type} set={v => edit(i, { type: v, details: {}, overall: "", scoreScale: "" })} options={Object.keys(V2_TEST_FIELDS)} /><V2Field label="응시일" type="date" val={r.date} set={v => edit(i, { date: v })} /><V2Field label="다음 시험일" type="date" val={r.nextDate} set={v => edit(i, { nextDate: v })} /><V2Select label="최종 제출용 회차" val={r.finalSubmission || "미정"} set={v => setFinalSubmission(i, v)} options={["미정", "Yes", "No"]} />{r.type === "TOEFL" && <><V2Select label="TOEFL 점수 체계" val={r.scoreScale || "120"} set={v => { if (v !== (r.scoreScale || "120") && window.confirm("점수 체계를 바꾸면 이 카드의 총점과 영역 점수가 초기화됩니다. 계속할까요?")) edit(i, {scoreScale:v,overall:"",details:{},comparableOverall120:""}); }} options={["120","6"]}/>{String(r.scoreScale) === "6" && <V2Field label="성적표의 120점 비교 점수 (선택)" type="number" val={r.comparableOverall120} set={v => edit(i,{comparableOverall120:v})}/>}</>}<V2Field label="총점/Overall" val={overall} set={v => edit(i, { overall: v })} /></div><div className="grid g4">{fields.map(f => <V2Field key={f} label={f} val={details[f]} set={v => setDetail(f, v)} type={/Score|Percentile|Overall|Math|Reading|Writing|Speaking|Listening|English|Science|Literacy|Comprehension|Conversation|Production|Language Form/i.test(f) ? "number" : "text"} />)}</div><V2AttachmentField label="시험 리포트 링크" url={r.attachmentUrl} set={v => edit(i, { attachmentUrl: v })} /><V2Text label="세부 코멘트 / 리포트 메모" val={r.note || r.detail} set={v => edit(i, { note: v, detail: v })} /></div>;
   }} />;
 }
 function v2ActivitySuggestions(cat) {
@@ -3488,6 +3501,7 @@ function V2Ecs({ st, update }) {
       <div className="grid g4">
         <V2Select label="활동 분류" val={r.cat} set={v => edit(i, { cat: v, name: "", level: "", levelOther: "" })} options={V2_EC_CATEGORIES_CLIENT} />
         <V2Select label="상태" val={r.status} set={v => edit(i, { status: v, to: v === "진행 중" ? "" : r.to })} options={V2_EC_STATUS} />
+        <OpsField label="학교 / 외부 활동" value={r.activityScope} onChange={v => edit(i, { activityScope: v })} options={[["school", "학교 활동"], ["external", "외부 활동"]]} />
         {isSports ? <V2SearchSelect label={nameLabel} val={r.name} set={v => edit(i, { name: v })} options={V2_SPORTS_LIST} /> : <V2Field label={nameLabel} val={r.name} set={v => edit(i, { name: v })} list={v2ActivitySuggestions(r.cat)} />}
         <V2Field label={teamLabel} val={r.team} set={v => edit(i, { team: v })} />
         <MonthField label="시작" val={r.from} set={v => edit(i, { from: v })} />
@@ -4333,7 +4347,7 @@ function V2StageTwo({ st, update, schools }) {
     {sub === "report" && <V2StageTwoReportManager st={st} update={update} schools={schools} />}
   </div>;
 }
-function V2StageThree({ st, update, schools }) {
+function V2StageThree({ st, update, schools, staff }) {
   const [sub, setSub] = useState("actions");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
@@ -4342,7 +4356,7 @@ function V2StageThree({ st, update, schools }) {
     const events = names.flatMap(name => (v2FindSchool(schools, name)?.calendar || []).map(e => ({ ...e, title: `${name}: ${e.title}`, source: "school-copy" })));
     update({ calendarEvents: [...(st.calendarEvents || []), ...events] });
   };
-  return <div><V2SubTabs tabs={[["actions", "액션 플랜"], ["calendar", "캘린더"], ["meetings", "미팅/커뮤니케이션"]]} active={sub} set={setSub} />{sub === "actions" && <V2Section title="Stage 2 전략 실행 관리"><V2Text label="주간 액션 플랜" val={plan.weeklyPlan} set={v => setPlan({ weeklyPlan: v })} /><EnhancedRoadmap st={st} update={update} schools={schools} /></V2Section>}{sub === "calendar" && <div className="grid"><V2Section title="학교 기본 일정 가져오기"><button className="btn primary" onClick={importSchoolCalendar}>학교 학사일정 복사</button><p className="small muted">복사된 일정은 이 학생 캘린더에서만 수정/삭제됩니다.</p></V2Section><StudentCalendar st={st} update={update} schools={schools} /></div>}{sub === "meetings" && <V2Section title="학부모/학생 미팅"><V2Text label="학부모 미팅 기록" val={plan.parentMeeting} set={v => setPlan({ parentMeeting: v })} /><V2Text label="학생 코칭 기록" val={plan.studentCoaching} set={v => setPlan({ studentCoaching: v })} /></V2Section>}</div>;
+  return <div><V2SubTabs tabs={[["actions", "액션 플랜"], ["calendar", "캘린더"], ["meetings", "미팅/커뮤니케이션"]]} active={sub} set={setSub} />{sub === "actions" && <V2Section title="Stage 2 전략 실행 관리"><V2Text label="주간 액션 플랜" val={plan.weeklyPlan} set={v => setPlan({ weeklyPlan: v })} /><EnhancedRoadmap st={st} update={update} schools={schools} /></V2Section>}{sub === "calendar" && <div className="grid"><V2Section title="학교 기본 일정 가져오기"><button className="btn primary" onClick={importSchoolCalendar}>학교 학사일정 복사</button><p className="small muted">복사된 일정은 이 학생 캘린더에서만 수정/삭제됩니다.</p></V2Section><OpsStudentCalendar st={st} update={update} /></div>}{sub === "meetings" && <OpsMeetings st={st} update={update} staff={staff} />}</div>;
 }
 function V2PreviousApplicationHistory({ st, update }) {
   const rows = st.previousApplications || [];
@@ -4385,17 +4399,17 @@ function V2RecommendationEditor({ st, update }) {
     <V2Text label="메모" val={r.notes} set={v => edit(i, { notes: v })} minHeight={48} />
   </div>} />;
 }
-function V2StageFour({ st, update }) {
+function V2StageFour({ st, update, schools = [] }) {
   const [sub, setSub] = useState("tracker");
   const plan = st.stagePlans || {};
   const setPlan = patch => update({ stagePlans: { ...plan, ...patch } });
-  const makeCore = () => update({ applications: (st.ecs || []).slice(0, 5).map(e => ({ school: "", activity: e.name, role: e.position, description: e.impact })) });
+  const makeCore = () => update({ applicationActivities: (st.ecs || []).slice(0, 5).map(e => ({ school: "", activity: e.name, role: e.position, description: e.impact })) });
   return <div>
     <V2SubTabs tabs={[["tracker", "Application Tracker"], ["history", "이전 지원 이력"], ["essays", "에세이"], ["activities", "핵심 액티비티"], ["recommendations", "추천서/계정"]]} active={sub} set={setSub} />
-    {sub === "tracker" && <ArrayEditor title="지원학교 리스트 / 원서 현황" rows={st.applications || []} add={() => update({ applications: [...(st.applications || []), { school: "", portal: "", deadline: "", status: "", essay: "", activity: "" }] })} render={(r, i) => <div className="grid g4"><V2Field label="학교" val={r.school} set={v => editArr(st, update, "applications", i, { school: v })} /><V2Field label="원서 계정/Portal" val={r.portal} set={v => editArr(st, update, "applications", i, { portal: v })} /><V2Field label="마감일" type="date" val={r.deadline} set={v => editArr(st, update, "applications", i, { deadline: v })} /><V2Field label="상태" val={r.status} set={v => editArr(st, update, "applications", i, { status: v })} list={["Not Started", "In Progress", "Submitted", "Interview", "Accepted", "Waitlisted", "Denied"]} /></div>} />}
+    {sub === "tracker" && <OpsApplications st={st} update={update} schools={schools} />}
     {sub === "history" && <V2PreviousApplicationHistory st={st} update={update} />}
     {sub === "essays" && <V2Section title="학교별 에세이 주제"><V2Text label="에세이 주제 / 소재 매칭" val={plan.essayThemes} set={v => setPlan({ essayThemes: v })} /></V2Section>}
-    {sub === "activities" && <V2Section title="원서용 핵심 액티비티 5개"><button className="btn primary" onClick={makeCore}>EC 데이터로 5개 생성</button><table className="table"><tbody>{(st.applications || []).slice(0, 5).map((a, i) => <tr key={i}><th>{i + 1}</th><td>{a.activity || a.school}<br /><span className="small muted">{a.description}</span></td></tr>)}</tbody></table></V2Section>}
+    {sub === "activities" && <V2Section title="원서용 핵심 액티비티 5개"><button className="btn primary" onClick={makeCore}>EC 데이터로 5개 생성</button><table className="table"><tbody>{(st.applicationActivities || []).slice(0, 5).map((a, i) => <tr key={i}><th>{i + 1}</th><td>{a.activity || a.school}<br /><span className="small muted">{a.description}</span></td></tr>)}</tbody></table></V2Section>}
     {sub === "recommendations" && <div className="grid"><V2RecommendationEditor st={st} update={update} /><V2Section title="원서 계정 / 제출 유의사항"><V2Text label="원서 계정 / 로그인 / 제출 유의사항" val={plan.applicationAccounts} set={v => setPlan({ applicationAccounts: v })} /></V2Section></div>}
   </div>;
 }
@@ -4427,7 +4441,7 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
     }
     if (!hasSelection) return;
     if (patch.name) setSelectedName(patch.name);
-    updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
+    return updateSchools(schools.map((s, i) => i === idx ? { ...s, ...patch } : s));
   };
   const addSchool = () => {
     setDraftSchool(V2_EMPTY_ADMIN_SCHOOL());
@@ -4481,6 +4495,7 @@ function V2SchoolDataAdmin({ schools = [], updateSchools }) {
       <V2Text label="Risk" val={school.risk} set={v => edit({ risk: v })} />
       <V2Text label="Interview / Essay Signal" val={school.interview} set={v => edit({ interview: v })} />
     </div>
+    {(hasSelection || isDraft) && <OpsSchoolRequirements key={school.name || "new"} school={school} edit={edit} />}
     <div className="card" style={{ background: "#f8fbfe", marginTop: 12 }}>
       <h3>English Requirement / Test Benchmarks</h3>
       <V2Text label="English Requirement Waiver Requirements" val={englishRequirements.waiverRequirements} set={v => editEnglish({ waiverRequirements: v })} minHeight={58} />
@@ -4704,8 +4719,8 @@ function V2Admin({ data, persist, updateSchools, setSelected, setView, setStage 
   const staff = data.staffAccounts || [];
   const editStaff = (i, patch) => persist({ ...data, staffAccounts: v2SetArr(staff, i, patch) });
   const addStaff = () => persist({ ...data, staffAccounts: [...staff, { id: "staff" + Date.now(), name: "새 담당자", role: "staff", email: "new@yesuhak.com", password: "prep2026" }] });
-  if (tab === "staff" && data.cloudConnected) return <><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} /><PPCloudAccounts students={data.students} admin /></>;
-  return <div><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "dashboard" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}</div>;
+  if (tab === "staff" && data.cloudConnected) return <><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["opportunities", "대회 / 활동"], ["students", "학생 현황"]]} active={tab} set={setTab} /><PPCloudAccounts students={data.students} admin /></>;
+  return <div><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["opportunities", "대회 / 활동"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "dashboard" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "opportunities" && <OpsCatalogue data={data} persist={persist} />}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}</div>;
 }
 
 // parent-portal.jsx mounts the staff LMS or the isolated parent entry point.

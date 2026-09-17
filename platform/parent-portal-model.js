@@ -46,7 +46,7 @@
   }
   function publicStudent(student) {
     const p = normalize(student);
-    return { id: student.id, name: student.name, program: student.program, programEndDate: student.programEndDate, parentPortal: { ...p, submissions: p.submissions.map(({ baseProfile, ...s }) => s), publications: p.publications.filter(x => x.status === "published") } };
+    return { id: student.id, name: student.name, program: student.program, programEndDate: student.programEndDate, parentPortal: { ...p, submissions: p.submissions.map(({ baseProfile, ...s }) => s), publications: p.publications.filter(x => x.status === "published"), progressSnapshots: (p.progressSnapshots || []).filter(x => x.status === "published") } };
   }
   function mergeSubmission(student, submission) {
     // Three-way merge prevents an older parent form from overwriting newer consultant edits.

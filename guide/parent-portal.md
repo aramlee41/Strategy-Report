@@ -34,7 +34,7 @@ The browser uses a publishable key from `platform/portal-config.js`.
 The `prep-portal` Edge Function checks sessions with `auth.getUser()`, then
 checks active server membership and explicit user-to-student assignments.
 
-All five tables have RLS enabled. Direct grants for anon/authenticated are
+All LMS tables, including the staff operations workspace, have RLS enabled. Direct grants for anon/authenticated are
 revoked; only the Edge Function's service role reads/writes them. The security
 advisor's "RLS Enabled No Policy" info notices are intentional deny-all defaults,
 not missing public-access policies. No service key is included in this repository.
