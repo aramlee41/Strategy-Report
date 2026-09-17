@@ -91,8 +91,18 @@ export function createService(db, model) {
     requirePortal(member.role,body.portal);
     if(body.action==='load') return load(member);
     if(body.action==='revisions') {
-      const current=await load(member);
-      return {versions:current.versions,workspaceVersion:current.workspaceVersion||0};
+      // Poll only revisions; report HTML and student profiles are not needed here.
+      let records;
+      if(member.role==='admin')records=check(await db.from('prep_records').select('id,version'));
+      else {
+        const grants=check(await db.from('prep_student_access').select('student_id').eq('user_id',member.user_id).eq('access_role',member.role==='parent'?'parent':'staff'));
+        let query=db.from('prep_records').select('id,version').eq('kind','student').in('id',grants.map(g=>g.student_id));
+        if(member.role==='parent')query=query.eq('payload->parentPortal->>enabled','true');
+        records=grants.length?check(await query):[];
+        if(member.role==='staff')records.push(...check(await db.from('prep_records').select('id,version').eq('kind','config')));
+      }
+      const workspace=member.role==='parent'?null:check(await db.from('prep_workspaces').select('version').eq('user_id',member.user_id).maybeSingle());
+      return {versions:versionsOf(records),workspaceVersion:workspace?.version||0};
     }
     if(body.action==='saveWorkspace') {
       staffOnly(member);
@@ -100,9 +110,25 @@ export function createService(db, model) {
       if(!Number.isSafeInteger(body.version)||body.version<0||!p||typeof p!=='object'||Array.isArray(p))throw new PortalError('개인 업무 저장 형식을 확인해 주세요.');
       for(const key of ['events','tasks'])if(!Array.isArray(p[key])||p[key].length>2000)throw new PortalError('개인 업무 목록을 확인해 주세요.');
       for(const e of p.events)if(!e.id||!e.title||!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!['private','staff'].includes(e.visibility))throw new PortalError('일정 제목·날짜·공개 범위를 확인해 주세요.');
-      const payload={events:p.events,tasks:p.tasks,subscriptions:{schoolIds:Array.isArray(p.subscriptions?.schoolIds)?p.subscriptions.schoolIds:[],staffIds:Array.isArray(p.subscriptions?.staffIds)?p.subscriptions.staffIds:[],team:!!p.subscriptions?.team,marketing:!!p.subscriptions?.marketing},readAt:String(p.readAt||'')};
+      if(p.crmViews!==undefined&&(!Array.isArray(p.crmViews)||p.crmViews.length>20))throw new PortalError('저장된 필터는 20개까지 사용할 수 있습니다.');
+      const crmViews=(p.crmViews||[]).map(v=>{
+        if(!v.id||typeof v.name!=='string'||!v.name.trim()||!v.filters||typeof v.filters!=='object')throw new PortalError('필터 이름과 조건을 확인해 주세요.');
+        const keys=['search','status','sort','owner','program','stage','priority','attention','tag'];
+        return {id:String(v.id).slice(0,100),name:v.name.trim().slice(0,60),filters:Object.fromEntries(keys.filter(k=>typeof v.filters[k]==='string').map(k=>[k,v.filters[k].slice(0,200)]))};
+      });
+      const payload={events:p.events,tasks:p.tasks,subscriptions:{schoolIds:Array.isArray(p.subscriptions?.schoolIds)?p.subscriptions.schoolIds:[],staffIds:Array.isArray(p.subscriptions?.staffIds)?p.subscriptions.staffIds:[],team:!!p.subscriptions?.team,marketing:!!p.subscriptions?.marketing},readAt:String(p.readAt||''),crmViews};
       const version=check(await db.rpc('prep_save_workspace',{actor:member.user_id,expected_version:body.version,content:payload}));
       return {version,payload};
+    }
+    if(body.action==='requestReply') {
+      if(member.role!=='parent')throw new PortalError('학부모 계정으로 로그인해 주세요.',403,'ACCESS_DENIED');
+      const r=await recordFor(member,body.studentId);
+      if(!Number.isSafeInteger(body.version)||body.version<1)throw new PortalError('자료를 새로 불러온 후 저장해 주세요.',409,'VERSION_CONFLICT');
+      let portal;
+      try { portal=model.replyToRequest(r.payload,body.requestId,body.reply); }
+      catch(error) { throw new PortalError(error.message); }
+      const versions=check(await db.rpc('prep_commit',{actor:member.user_id,event_name:'parent_request_reply',changes:[{id:r.id,kind:'student',expectedVersion:body.version,payload:{...r.payload,parentPortal:portal}}]}));
+      return {student:model.publicStudent({...r.payload,parentPortal:portal}),versions};
     }
     if(body.action==='parentSave') {
       if(member.role!=='parent') throw new PortalError('학부모 계정으로 로그인해 주세요.',403,'ACCESS_DENIED');
@@ -155,7 +181,41 @@ export function createService(db, model) {
           return {...p,status:'published',authorId:member.user_id,authorName:member.name,publishedAt:new Date().toISOString()};
         });
         for(const p of oldSnapshots)if(!proposed.progressSnapshots.some(x=>x.id===p.id))proposed.progressSnapshots.push(p);
+        const requests=Array.isArray(proposed.requests)?proposed.requests:[],oldRequests=Array.isArray(prior?.requests)?prior.requests:[];
+        if(requests.length>500||new Set(requests.map(r=>r?.id)).size!==requests.length)throw new PortalError('자료 요청 수 또는 중복을 확인해 주세요.');
+        proposed.requests=requests.map(r=>{
+          if(!r?.id||typeof r.title!=='string'||!r.title.trim()||r.title.length>200||!['기본 정보','학교 정보','성적표','시험 결과','EC 활동','수상','원서 서류','기타'].includes(r.category)||!/^\d{4}-\d{2}-\d{2}$/.test(r.dueDate||'')||Number.isNaN(Date.parse(r.dueDate))||new Date(r.dueDate).toISOString().slice(0,10)!==r.dueDate)throw new PortalError('자료 요청 제목·종류·기한을 확인해 주세요.');
+          const old=oldRequests.find(x=>x.id===r.id),status=r.status;
+          if(!old&&status!=='requested')throw new PortalError('새 자료 요청 상태를 확인해 주세요.');
+          if(old){
+            const transitions={requested:['requested','cancelled'],submitted:['submitted','accepted','returned','cancelled'],returned:['returned','cancelled'],accepted:['accepted','cancelled'],cancelled:['cancelled']};
+            if(!transitions[old.status]?.includes(status))throw new PortalError('자료 요청 상태 변경 순서를 확인해 주세요.');
+            if(status==='returned'&&!String(r.reviewNote||'').trim())throw new PortalError('보완 요청 사유를 작성해 주세요.');
+          }
+          const reviewing=old?.status==='submitted'&&['accepted','returned'].includes(status);
+          return {id:r.id,title:r.title.trim(),category:r.category,dueDate:r.dueDate,instructions:String(r.instructions||'').slice(0,5000),status,createdAt:old?.createdAt||new Date().toISOString(),authorId:old?.authorId||member.user_id,authorName:old?.authorName||member.name,reply:old?.reply||null,replies:old?.replies||[],reviewNote:String(r.reviewNote||'').slice(0,5000),reviews:reviewing?[...(old?.reviews||[]),{status,note:String(r.reviewNote||'').slice(0,5000),at:new Date().toISOString(),authorId:member.user_id,authorName:member.name}]:old?.reviews||[],reviewedAt:reviewing?new Date().toISOString():old?.reviewedAt||'',reviewedBy:reviewing?member.name:old?.reviewedBy||''};
+        });
+        for(const old of oldRequests)if(!proposed.requests.some(r=>r.id===old.id))proposed.requests.push(old);
+        if(proposed.requests.length>500)throw new PortalError('자료 요청은 학생당 최대 500건까지 보관할 수 있습니다.');
         payload.parentPortal=proposed;
+        const incomingCRM=payload.operations?.crm;
+        if(incomingCRM!==undefined){
+          if(!incomingCRM||typeof incomingCRM!=='object'||Array.isArray(incomingCRM)||!['active','paused','completed'].includes(incomingCRM.status||'active'))throw new PortalError('CRM 관리 상태를 확인해 주세요.');
+          if(incomingCRM.contacts!==undefined&&!Array.isArray(incomingCRM.contacts))throw new PortalError('연락 기록 형식을 확인해 주세요.');
+          const contacts=incomingCRM.contacts||[],oldContacts=existing?.payload.operations?.crm?.contacts||[];
+          if(contacts.length>2000||new Set(contacts.map(c=>c?.id)).size!==contacts.length)throw new PortalError('연락 기록 수 또는 중복을 확인해 주세요.');
+          const saved=contacts.map(c=>{
+            const old=oldContacts.find(x=>x.id===c?.id);if(old)return old;
+            if(!c?.id||typeof c.summary!=='string'||!c.summary.trim()||c.summary.length>20000||!/^\d{4}-\d{2}-\d{2}$/.test(c.date)||Number.isNaN(Date.parse(c.date))||new Date(c.date).toISOString().slice(0,10)!==c.date)throw new PortalError('연락 날짜와 내용을 확인해 주세요.');
+            if(!['전화','이메일','KakaoTalk','문자','화상 미팅','대면 미팅','기타'].includes(c.channel)||!['학생','학부모','학교','기타'].includes(c.party)||!['연락 완료','연락 시도','회신 대기'].includes(c.outcome))throw new PortalError('연락 대상·수단·결과를 확인해 주세요.');
+            return {...c,authorId:member.user_id,authorName:member.name,createdAt:new Date().toISOString()};
+          });
+          for(const old of oldContacts)if(!saved.some(c=>c.id===old.id))saved.push(old);
+          if(saved.length>2000)throw new PortalError('연락 기록은 학생당 최대 2,000건까지 보관할 수 있습니다.');
+          payload.operations={...payload.operations,crm:{...incomingCRM,contacts:saved}};
+        }else if(existing?.payload.operations?.crm){
+          payload.operations={...payload.operations,crm:existing.payload.operations.crm};
+        }
         const incomingResumes=payload.operations?.resumeVersions;
         if(incomingResumes!==undefined) {
           if(!Array.isArray(incomingResumes)||incomingResumes.length>200)throw new PortalError('Resume 저장본 목록을 확인해 주세요.');

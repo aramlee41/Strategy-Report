@@ -45,3 +45,13 @@ test('zero score is input, missing score is not', () => {
   assert.deepEqual(P.requirements(s, { ...declarations, tests: 'provided' }), []);
   s.tests[0].overall = ''; assert.ok(P.requirements(s, { ...declarations, tests: 'provided' }).length);
 });
+test('material request replies accept only active requests and safe links',()=>{
+ const st={parentPortal:{requests:[{id:'r',title:'Transcript',status:'requested'}]}};
+ const p=P.replyToRequest(st,'r',{url:'https://example.com/report.pdf',note:'First reply'},'2026-09-17T00:00:00Z');
+ assert.equal(p.requests[0].status,'submitted');assert.equal(p.requests[0].replies.length,1);assert.equal(st.parentPortal.requests[0].status,'requested');
+ assert.throws(()=>P.replyToRequest(st,'r',{url:'javascript:alert(1)'}),/http/);
+ assert.throws(()=>P.replyToRequest(st,'r',{}),/입력/);
+ assert.throws(()=>P.replyToRequest({parentPortal:p},'r',{note:'duplicate'}),/회신 가능한/);
+ const returned={...p,requests:p.requests.map(r=>({...r,status:'returned'}))};
+ assert.equal(P.replyToRequest({parentPortal:returned},'r',{note:'Correction'}).requests[0].replies.length,2);
+});

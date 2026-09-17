@@ -65,3 +65,10 @@ test('published progress and resume versions are independent from later student 
  const st={id:'s',name:'Student',ecs:[{name:'Cello'}],tasks:[{title:'Public',shareWithFamily:true},{title:'Secret'}],operations:{meetings:[{notes:'Private internal notes',familySummary:'Public summary',shareWithFamily:true,date:'2026-09-17'}],goals:[]}};
  const p=O.publishProgress(st,'Summary','Staff');assert(!JSON.stringify(p).includes('Private'));assert(!JSON.stringify(p).includes('Secret'));assert.equal(p.tasks.length,1);const r=O.resume(st);st.ecs[0].name='Edited';assert.equal(r.activities[0].name,'Cello');
 });
+test('application results cannot be reset from operational task completion',()=>{
+ for(const status of ['Accepted','Denied','Waitlisted','합격','불합격']){
+  const st={id:'s',applications:[{id:'app',school:'School',deadline:'2026-12-01',status}]};
+  const task=O.tasks(st).find(t=>t.key==='applicationDeadline');assert.equal(task.statusLocked,true);
+  assert.equal(O.updateTask(st,{...task,done:false}).applications[0].status,status);
+ }
+});

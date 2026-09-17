@@ -14,7 +14,7 @@
     const manual=['actionPlans','tasks'].flatMap(key=>rows(st[key],key).map(t=>({...t,key,title:t.title||t.text||t.task||'',date:t.deadline||t.due||t.date||'',done:t.done===true||t.status==='완료'})));
     const goals=operations(st).goals.flatMap(g=>rows(g.milestones,'milestone').map(m=>({...m,key:'goalMilestone',goalId:g.id,title:m.title,context:g.title,date:m.date,importance:m.importance||g.importance||3,ownerId:m.ownerId||g.ownerId,shareWithFamily:m.shareWithFamily??g.shareWithFamily})));
     const applications=rows(st.applications,'application').flatMap(a=>[
-      ...(a.school&&a.deadline?[{id:a.id,key:'applicationDeadline',applicationId:a.id,title:`${a.school} 원서 제출`,date:a.deadline,done:/submitted|accepted|waitlisted|denied|withdrawn|제출|합격|불합격/i.test(a.status||''),importance:5}]:[]),
+      ...(a.school&&a.deadline?[{id:a.id,key:'applicationDeadline',applicationId:a.id,title:`${a.school} 원서 제출`,date:a.deadline,done:/submitted|accepted|waitlisted|denied|withdrawn|제출|합격|불합격/i.test(a.status||''),statusLocked:/accepted|waitlisted|denied|withdrawn|합격|불합격|대기|철회/i.test(a.status||''),importance:5}]:[]),
       ...rows(a.requirements,'requirement').map(r=>({...r,key:'applicationRequirement',applicationId:a.id,title:r.title,context:a.school,date:r.deadline||a.deadline||'',done:r.status==='완료',importance:r.importance||4}))
     ]);
     return [...manual,...goals,...applications].filter(t=>t.title).map(t=>({...t,uid:`${st.id}:${t.key}:${t.applicationId||t.goalId||''}:${t.id}`,studentId:st.id,studentName:st.name}));
@@ -22,7 +22,7 @@
   function updateTask(st,t,remove=false){
     if(t.key==='goalMilestone')return {operations:{...operations(st),goals:operations(st).goals.map(g=>g.id!==t.goalId?g:{...g,milestones:rows(g.milestones,'milestone').flatMap(m=>m.id!==t.id?[m]:remove?[]:[{...m,title:t.title,date:t.date,done:!!t.done,notes:t.notes,ownerId:t.ownerId,importance:t.importance,shareWithFamily:t.shareWithFamily}])})}};
     if(t.key==='applicationRequirement')return {applications:rows(st.applications,'application').map(a=>a.id!==t.applicationId?a:{...a,requirements:rows(a.requirements,'requirement').flatMap(r=>r.id!==t.id?[r]:remove?[]:[{...r,title:t.title,deadline:t.date,status:t.done?'완료':r.status==='완료'?'진행 중':r.status,notes:t.notes,ownerId:t.ownerId,importance:t.importance,shareWithFamily:t.shareWithFamily}])})};
-    if(t.key==='applicationDeadline')return {applications:rows(st.applications,'application').map(a=>a.id!==t.applicationId?a:{...a,deadline:t.date,status:t.done?(/accepted|waitlisted|denied|withdrawn/i.test(a.status||'')?a.status:'Submitted'):/submitted/i.test(a.status)?'In Progress':a.status})};
+    if(t.key==='applicationDeadline')return {applications:rows(st.applications,'application').map(a=>a.id!==t.applicationId?a:{...a,deadline:t.date,status:/accepted|waitlisted|denied|withdrawn|합격|불합격|대기|철회/i.test(a.status||'')?a.status:t.done?'Submitted':/submitted|제출/i.test(a.status)?'In Progress':a.status})};
     const key=t.key==='actionPlans'?'actionPlans':'tasks',items=rows(st[key],key),row={...t,title:t.title,text:t.title,deadline:t.date,done:!!t.done,status:t.done?'완료':'진행 중'};
     return {[key]:remove?items.filter(x=>x.id!==t.id):items.some(x=>x.id===t.id)?items.map(x=>x.id===t.id?{...x,...row}:x):[...items,row]};
   }
@@ -41,6 +41,7 @@
       ...o.meetings.filter(m=>!m.cancelled).map(m=>({...m,title:m.title||'학생 미팅',source:'meeting',done:!!m.appliedAt})),
       ...routineEvents(st),
       ...o.breakPlans.filter(b=>!b.cancelled).map(b=>({...b,date:b.from,title:`${b.type||'방학'} · ${b.title||'계획'}`,source:'break'})),
+      ...list(st.parentPortal?.requests).map(r=>({id:r.id,date:r.dueDate,title:`자료 회신 · ${r.title}`,source:'material',done:['accepted','cancelled'].includes(r.status)})),
       ...rows(st.applications,'application').filter(a=>a.interviewDate).map(a=>({id:`${a.id}-interview`,date:a.interviewDate,time:a.interviewTime||'',timezone:a.interviewTimezone||'',title:`${a.school} 인터뷰`,source:'application',done:a.interviewStatus==='완료'}))
     ].filter(e=>date(e.date)).map(e=>({...e,studentId:st.id,studentName:st.name,uid:e.uid||`${st.id}:${e.source}:${e.id}`}));
   }

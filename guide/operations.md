@@ -1,5 +1,7 @@
 # Prep LMS Operations
 
+CRM contacts, material requests, handovers and filters: [CRM 운영 안내](crm.md).
+
 ## Entry and Roles
 
 - Staff/admin: `/platform/index.html?portal=staff`.

@@ -111,6 +111,10 @@ function PPCloudApp() {
     const result=await PC.call({action:"parentSave",studentId:id,operation,version:versions.current[id],profile:p.draft,declarations:p.declarations,parentName:p.parentName,contactPhone:p.contactPhone});
     Object.assign(versions.current,result.versions);setLoaded(old=>({...old,students:old.students.map(s=>s.id===id?result.student:s)}));
   };
+  const replyRequest=async(id,requestId,reply)=>{
+    const result=await PC.call({action:'requestReply',studentId:id,requestId,reply,version:versions.current[id]});
+    Object.assign(versions.current,result.versions);setLoaded(old=>({...old,students:old.students.map(s=>s.id===id?result.student:s)}));
+  };
   const importLocal=async()=>{
     if(pending.current||blocked.current){setError("진행 중인 저장 또는 저장 오류를 먼저 확인해 주세요.");return;}
     const raw=localStorage.getItem(STORE);
@@ -135,7 +139,7 @@ function PPCloudApp() {
   if(!hasEntry)return <PPPortalChoice/>;
   if(!ready)return <main className="portal-login">로그인 상태를 확인하고 있습니다.</main>;
   if(!loaded)return <><PPCloudLogin inviteToken={inviteToken} onReady={()=>{setInviteToken(null);return refresh();}}/>{error&&<div className="portal-notice warn" role="alert">{error}<button className="btn ghost" onClick={refresh}>다시 연결</button></div>}</>;
-  if(loaded.user.role==="parent")return <>{remoteAvailable&&<div className="portal-notice" role="status">담당자가 자료를 업데이트했습니다. 저장 후 새로 불러오기를 눌러 확인해 주세요.</div>}<PPParentPortal key={epoch} students={loaded.students} saveStudent={parentSave} schools={window.PREP_SCHOOLS||DEFAULT_SCHOOLS} exit={logout}/><button className="btn ghost" style={{position:"fixed",bottom:12,right:12,zIndex:30}} onClick={()=>{if(window.confirm("작성 중인 내용이 있다면 먼저 임시저장해 주세요. 자료를 새로 불러올까요?"))refresh();}} disabled={busy}>새로 불러오기</button>{error&&<div className="portal-notice warn" role="alert">{error}</div>}</>;
+  if(loaded.user.role==="parent")return <>{remoteAvailable&&<div className="portal-notice" role="status">담당자가 자료를 업데이트했습니다. 저장 후 새로 불러오기를 눌러 확인해 주세요.</div>}<PPParentPortal key={epoch} students={loaded.students} saveStudent={parentSave} replyRequest={replyRequest} schools={window.PREP_SCHOOLS||DEFAULT_SCHOOLS} exit={logout}/><button className="btn ghost" style={{position:"fixed",bottom:12,right:12,zIndex:30}} onClick={()=>{if(window.confirm("작성 중인 내용이 있다면 먼저 임시저장해 주세요. 자료를 새로 불러올까요?"))refresh();}} disabled={busy}>새로 불러오기</button>{error&&<div className="portal-notice warn" role="alert">{error}</div>}</>;
 return <><div className="cloud-status"><span role="status">{remoteAvailable?"새 업데이트가 있습니다. 작성 내용을 저장한 후 공용 자료를 새로 불러와 주세요.":status}</span><div className="portal-actions"><button className="btn ghost" disabled={busy||!!pending.current} onClick={()=>{if(!blocked.current||window.confirm("저장하지 못한 변경을 닫고 공용 자료를 다시 불러올까요?"))refresh();}}>공용 자료 새로 불러오기</button></div></div>{error&&<div className="portal-notice warn" role="alert">{error}</div>}<V2App key={epoch} cloud={{data:loaded,user:loaded.user,save,logout,importLocal,saveWorkspace}}/></>;
 }
 ReactDOM.render(<PPEntry />, document.getElementById("root"));

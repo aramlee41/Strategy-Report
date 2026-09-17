@@ -87,7 +87,7 @@ function PPApplication({ student, save, schools, onDirty }) {
     {confirm && <PPDialog title="학생 자료를 제출하시겠습니까?" close={() => setConfirm(false)}><p>현재 작성한 자료가 담당 컨설턴트에게 전달됩니다. 제출 후에도 추가 자료를 작성해 다시 제출할 수 있습니다.</p><button className="btn primary" disabled={busy} onClick={() => persist(true)}>{busy ? "제출 중…" : "확인 후 제출"}</button></PPDialog>}
   </div>;
 }
-function PPParentPortal({ students, saveStudent, schools = [], preview = false, exit }) {
+function PPParentPortal({ students, saveStudent, schools = [], preview = false, exit, replyRequest }) {
   const [view, setView] = useState("dashboard");
   const [selected, setSelected] = useState(students[0]?.id);
   const [dirty, setDirty] = useState(false);
@@ -100,7 +100,7 @@ function PPParentPortal({ students, saveStudent, schools = [], preview = false, 
   const unread = updates.filter(u => !readAt || u.at > readAt).length;
   const navigate = (target, id = selected) => { if (dirty && !window.confirm("저장하지 않은 내용이 있습니다. 이동하시겠습니까?")) return; setDirty(false); setSelected(id); setView(target); };
   React.useEffect(() => { const handler = e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } }; window.addEventListener("beforeunload", handler); return () => window.removeEventListener("beforeunload", handler); }, [dirty]);
-  const menus = [["dashboard", "대시보드", "LayoutDashboard"], ["progress", "학생 진행상황", "TrendingUp"], ["application", "학생 자료 입력", "ClipboardList"], ["reports", "공개 보고서", "FileChartColumn"], ["payments", "입금 안내", "CalendarDays"], ["account", "내 정보", "UserRound"]];
+  const menus = [["dashboard", "대시보드", "LayoutDashboard"], ["progress", "학생 진행상황", "TrendingUp"], ["requests", "요청 자료", "Files"], ["application", "학생 자료 입력", "ClipboardList"], ["reports", "공개 보고서", "FileChartColumn"], ["payments", "입금 안내", "CalendarDays"], ["account", "내 정보", "UserRound"]];
   return <div className="portal-shell">{preview && <div className="portal-preview"><span>학부모 화면 미리보기 · 이 브라우저의 자료로 확인 중입니다.</span><button className="btn ghost" onClick={() => { if (!dirty || window.confirm("저장하지 않은 내용을 닫을까요?")) exit(); }}>실무자 화면으로 돌아가기</button></div>}
     <header className="portal-header"><div className="portal-brand"><PPIcon name="GraduationCap" size={36} /><div><strong>예스유학 · Family Portal</strong><small>학생의 준비 과정을 함께 확인합니다</small></div></div><div className="portal-actions"><span>{child?.parentPortal.parentName || "학부모"}님</span>{!preview && <button className="btn ghost" onClick={exit}>로그아웃</button>}</div></header>
     <div className="portal-layout"><nav className="portal-nav" aria-label="학부모 메뉴">{menus.map(([key, label, icon]) => <button className={view === key ? "active" : ""} key={key} onClick={() => navigate(key)}><PPIcon name={icon} />{label}</button>)}</nav><main className="portal-content">
@@ -109,6 +109,7 @@ function PPParentPortal({ students, saveStudent, schools = [], preview = false, 
       {view === "reports" && <><h1>공개 보고서</h1><p className="portal-muted">컨설턴트가 검토하고 배포한 보고서입니다.</p>{publications.map(r => <div className="portal-row" key={r.id}><div><b>{r.title}</b><p>{r.studentName} · {ppTime(r.publishedAt)}</p></div><button className="btn primary" onClick={() => setReport(r)}>보고서 열기</button></div>)}{!publications.length && <p className="portal-empty">공개된 보고서가 없습니다. 담당자가 검토 후 배포하면 이곳에서 확인하실 수 있습니다.</p>}</>}
       {view === "payments" && <><h1>입금 안내</h1><p className="portal-muted">프로그램별 입금 예정일과 확인된 입금 내역입니다.</p><PPPayments payments={payments} /></>}
       {view === "progress" && <OpsFamilyProgress students={students} />}
+      {view === "requests" && <CRMFamilyRequests students={students} replyRequest={replyRequest} onDirty={setDirty} preview={preview} />}
       {view === "account" && child && <PPAccount key={child.id} student={child} save={saveStudent} />}
     </main></div>{report && <PPReportViewer report={report} close={() => setReport(null)} />}</div>;
 }
@@ -121,9 +122,9 @@ function PPAccount({ student, save }) {
   const [message, setMessage] = useState("");
   return <><h1>내 정보</h1><p className="portal-muted">연락받으실 정보를 최신 상태로 유지해 주세요.</p><div className="portal-grid"><V2Field label="보호자 성함" val={name} set={setName} /><V2Field label="연락처" type="tel" val={phone} set={setPhone} /></div><p>계정 이메일: {student.parentPortal.parentEmail || "미등록"}</p><button className="btn primary" onClick={async () => { try { await save(student.id, { ...student.parentPortal, parentName: name, contactPhone: phone }, "account"); setMessage("연락처를 저장했습니다."); } catch (e) { setMessage(e.message); } }}>저장</button><p role="status">{message}</p></>;
 }
-function PPManager({ data, persist, user }) {
+function PPManager({ data, persist, user, initialStudentId }) {
   const students = user.role === "admin" ? data.students : data.students.filter(s => (s.owners || [s.owner]).includes(user.id));
-  const [selected, setSelected] = useState(students[0]?.id);
+  const [selected, setSelected] = useState(initialStudentId || students[0]?.id);
   const [preview, setPreview] = useState(false);
   const [review, setReview] = useState(null);
   const [note, setNote] = useState("");

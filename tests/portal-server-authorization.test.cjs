@@ -6,15 +6,15 @@ function fakeDatabase() {
  const profile={id:'one',name:'Student A',basic:{},tests:[],ecs:[],awards:[],academicTerms:[],owners:['s'],stagePlans:{private:'secret'}};
  const portal={...model.normalize(profile),enabled:true,publications:[{id:'r',status:'published',html:'approved',authorId:'a',authorName:'Admin',publishedAt:'2026-01-01'}, {id:'private',status:'draft',html:'never-share'}]};
  const tables={prep_members:members,prep_student_access:[{student_id:'one',user_id:'s',access_role:'staff'},{student_id:'one',user_id:'p',access_role:'parent'},{student_id:'two',user_id:'q',access_role:'parent'}],prep_records:[{id:'one',kind:'student',version:1,payload:{...profile,parentPortal:portal}},{id:'two',kind:'student',version:1,payload:{id:'two',name:'Private B',parentPortal:{...portal,publications:[]}}}],prep_invitations:[],prep_workspaces:[]};
- const calls=[];
+ const calls=[],queries=[];
  const db={auth:{getUser:async token=>({data:{user:members.some(m=>m.user_id===token)?{id:token}:null},error:null})},from(table){
    let rows=tables[table]; let one=false;const filters=[];let operation='select';let patch;
-   const q={select(){return q;},eq(k,v){filters.push(x=>x[k]===v);return q;},in(k,vs){filters.push(x=>vs.includes(x[k]));return q;},order(){return q;},limit(){return q;},maybeSingle(){one=true;return q;},single(){one=true;return q;},update(v){operation='update';patch=v;return q;},insert(v){operation='insert';patch=v;return q;},then(resolve,reject){try{let result=rows.filter(x=>filters.every(fn=>fn(x)));if(operation==='update')result.forEach(x=>Object.assign(x,patch));if(operation==='insert'){tables[table].push(patch);result=[patch];}return Promise.resolve({data:one?(result[0]||null):result,error:null}).then(resolve,reject);}catch(e){return Promise.reject(e).then(resolve,reject);}}};return q;
+   const q={select(columns='*'){queries.push({table,columns});return q;},eq(k,v){filters.push(x=>k.includes('->')?String(k.split(/->>?/).reduce((value,key)=>value?.[key],x))===v:x[k]===v);return q;},in(k,vs){filters.push(x=>vs.includes(x[k]));return q;},order(){return q;},limit(){return q;},maybeSingle(){one=true;return q;},single(){one=true;return q;},update(v){operation='update';patch=v;return q;},insert(v){operation='insert';patch=v;return q;},then(resolve,reject){try{let result=rows.filter(x=>filters.every(fn=>fn(x)));if(operation==='update')result.forEach(x=>Object.assign(x,patch));if(operation==='insert'){tables[table].push(patch);result=[patch];}return Promise.resolve({data:one?(result[0]||null):result,error:null}).then(resolve,reject);}catch(e){return Promise.reject(e).then(resolve,reject);}}};return q;
  },async rpc(name,args){calls.push({name,args});if(name==='prep_save_workspace'){const old=tables.prep_workspaces.find(w=>w.user_id===args.actor);if((old?.version||0)!==args.expected_version)return {error:{code:'40001'}};const version=(old?.version||0)+1;if(old)Object.assign(old,{payload:args.content,version});else tables.prep_workspaces.push({user_id:args.actor,payload:args.content,version});return {data:version};}if(name==='prep_commit'){
    for(const c of args.changes){const row=tables.prep_records.find(r=>r.id===c.id);if(row&&row.version!==c.expectedVersion)return {error:{code:'40001',message:'VERSION_CONFLICT'}};}
    const versions={};for(const c of args.changes){let row=tables.prep_records.find(r=>r.id===c.id);if(row){row.payload=c.payload;row.version++;}else{row={...c,version:1};tables.prep_records.push(row);}versions[row.id]=row.version;}return {data:versions,error:null};
  }throw new Error('unexpected rpc '+name);}};
- return {db,tables,calls};
+ return {db,tables,calls,queries};
 }
 async function setup(){const fixture=fakeDatabase();const {createService}=await import('../supabase/functions/prep-portal/service.mjs');return {...fixture,run:createService(fixture.db,model)};}
 test('missing, forged and disabled sessions cannot read data',async()=>{
@@ -87,4 +87,55 @@ test('resume versions remain immutable and revisions reveal only accessible reco
  const next=JSON.parse(JSON.stringify(tables.prep_records[0].payload));next.operations.resumeVersions[0].name='Changed';
  await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:2,payload:next}]},'s');assert.equal(tables.prep_records[0].payload.operations.resumeVersions[0].name,'Original');assert.equal(tables.prep_records[0].payload.operations.resumeVersions[0].authorId,'s');
  const revisions=await run({action:'revisions'},'p');assert.deepEqual(Object.keys(revisions.versions),['one']);assert.equal(revisions.students,undefined);
+});
+test('CRM contacts are private, immutable and stamped with the authenticated author',async()=>{
+ const {run,tables}=await setup();const original=JSON.parse(JSON.stringify(tables.prep_records[0].payload));
+ original.operations={crm:{status:'active',contacts:[{id:'c',date:'2026-09-17',party:'학부모',channel:'전화',outcome:'연락 완료',summary:'Internal CRM notes',authorId:'forged',createdAt:'2000-01-01'}]}};
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:1,payload:original}]},'s');
+ let saved=tables.prep_records[0].payload;assert.equal(saved.operations.crm.contacts[0].authorId,'s');assert.notEqual(saved.operations.crm.contacts[0].createdAt,'2000-01-01');
+ const tamper=JSON.parse(JSON.stringify(saved));tamper.operations.crm.contacts[0].summary='Changed history';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:2,payload:tamper}]},'s');
+ saved=tables.prep_records[0].payload;assert.equal(saved.operations.crm.contacts[0].summary,'Internal CRM notes');
+ const oldClient=JSON.parse(JSON.stringify(saved));delete oldClient.operations.crm;
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:3,payload:oldClient}]},'s');
+ assert.equal(tables.prep_records[0].payload.operations.crm.contacts.length,1);assert(!JSON.stringify(await run({action:'load'},'p')).includes('Internal CRM notes'));
+});
+
+test('revision polling selects only version metadata and honors revoked family access',async()=>{
+ const {run,tables,queries}=await setup();tables.prep_workspaces.push({user_id:'s',version:4,payload:{tasks:[],events:[]}});
+ tables.prep_records.push({id:'__schools',kind:'config',version:3,payload:{schools:[]}});
+ const staff=await run({action:'revisions'},'s');assert.deepEqual(staff,{versions:{one:1,__schools:3},workspaceVersion:4});
+ assert(queries.filter(q=>q.table==='prep_records').every(q=>q.columns==='id,version'));
+ assert(queries.filter(q=>q.table==='prep_workspaces').every(q=>q.columns==='version'));
+ tables.prep_records[0].payload.parentPortal.enabled=false;
+ const family=await run({action:'revisions'},'p');assert.deepEqual(family,{versions:{},workspaceVersion:0});
+ const other=await run({action:'revisions'},'q');assert.deepEqual(Object.keys(other.versions),['two']);
+});
+test('CRM saved filters stay in the authenticated private workspace and are bounded',async()=>{
+ const {run,tables}=await setup();const payload={events:[],tasks:[],subscriptions:{},crmViews:[{id:'v',name:'My overdue students',filters:{attention:'overdue',owner:'s',arbitrary:'discard'}}]};
+ await run({action:'saveWorkspace',version:0,payload},'s');assert.equal(tables.prep_workspaces[0].payload.crmViews[0].filters.arbitrary,undefined);
+ assert.equal((await run({action:'load'},'a')).workspace.crmViews,undefined);
+ await assert.rejects(()=>run({action:'saveWorkspace',version:1,payload:{...payload,crmViews:Array(21).fill(payload.crmViews[0])}},'s'));
+});
+test('consultants cannot use CRM bulk assignment to change student permissions',async()=>{
+ const {run,tables}=await setup();const payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));payload.owners=['a'];payload.owner='a';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:1,payload}]},'s');assert.deepEqual(tables.prep_records[0].payload.owners,['s']);
+});
+test('material requests use a guarded parent reply and consultant review cycle',async()=>{
+ const {run,tables}=await setup();let payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));
+ payload.parentPortal.requests=[{id:'r',title:'Transcript',category:'성적표',dueDate:'2026-10-01',status:'requested',authorId:'forged'}];
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:1,payload}]},'s');
+ assert.equal(tables.prep_records[0].payload.parentPortal.requests[0].authorId,'s');
+ await assert.rejects(()=>run({action:'requestReply',studentId:'two',requestId:'r',version:1,reply:{note:'attack'}},'p'),e=>e.status===403);
+ await assert.rejects(()=>run({action:'requestReply',studentId:'one',requestId:'r',version:2,reply:{note:'staff cannot reply'}},'s'),e=>e.status===403);
+ const response=await run({action:'requestReply',studentId:'one',requestId:'r',version:2,reply:{note:'Parent response',url:'https://example.com/report.pdf',status:'accepted'}},'p');assert.equal(response.student.parentPortal.requests[0].status,'submitted');
+ payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));payload.parentPortal.requests[0].status='returned';
+ await assert.rejects(()=>run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:3,payload}]},'s'),/사유/);
+ payload.parentPortal.requests[0].reviewNote='Please send all pages';payload.parentPortal.requests[0].reply.note='Tampered';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:3,payload}]},'s');assert.equal(tables.prep_records[0].payload.parentPortal.requests[0].reply.note,'Parent response');
+ await run({action:'requestReply',studentId:'one',requestId:'r',version:4,reply:{note:'All pages'}},'p');
+ payload=JSON.parse(JSON.stringify(tables.prep_records[0].payload));payload.parentPortal.requests[0].status='accepted';
+ await run({action:'save',changes:[{id:'one',kind:'student',expectedVersion:5,payload}]},'s');assert.equal(tables.prep_records[0].payload.parentPortal.requests[0].replies.length,2);
+ assert.deepEqual(tables.prep_records[0].payload.parentPortal.requests[0].reviews.map(r=>r.status),['returned','accepted']);
+ assert(tables.prep_records[0].payload.parentPortal.requests[0].reviews.every(r=>r.authorId==='s'));
 });

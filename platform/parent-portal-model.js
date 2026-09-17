@@ -48,6 +48,17 @@
     const p = normalize(student);
     return { id: student.id, name: student.name, program: student.program, programEndDate: student.programEndDate, parentPortal: { ...p, submissions: p.submissions.map(({ baseProfile, ...s }) => s), publications: p.publications.filter(x => x.status === "published"), progressSnapshots: (p.progressSnapshots || []).filter(x => x.status === "published") } };
   }
+  function replyToRequest(student,requestId,reply,now=new Date().toISOString()) {
+    const portal=normalize(student),requests=Array.isArray(portal.requests)?portal.requests:[];
+    const request=requests.find(r=>r.id===requestId);
+    if(!request||!['requested','returned'].includes(request.status))throw new Error('회신 가능한 자료 요청이 아닙니다. 최신 상태를 확인해 주세요.');
+    const note=String(reply?.note||'').trim(),url=String(reply?.url||'').trim();
+    if(!note&&!url)throw new Error('자료 링크 또는 전달 내용을 입력해 주세요.');
+    if(note.length>5000||url.length>2000)throw new Error('입력 내용이 너무 깁니다.');
+    if(url){let parsed;try{parsed=new URL(url);}catch{throw new Error('자료 링크를 확인해 주세요.');}if(!['http:','https:'].includes(parsed.protocol)||parsed.username||parsed.password)throw new Error('http 또는 https 자료 링크를 입력해 주세요.');}
+    const value={id:'reply-'+now,note,url,submittedAt:now};
+    return {...portal,requests:requests.map(r=>r.id===requestId?{...r,status:'submitted',reply:value,replies:[...(r.replies||[]),value]}:r),updates:[{id:'request-reply-'+requestId+'-'+now,at:now,title:'요청 자료 회신',detail:request.title},...portal.updates]};
+  }
   function mergeSubmission(student, submission) {
     // Three-way merge prevents an older parent form from overwriting newer consultant edits.
     const conflicts = [];
@@ -65,7 +76,7 @@
     const profile = merge(pickProfile(student), submission.baseProfile, submission.profile, "");
     return { profile, conflicts };
   }
-  const api = { clone, sections, fields, pickProfile, requirements, normalize, saveDraft, submit, publicStudent, mergeSubmission };
+  const api = { clone, sections, fields, pickProfile, requirements, normalize, saveDraft, submit, publicStudent, replyToRequest, mergeSubmission };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.PrepParentModel = api;
 })(typeof window === "undefined" ? globalThis : window);
