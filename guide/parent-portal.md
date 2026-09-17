@@ -30,6 +30,13 @@ All five tables have RLS enabled. Direct grants for anon/authenticated are
 revoked; only the Edge Function's service role reads/writes them. The security
 advisor's "RLS Enabled No Policy" info notices are intentional deny-all defaults,
 not missing public-access policies. No service key is included in this repository.
+Invitation acceptance additionally grants service_role SELECT on only auth.users
+id/email, not password columns. Run tests/portal-invitation-privileges.sql against
+the deployed database to verify these effective privileges under service_role.
+
+Supabase currently reports leaked-password protection as disabled. See
+[password protection setup](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+before expanding production access.
 
 Platform `verify_jwt=false` is deliberate: the invitation redemption endpoint
 authenticates a random one-use token, whose SHA-256 hash is stored. All other

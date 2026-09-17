@@ -52,6 +52,8 @@ alter table public.prep_audit enable row level security;
 revoke all on public.prep_members,public.prep_records,public.prep_student_access,public.prep_invitations,public.prep_audit from anon,authenticated;
 grant all on public.prep_members,public.prep_records,public.prep_student_access,public.prep_invitations,public.prep_audit to service_role;
 grant usage,select on sequence public.prep_audit_id_seq to service_role;
+-- Invitation acceptance verifies the Auth identity without reading password columns.
+grant select (id,email) on auth.users to service_role;
 
 create function public.prep_commit(actor uuid, changes jsonb, event_name text)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
