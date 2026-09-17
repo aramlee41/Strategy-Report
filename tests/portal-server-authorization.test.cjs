@@ -50,3 +50,18 @@ test('portal disable revokes access even when authentication remains valid',asyn
  assert.equal((await run({action:'load'},'p')).students.length,0);
  await assert.rejects(()=>run({action:'parentSave',studentId:'one',operation:'account'},'p'),e=>e.status===403);
 });
+test('entry channels reject the wrong role before returning records',async()=>{
+ const {run}=await setup();
+ for(const [token,portal] of [['p','staff'],['a','parent'],['s','parent'],['a','unknown']]) {
+  await assert.rejects(()=>run({action:'load',portal},token),e=>e.code==='PORTAL_MISMATCH'&&e.status===403);
+ }
+ assert.equal((await run({action:'load',portal:'parent'},'p')).user.role,'parent');
+ assert.equal((await run({action:'load',portal:'staff'},'s')).user.role,'staff');
+ assert.equal((await run({action:'load',portal:'staff'},'a')).user.role,'admin');
+});
+test('wrong entry channel cannot bypass checks through write actions',async()=>{
+ const {run,calls}=await setup();
+ await assert.rejects(()=>run({action:'save',portal:'parent',changes:[]},'a'),e=>e.code==='PORTAL_MISMATCH');
+ await assert.rejects(()=>run({action:'parentSave',portal:'staff',studentId:'one',operation:'draft',version:1,profile:{basic:{}}},'p'),e=>e.code==='PORTAL_MISMATCH');
+ assert.equal(calls.length,0);
+});

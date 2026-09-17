@@ -10,6 +10,12 @@ export function shapeProfile(profile) {
   return profile;
 }
 export function createService(db, model) {
+  const requirePortal = (role,portal) => {
+    // Older clients omit the entry channel; server membership still enforces data scope.
+    if (portal == null) return;
+    if ((portal==='parent' && role==='parent') || (portal==='staff' && ['admin','staff'].includes(role))) return;
+    throw new PortalError(role==='parent'?'학생·학부모 로그인으로 접속해 주세요.':'직원 로그인으로 접속해 주세요.',403,'PORTAL_MISMATCH');
+  };
   const check = result => { if (result.error) { if (result.error.code === '40001' || result.error.message?.includes('VERSION_CONFLICT')) throw new PortalError('다른 사용자가 자료를 변경했습니다. 새로 불러온 후 다시 저장해 주세요.',409,'VERSION_CONFLICT'); throw new PortalError('요청을 처리하지 못했습니다. 다시 로그인하거나 담당자에게 문의해 주세요.',400,result.error.code || 'DATABASE_ERROR'); } return result.data; };
   const hash = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join('');
   const memberFor = async token => {
@@ -52,6 +58,7 @@ export function createService(db, model) {
     const inv=check(await db.rpc('prep_reserve_invitation',{hash:await hash(body.inviteToken),claim}));
     let done=false;
     try {
+      requirePortal(inv.role,body.portal);
       let account;
       if (token) {
         const result=await db.auth.getUser(token);
@@ -74,6 +81,7 @@ export function createService(db, model) {
     if (!body || typeof body!=='object') throw new PortalError('요청 형식이 올바르지 않습니다.');
     if(body.action==='redeemInvitation') return redeem(body,token);
     const member=await memberFor(token);
+    requirePortal(member.role,body.portal);
     if(body.action==='load') return load(member);
     if(body.action==='parentSave') {
       if(member.role!=='parent') throw new PortalError('학부모 계정으로 로그인해 주세요.',403,'ACCESS_DENIED');

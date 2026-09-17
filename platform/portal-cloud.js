@@ -14,7 +14,8 @@
     const headers={'Content-Type':'application/json',apikey:config.publishableKey};
     if(session?.access_token && !anonymous) headers.Authorization='Bearer '+session.access_token;
     else if(!anonymous) throw new Error('로그인이 필요합니다.');
-    const response=await fetch(config.url+'/functions/v1/'+config.functionName,{method:'POST',headers,body:JSON.stringify(body),cache:'no-store'});
+    const portal=new URLSearchParams(root.location.search).get('portal');
+    const response=await fetch(config.url+'/functions/v1/'+config.functionName,{method:'POST',headers,body:JSON.stringify({...body,portal}),cache:'no-store'});
     const data=await response.json();
     if(!response.ok) { const e=new Error(data.error||'서버 연결에 실패했습니다.');e.code=data.code;e.status=response.status;throw e; }
     return data;

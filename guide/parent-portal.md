@@ -1,7 +1,15 @@
 # Family Portal: shared storage and authentication
 
 The Stage 1–5 LMS stays at `/platform/index.html`, now with Supabase Auth login.
-Parents use `/platform/index.html?portal=parent`. Server membership, not the URL
+The root page presents separate Student/Family and Staff login buttons.
+Student/family accounts share the existing `parent` role and linked-student scope;
+this is not a new student-specific permission tier. Staff enter via
+`/platform/index.html?portal=staff`; admins and consultants are selected by their
+server-assigned role, never by a login role dropdown. A mismatched entry rejects
+the session before student data is returned, including on page reload.
+Existing-data import is under admin Account / Invitations > Existing Data Migration.
+
+Families use `/platform/index.html?portal=parent`. Server membership, not the URL
 or browser state, determines whether a user is an admin, consultant, or parent.
 
 ## Account Setup
