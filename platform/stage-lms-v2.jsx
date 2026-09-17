@@ -2673,15 +2673,22 @@ function V2SmartSchool({ label, val, set, schools }) {
   return <SmartSearchInput label={label} val={val} set={set} options={v2SchoolNames(schools)} />;
 }
 
-function V2App() {
-  const [data, setData] = useState(v2BaseData);
-  const [user, setUser] = useState(null);
+function V2App({ cloud = null }) {
+  const [data, setData] = useState(() => cloud?.data || v2BaseData());
+  const [user, setUser] = useState(cloud ? { ...cloud.user, cloud: true } : null);
   const [view, setView] = useState("dashboard");
   const [selected, setSelected] = useState(data.students[0]?.id);
   const [stage, setStage] = useState("stage1");
   const [login, setLogin] = useState({ email: "admin@yesuhak.com", password: "prep2026" });
   const users = [...accounts, ...(data.staffAccounts || [])].map(a => ({ ...a, password: a.password || "prep2026" }));
-  const persist = next => v2Persist(setData, next);
+  const persist = next => {
+    if (!cloud) return v2Persist(setData, next);
+    const schools = (next.schools || []).map(v2NormalizeSchool);
+    const fixed = { ...next, schools, students: next.students.map(v2NormalizeStudent).map(st => v2AttachAnalysis(st, schools)) };
+    setData(fixed);
+    return cloud.save(fixed);
+  };
+  const logout = () => cloud ? cloud.logout() : setUser(null);
   const reportStudentId = new URLSearchParams(window.location.search).get("reportStudent");
   if (reportStudentId) {
     const reportStudent = data.students.find(s => s.id === reportStudentId) || data.students[0];
@@ -2689,18 +2696,20 @@ function V2App() {
   }
   if (!user) return <Login login={login} setLogin={setLogin} onLogin={() => { const u = users.find(x => x.email === login.email && x.password === login.password); if (u) setUser(u); else alert("계정을 확인하세요."); }} />;
   const visible = user.role === "admin" ? data.students : data.students.filter(s => (s.owners || [s.owner]).includes(user.id));
-  const st = data.students.find(s => s.id === selected) || visible[0];
+  const st = visible.find(s => s.id === selected) || visible[0];
   const updateStudent = patch => {
     if (!st) return;
     const nextPatch = typeof patch === "function" ? patch(st) : patch;
     persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
   };
   const updateSchools = schools => persist({ ...data, schools: (schools || []).map(v2NormalizeSchool), schoolDataVersion: window.PREP_SCHOOL_DATA_VERSION || data.schoolDataVersion });
-  if (view === "parents") return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} /><main className="main"><PPManager data={data} persist={persist} user={user} /></main></div>;
-  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} /><main className="main"><Header view={view} />{view === "dashboard" && (user.role === "admin" ? <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} /> : <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />)}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [user.role === "admin" ? "aram" : user.id], owner: user.role === "admin" ? "aram" : user.id }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <V2Schedule data={data} persist={persist} students={visible} staff={data.staffAccounts || []} user={user} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
+  if (view === "parents") return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPManager data={data} persist={persist} user={user} /></main></div>;
+  if (view === "accounts" && cloud) return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPCloudAccounts students={visible} admin={user.role === "admin"} /></main></div>;
+  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><Header view={view} />{view === "dashboard" && (user.role === "admin" ? <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} /> : <V2Dashboard students={visible} setView={setView} setSelected={setSelected} setStage={setStage} />)}{view === "students" && <V2Students students={visible} user={user} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [cloud ? user.id : (user.role === "admin" ? "aram" : user.id)], owner: cloud ? user.id : (user.role === "admin" ? "aram" : user.id) }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <V2Schedule data={data} persist={persist} students={visible} staff={data.staffAccounts || []} user={user} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
 }
 function V2Sidebar({ user, view, setView, logout }) {
   const items = [["dashboard", "대시보드"], ["students", "학생 관리"], ["schedule", "일정 관리"], ["reports", "보고서 제작"], ["parents", "학부모 포털"], ["admin", "어드민"]];
+  if (user.cloud) items.splice(items.length - 1, 0, ["accounts", "계정 / 초대 관리"]);
   return <aside className="side"><div className="brand">YES STUDY ABROAD</div><div className="brand-title">Prep LMS</div><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "어드민 계정" : "담당자 계정"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => setView(i[0])}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></aside>;
 }
 function V2Dashboard({ students, setView, setSelected, setStage }) {
@@ -4695,6 +4704,7 @@ function V2Admin({ data, persist, updateSchools, setSelected, setView, setStage 
   const staff = data.staffAccounts || [];
   const editStaff = (i, patch) => persist({ ...data, staffAccounts: v2SetArr(staff, i, patch) });
   const addStaff = () => persist({ ...data, staffAccounts: [...staff, { id: "staff" + Date.now(), name: "새 담당자", role: "staff", email: "new@yesuhak.com", password: "prep2026" }] });
+  if (tab === "staff" && data.cloudConnected) return <><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} /><PPCloudAccounts students={data.students} admin /></>;
   return <div><V2SubTabs tabs={[["dashboard", "대시보드"], ["staff", "담당자 관리"], ["schools", "학교 데이터"], ["students", "학생 현황"]]} active={tab} set={setTab} />{tab === "dashboard" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}{tab === "staff" && <V2Section title="담당자 계정"><button className="btn primary" onClick={addStaff}>담당자 추가</button><table className="table"><thead><tr><th>이름</th><th>Email</th><th>Password</th><th>ID</th></tr></thead><tbody>{staff.map((a, i) => <tr key={a.id}><td><input className="input" value={a.name || ""} onChange={e => editStaff(i, { name: e.target.value })} /></td><td><input className="input" value={a.email || ""} onChange={e => editStaff(i, { email: e.target.value })} /></td><td><input className="input" value={a.password || ""} onChange={e => editStaff(i, { password: e.target.value })} /></td><td>{a.id}</td></tr>)}</tbody></table></V2Section>}{tab === "schools" && <V2SchoolDataAdmin schools={data.schools || []} updateSchools={updateSchools} />}{tab === "students" && <V2AdminDashboard data={data} persist={persist} setSelected={setSelected} setView={setView} setStage={setStage} />}</div>;
 }
 

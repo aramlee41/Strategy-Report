@@ -1,59 +1,93 @@
-# Family Portal: first delivery
+# Family Portal: shared storage and authentication
 
-The existing Stage 1–5 LMS remains at `/platform/index.html`. After staff login,
-use **학부모 포털** in the sidebar. Select a student, enter the parent's email,
-enable the portal, and select **학부모 화면 미리보기**. Students with the same
-parent email appear together, restricted to the current staff member's students.
+The Stage 1–5 LMS stays at `/platform/index.html`, now with Supabase Auth login.
+Parents use `/platform/index.html?portal=parent`. Server membership, not the URL
+or browser state, determines whether a user is an admin, consultant, or parent.
 
-## Implemented workflows
+## Account Setup
 
-- Parent dashboard, student/program overview, updates, payment schedule, contact details.
-- Separate application sections reuse the existing basic, school, transcript,
-  test, activity and award forms, without staff assignment controls.
-- Drafts save independently of canonical student records. Submission validation
-  requires identity, nationality, contact, school and explicit material declarations.
-- No tests/awards is a valid answer. Pending material requires a future due date.
-- Submitted profiles are frozen. Consultants can return with a reason or accept.
-  Three-way merging detects conflicting staff edits before applying to Stage 1.
-- Publishing captures the rendered Stage 1 report, author, date and data version.
-  Later profile edits do not change the published report. Publication can be revoked.
-- Reports render in a sandboxed iframe. No unsanctioned strategy snapshots are
-  automatically made visible to parents.
-- Payment notices are entered by staff and are read-only for parents; these notices
-  are separate from the sales ERP and are not a payment processor or reconciliation.
+The first admin uses a one-use invitation to set their own password.
+**계정 / 초대 관리** creates staff/parent invitation links. **학부모 포털** also
+offers parent invitations for a selected student. Links expire after three days.
+They are copied and shared manually; this implementation does not send emails.
+Existing account holders accept child invitations with their existing password.
+Only admins can invite staff/admins or disable accounts. Consultants can invite
+parents only for assigned students. Parents cannot grant or change access.
 
-## Storage and release boundary
+Password-reset email delivery requires a separately configured SMTP provider.
+No automatic password reset is included in this delivery.
 
-This delivery is a **same-browser workflow preview**, not a production family login.
-The current LMS stores all data in localStorage and uses local demo staff accounts.
-Do not send those credentials or a staff browser profile to parents.
+## Shared Storage
 
-`?portal=parent` deliberately displays an unavailable-login page and does not load
-the local LMS student store. External parent login is not enabled until a shared
-database and real authentication service have been selected and configured.
+Dedicated project: `prep-lms` (`vnfzirosjbprsnsfmuzn`), Seoul region, in the
+approved Aram Lee organization. The sales ERP database remains unchanged.
 
-No existing Supabase project has been modified. In particular, the sales ERP
-database is not used implicitly for LMS data.
+The browser uses a publishable key from `platform/portal-config.js`.
+The `prep-portal` Edge Function checks sessions with `auth.getUser()`, then
+checks active server membership and explicit user-to-student assignments.
 
-## Data contract
+All five tables have RLS enabled. Direct grants for anon/authenticated are
+revoked; only the Edge Function's service role reads/writes them. The security
+advisor's "RLS Enabled No Policy" info notices are intentional deny-all defaults,
+not missing public-access policies. No service key is included in this repository.
 
-`student.parentPortal` is additive. It contains enabled, parentName, parentEmail,
-contactPhone, draft, draftBase, declarations, submissions, publications, payments,
-updates and version. Existing studentProfile/evaluationResult/strategyResult and
-reportSnapshots are unchanged. Reuse `PrepParentModel.pickProfile` to restrict
-parent input to the relevant profile fields, and `publicStudent` for the preview.
-This is not a server-side authorization boundary.
+Platform `verify_jwt=false` is deliberate: the invitation redemption endpoint
+authenticates a random one-use token, whose SHA-256 hash is stored. All other
+actions require a verified user session. Redemption reserves the invitation and
+atomically creates membership and assignments; it cannot silently change an
+existing user's password or role.
 
-The production adapter must authenticate every request, derive the role on the
-server, check explicit parent-child/staff-student relationships, validate submissions
-on the server, and return approved report snapshots only. It must never download
-all LMS records and rely on UI filtering. A household relationship must be based
-on verified account identity, not on an email supplied by the browser.
+Sessions are kept in sessionStorage and refreshed by Supabase Auth. Cloud student
+records are not copied into localStorage. Each save requires a record version;
+conflicts stop the queue and retain unsaved work in memory rather than overwriting.
+
+## Family Workflow
+
+Parents enter basic, school, transcript, test, EC and award data. Drafts are
+separate from canonical student records. Required fields are validated in both
+the browser and the server. No test/award is a valid explicit declaration;
+pending material requires a due date.
+
+Consultants review frozen submissions and can return them with a reason or
+accept them through a conflict-aware merge. Published report HTML, author and
+date are immutable; publication can be revoked. Parents receive only approved
+snapshots, displayed in a sandboxed iframe.
+
+Payment notices are staff-entered, parent-read-only. They are not a payment
+processor or an integration with the sales ERP.
+
+## Existing Browser Data
+
+The former workspace remains at `/platform/index.html?mode=local`.
+Demo credentials there provide no cloud access. In the authenticated admin view,
+**기존 브라우저 자료 가져오기** imports that browser's saved student records and
+school dataset, leaving local originals intact. Empty storage does not import
+sample students. Imports are namespaced and resumable.
+
+Imported students initially belong to the importing admin. Assign real staff
+after their accounts have been created. Old preview reports/submissions are
+archived in `localPortalArchive`, not automatically published to verified
+parents. Re-review and publish the current report.
+
+## Source and Deployment
+
+- Schema: `supabase/schema/portal.sql`; applied as remote migrations.
+- API: `supabase/functions/prep-portal/index.ts`, `service.mjs`.
+- Shared validation: `platform/parent-portal-model.js`.
+- Client: `platform/portal-cloud.js`, `portal-cloud.jsx`.
+
+Before CLI deployment, run `node scripts/build-portal-function.cjs` to bundle
+the canonical validator as `model.js`. Deploy `prep-portal` with platform JWT
+verification disabled because it implements the authentication checks above.
+Supabase JS is pinned at 2.57.4. Vercel Git integration deploys frontend pushes.
 
 ## Verification
 
-`node --test --test-isolation=none tests/parent-portal-model.test.cjs`
+Run:
+`node --test --test-isolation=none tests/parent-portal-model.test.cjs tests/portal-cloud-contract.test.cjs tests/portal-server-authorization.test.cjs`
 
-Browser checks: incomplete submission rejection, draft preservation, review/merge,
-approved snapshot viewing/revocation, distinct household filtering in preview,
-desktop/mobile layout, existing Stage 1 screens and external entry gate.
+Browser tests use a mocked authenticated API for staff/parent interaction flows.
+No extra privileged test accounts are created in production. Live tests verify
+unauthenticated/forged-session denial, direct-table denial, origin validation,
+invalid invitations and valid invitation recognition without consuming it.
+The first real password is set by the user.
