@@ -31,6 +31,7 @@ const jwt=u=>[Buffer.from('{}').toString('base64url'),Buffer.from(JSON.stringify
   await page.getByLabel('팀',{exact:true}).selectOption('시니어보딩');assert(!(await page.locator('main').innerText()).includes('주니어 원서 확인'));assert(!(await page.locator('main').innerText()).includes('관리자 개인 업무'));
   assert.deepEqual(await page.getByLabel('팀원',{exact:true}).locator('option').allTextContents(),['전체 담당자','김 담당','이 담당']);
   await page.getByLabel('팀원',{exact:true}).selectOption('s');let body=await page.locator('main').innerText();assert(body.includes('김 담당 전용 업무'));assert(body.includes('공동 관리 업무'));assert(!body.includes('이 담당 전용 업무'));assert(body.includes('지연 업무 1건'));
+  await page.locator('.brand-logo').evaluate(img=>img.decode());await page.locator('.ops-toolbar svg').first().waitFor();
   await page.screenshot({path:out+'/dashboard-gold-navy-desktop.png'});
   await page.getByLabel('팀',{exact:true}).selectOption('주니어보딩');assert.equal(await page.getByLabel('팀원',{exact:true}).inputValue(),'');assert((await page.locator('main').innerText()).includes('주니어 원서 확인'));
   await page.getByLabel('팀',{exact:true}).selectOption('대학원');assert((await page.getByLabel('팀원',{exact:true}).locator('option').allTextContents()).includes('신규 담당'));assert.equal(await page.locator('.ops-workspace .ops-table tbody tr').count(),0);
