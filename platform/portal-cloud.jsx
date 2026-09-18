@@ -1,4 +1,5 @@
 const PC = window.PrepCloud;
+function PPContactSupport(){return <footer className="portal-contact"><PPIcon name="Mail" size={17}/><span>서비스 문의</span><a href="mailto:yesboarding@gmail.com">yesboarding@gmail.com</a></footer>;}
 function PPPortalChoice() {
   return <div className="portal-shell"><header className="portal-header"><div className="portal-brand"><PPIcon name="GraduationCap" size={36}/><strong>예스유학 · Prep LMS</strong></div></header><main className="portal-entry"><h1>Prep LMS 로그인</h1><nav className="portal-entry-options" aria-label="로그인 유형"><a href="?portal=parent" className="portal-entry-option"><PPIcon name="GraduationCap" size={32}/><span>학생·학부모 로그인</span><PPIcon name="ArrowRight" size={22}/></a><a href="?portal=staff" className="portal-entry-option staff"><PPIcon name="BriefcaseBusiness" size={32}/><span>직원 로그인</span><PPIcon name="ArrowRight" size={22}/></a></nav></main></div>;
 }
@@ -136,9 +137,9 @@ function PPCloudApp() {
       await refresh();setStatus("기존 자료를 공용 저장소로 가져왔습니다.");
     }catch(e){setError(e.message+" 이미 가져온 학생은 보존됩니다. 다시 시도하면 남은 학생부터 가져옵니다.");}finally{setBusy(false);}
   };
-  if(!hasEntry)return <PPPortalChoice/>;
+  if(!hasEntry)return <div className="portal-access"><PPPortalChoice/><PPContactSupport/></div>;
   if(!ready)return <main className="portal-login">로그인 상태를 확인하고 있습니다.</main>;
-  if(!loaded)return <><PPCloudLogin inviteToken={inviteToken} onReady={()=>{setInviteToken(null);return refresh();}}/>{error&&<div className="portal-notice warn" role="alert">{error}<button className="btn ghost" onClick={refresh}>다시 연결</button></div>}</>;
+  if(!loaded)return <div className="portal-access"><PPCloudLogin inviteToken={inviteToken} onReady={()=>{setInviteToken(null);return refresh();}}/>{error&&<div className="portal-notice warn" role="alert">{error}<button className="btn ghost" onClick={refresh}>다시 연결</button></div>}<PPContactSupport/></div>;
   if(loaded.user.role==="parent")return <>{remoteAvailable&&<div className="portal-notice" role="status">담당자가 자료를 업데이트했습니다. 저장 후 새로 불러오기를 눌러 확인해 주세요.</div>}<PPParentPortal key={epoch} students={loaded.students} saveStudent={parentSave} replyRequest={replyRequest} schools={window.PREP_SCHOOLS||DEFAULT_SCHOOLS} exit={logout}/><button className="btn ghost" style={{position:"fixed",bottom:12,right:12,zIndex:30}} onClick={()=>{if(window.confirm("작성 중인 내용이 있다면 먼저 임시저장해 주세요. 자료를 새로 불러올까요?"))refresh();}} disabled={busy}>새로 불러오기</button>{error&&<div className="portal-notice warn" role="alert">{error}</div>}</>;
 return <><div className="cloud-status"><span role="status">{remoteAvailable?"새 업데이트가 있습니다. 작성 내용을 저장한 후 공용 자료를 새로 불러와 주세요.":status}</span><div className="portal-actions"><button className="btn ghost" disabled={busy||!!pending.current} onClick={()=>{if(!blocked.current||window.confirm("저장하지 못한 변경을 닫고 공용 자료를 다시 불러올까요?"))refresh();}}>공용 자료 새로 불러오기</button></div></div>{error&&<div className="portal-notice warn" role="alert">{error}</div>}<V2App key={epoch} cloud={{data:loaded,user:loaded.user,save,logout,importLocal,saveWorkspace}}/></>;
 }

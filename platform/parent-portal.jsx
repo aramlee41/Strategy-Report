@@ -12,14 +12,16 @@ function PPIcon({ name, size = 20 }) {
 }
 function PPDialog({ title, children, close, wide = false }) {
   const ref = React.useRef(null);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const previous = document.activeElement;
     ref.current?.focus();
     const key = e => {
       if (e.key === "Escape") close();
       if (e.key !== "Tab") return;
-      const nodes = [...ref.current.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')].filter(n => !n.disabled);
+      const nodes = [...ref.current.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')].filter(n => !n.disabled && n.tabIndex>=0 && n.getClientRects().length);
       const first = nodes[0], last = nodes[nodes.length - 1];
+      if(!first){e.preventDefault();ref.current.focus();return;}
+      if(!ref.current.contains(document.activeElement)){e.preventDefault();first.focus();return;}
       if (e.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { e.preventDefault(); last?.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
     };

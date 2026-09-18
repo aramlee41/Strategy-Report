@@ -2494,13 +2494,14 @@ function V2ClientStrategyReport({ st, schools }) {
 }
 
 function V2Field({ label, val, set, type = "text", list = [] }) {
-  const id = "v2_" + label.replace(/\W/g, "_") + "_" + Math.random().toString(36).slice(2);
-  return <div className="field"><span className="label">{label}</span><input className="input" type={type} value={val || ""} list={list.length ? id : undefined} onChange={e => set(e.target.value)} />{list.length > 0 && <datalist id={id}>{list.map(o => <option key={o} value={o} />)}</datalist>}</div>;
+  const id = React.useId();
+  return <div className="field"><label className="label" htmlFor={id}>{label}</label><input id={id} className="input" type={type} value={val ?? ""} list={list.length ? id+'-options' : undefined} onChange={e => set(e.target.value)} />{list.length > 0 && <datalist id={id+'-options'}>{list.map(o => <option key={o} value={o} />)}</datalist>}</div>;
 }
-function V2Text({ label, val, set, minHeight }) { return <div className="field"><span className="label">{label}</span><textarea className="textarea" style={minHeight ? { minHeight } : undefined} value={val || ""} onChange={e => set(e.target.value)} /></div>; }
+function V2Text({ label, val, set, minHeight }) { const id=React.useId();return <div className="field"><label className="label" htmlFor={id}>{label}</label><textarea id={id} className="textarea" style={minHeight ? { minHeight } : undefined} value={val ?? ""} onChange={e => set(e.target.value)} /></div>; }
 function V2Select({ label, val, set, options }) {
+  const id=React.useId();
   const display = o => label === "Stage" ? (V2_STAGE_KEYS.find(x => x[0] === o)?.[1] || o) : o;
-  return <div className="field"><span className="label">{label}</span><select className="select" value={val || ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
+  return <div className="field"><label className="label" htmlFor={id}>{label}</label><select id={id} className="select" value={val ?? ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
 }
 function V2SearchSelect({ label, val, set, options = [] }) {
   const [open, setOpen] = useState(false);
@@ -2667,10 +2668,10 @@ function V2FamilySection({ basic, setBasic }) {
   </V2Section>;
 }
 function V2SubTabs({ tabs, active, set }) {
-  return <div className="tabs" style={{ marginTop: 4 }}>{tabs.map(t => <button key={t[0]} className={"tab " + (active === t[0] ? "active" : "")} onClick={() => set(t[0])}>{t[1]}</button>)}</div>;
+  return <nav aria-label="세부 항목" className="tabs" style={{ marginTop: 4 }}>{tabs.map(t => <button key={t[0]} aria-current={active===t[0]?'page':undefined} className={"tab " + (active === t[0] ? "active" : "")} onClick={() => set(t[0])}>{t[1]}</button>)}</nav>;
 }
 function V2Section({ title, children }) {
-  return <div className="card"><h3>{title}</h3>{children}</div>;
+  return <section className="card form-section"><h3>{title}</h3>{children}</section>;
 }
 function V2SmartSchool({ label, val, set, schools }) {
   return <SmartSearchInput label={label} val={val} set={set} options={v2SchoolNames(schools)} />;
@@ -2722,9 +2723,10 @@ function V2App({ cloud = null }) {
 }
 function V2Sidebar({ user, view, setView, logout }) {
   const [menuOpen,setMenuOpen]=useState(false);
-  const items = [["dashboard", "대시보드"], ["students", "학생 관리"], ["crm", "CRM 관리"], ["schedule", "일정 관리"], ["reports", "보고서 제작"], ["parents", "학부모 포털"], ["admin", "어드민"]];
-  if (user.cloud) items.splice(items.length - 1, 0, ["accounts", "계정 / 초대 관리"]);
-return <aside className="side"><div className="ops-side-heading"><div><img className="brand-logo" src="yesuhak-logo.png" alt="예스유학" width="204" height="70"/><div className="brand-title">Prep LMS</div></div><button className="ops-mobile-menu navbtn" aria-label="업무 메뉴" aria-expanded={menuOpen} aria-controls="ops-staff-navigation" onClick={()=>setMenuOpen(!menuOpen)}><PPIcon name={menuOpen?'X':'Menu'}/></button></div><div id="ops-staff-navigation" className={'ops-side-content '+(menuOpen?'is-open':'')}><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "관리자" : "컨설턴트"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => {setView(i[0]);setMenuOpen(false);}}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></div></aside>;
+  React.useEffect(()=>{const main=document.querySelector('main.main');if(main){main.id='workspace-main';main.tabIndex=-1;}},[view]);
+  const groups=[['업무',[['dashboard','대시보드','LayoutDashboard'],['crm','CRM 관리','ListChecks'],['schedule','일정 관리','CalendarDays']]],['학생',[['students','학생 관리','GraduationCap'],['reports','보고서 제작','FileChartColumn'],['parents','학부모 포털','UsersRound']]],['설정',[...(user.cloud?[['accounts','계정 / 초대 관리','UserRoundCog']]:[]),...(user.role==='admin'?[['admin','어드민','Settings2']]:[])]]];
+  const go=key=>{setView(key);setMenuOpen(false);requestAnimationFrame(()=>document.querySelector('main.main')?.focus());};
+  return <aside className="side"><a className="skip-link" href="#workspace-main" onClick={e=>{e.preventDefault();document.querySelector('main.main')?.focus();}}>본문으로 이동</a><div className="ops-side-heading"><div><img className="brand-logo" src="yesuhak-logo.png" alt="예스유학" width="204" height="70"/><div className="brand-title">Prep LMS</div></div><button className="ops-mobile-menu navbtn" aria-label="업무 메뉴" aria-expanded={menuOpen} aria-controls="ops-staff-navigation" onClick={()=>setMenuOpen(!menuOpen)}><PPIcon name={menuOpen?'X':'Menu'}/></button></div><div id="ops-staff-navigation" className={'ops-side-content '+(menuOpen?'is-open':'')} onKeyDown={e=>{if(e.key==='Escape'){setMenuOpen(false);document.querySelector('.ops-mobile-menu')?.focus();}}}><nav aria-label="직원 메뉴">{groups.filter(([,items])=>items.length).map(([label,items])=><div className="nav-group" key={label}><div className="nav-group-label">{label}</div>{items.map(([key,name,icon])=>{const active=view===key||(view==='student'&&key==='students');return <button key={key} aria-current={active?'page':undefined} className={'navbtn '+(active?'active':'')} onClick={()=>go(key)}><PPIcon name={icon} size={19}/>{name}</button>;})}</div>)}</nav><div className="side-account"><div className="userbox"><b>{user.name}</b><span>{user.role==='admin'?'관리자':'컨설턴트'}</span></div><button className="navbtn" onClick={logout}><PPIcon name="LogOut" size={18}/>로그아웃</button></div></div></aside>;
 }
 function V2Dashboard({ students, setView, setSelected, setStage }) {
   return <div className="grid"><div className="grid g4"><Metric title="관리 학생" val={students.length} /><Metric title="평균 입력률" val={Math.round(students.reduce((n, s) => n + V2_STAGE_KEYS.reduce((a, [k]) => a + v2StageCompletion(s, k), 0) / 5, 0) / Math.max(students.length, 1)) + "%"} /><Metric title="Stage 1 완료" val={students.filter(s => v2StageCompletion(s, "stage1") >= 80).length} /><Metric title="원서 단계" val={students.filter(s => s.stage === "stage4").length} /></div><V2Section title="학생 Stage 현황">{students.map(s => {
@@ -2742,7 +2744,7 @@ function V2Students({ students, user, add, setSelected, setView, setStage }) {
 }
 function V2StudentStages({ st, update, schools, staff, stage, setStage }) {
   const activeStage = st.stage || stage || "stage1";
-  return <div><div className="card" style={{ marginBottom: 14 }}><div className="right" style={{ justifyContent: "space-between" }}><div><h3 style={{ marginBottom: 4 }}>{st.name || "신규 학생"} <span className="muted">{st.en}</span></h3><p className="small muted">{st.program || "프로그램 미정"} · {st.school || "학교 미입력"} · {st.targetYear || "지원연도 미정"}</p></div><span className="pill p-green">{v2AcademicPillText(st.academicTerms || [])}</span></div><div className="grid g5" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 12 }}>{V2_STAGE_KEYS.map(([k, label]) => { const pct = v2StageCompletion(st, k); return <button key={k} className={"btn " + (activeStage === k ? "primary" : "ghost")} onClick={() => { setStage(k); update({ stage: k, status: label }); }}>{label}<br /><span className="small">{pct}%</span><div className="progress" style={{ marginTop: 6, background: "rgba(255,255,255,.35)" }}><div style={{ width: pct + "%" }} /></div></button>; })}</div></div>{activeStage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{activeStage === "stage3" && <V2StageThree st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage4" && <V2StageFour st={st} update={update} schools={schools} />}{activeStage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
+  return <div><section className="student-stage-selector" aria-label="지원 단계"><div className="ops-toolbar"><h3>지원 단계</h3><span className="ops-muted">{st.targetYear||'지원연도 미정'} · {v2AcademicPillText(st.academicTerms||[])}</span></div><div className="grid g5">{V2_STAGE_KEYS.map(([k,label])=>{const pct=v2StageCompletion(st,k);return <button key={k} aria-pressed={activeStage===k} className={'btn stage-choice '+(activeStage===k?'primary':'ghost')} onClick={()=>{setStage(k);update({stage:k,status:label});}}><span className="stage-choice-label">{label}</span><span className="small">{pct}%</span><div className="progress" aria-hidden="true"><div style={{width:pct+'%'}}/></div></button>;})}</div></section>{activeStage === "stage1" && <V2StageOne st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage2" && <V2StageTwo st={st} update={update} schools={schools} />}{activeStage === "stage3" && <V2StageThree st={st} update={update} schools={schools} staff={staff} />}{activeStage === "stage4" && <V2StageFour st={st} update={update} schools={schools} />}{activeStage === "stage5" && <V2StageFive st={st} update={update} />}</div>;
 }
 
 function V2StageOne({ st, update, schools, staff }) {
