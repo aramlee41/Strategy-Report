@@ -3,6 +3,21 @@
   const list=O.list;
   const statuses=['active','paused','completed'];
   const channels=['전화','이메일','KakaoTalk','문자','화상 미팅','대면 미팅','기타'];
+  const teams=['시니어보딩','주니어보딩','보딩프렙','대학','편입','대학원','플래티넘'];
+  function teamOfStudent(st){
+    if(teams.includes(st.operations?.crm?.team))return st.operations.crm.team;
+    const program=String(st.program||'').replace(/\s+/g,'');
+    return teams.includes(program)?program:'';
+  }
+  function teamMembers(students,staff,staffTeams={},team=''){
+    if(!team)return staff;
+    const assigned=new Set(students.filter(s=>teamOfStudent(s)===team).flatMap(s=>[...list(s.owners),...O.tasks(s).map(t=>t.ownerId).filter(Boolean)]));
+    return staff.filter(p=>list(staffTeams[p.id]).includes(team)||assigned.has(p.id));
+  }
+  function taskForOwner(task,st,ownerId){return !ownerId||(task.ownerId?task.ownerId===ownerId:list(st.owners).includes(ownerId));}
+  function dashboardScope(students,team='',ownerId=''){
+    return students.filter(s=>crm(s).status!=='completed'&&(!team||teamOfStudent(s)===team)&&(!ownerId||list(s.owners).includes(ownerId)||O.tasks(s).some(t=>t.ownerId===ownerId)));
+  }
   function crm(st){
     const value=st.operations?.crm||{};
     return {...value,status:statuses.includes(value.status)?value.status:'active',priority:value.priority==='high'?'high':'standard',cadence:[7,14,30,60].includes(Number(value.cadence))?Number(value.cadence):14,tags:list(value.tags),contacts:O.rows(value.contacts,'contact')};
@@ -12,9 +27,9 @@
     const meetings=O.operations(st).meetings.filter(x=>x.appliedAt&&!x.cancelled&&O.date(x.date)&&x.date<=now).map(x=>x.date);
     return [...c,...meetings].sort().at(-1)||'';
   }
-  function attention(st,now=O.today()){
+  function attention(st,now=O.today(),ownerId=''){
     const c=crm(st);if(c.status==='completed')return [];
-    const out=[],tasks=O.tasks(st).filter(t=>!t.done),late=tasks.filter(t=>O.date(t.date)&&t.date<now);
+    const out=[],tasks=O.tasks(st).filter(t=>!t.done&&taskForOwner(t,st,ownerId)),late=tasks.filter(t=>O.date(t.date)&&t.date<now);
     if(late.length)out.push({key:'overdue',level:3,title:`지연 업무 ${late.length}건`,detail:`가장 이른 기한 ${late.map(t=>t.date).sort()[0]}`,tab:'overview'});
     const submissions=list(st.parentPortal?.submissions).filter(s=>s.status==='submitted');
     if(submissions.length)out.push({key:'submissions',level:2,title:`학부모 자료 검토 ${submissions.length}건`,detail:'학부모가 제출한 자료를 검토해 주세요.',tab:'familyReview'});
@@ -125,6 +140,6 @@
     for(const s of students){const name=String(s.en||s.name||'').replace(/\s+/g,'').toLowerCase(),dob=s.basic?.dob;if(!name||!O.date(dob))continue;const key=name+'|'+dob;groups.set(key,[...(groups.get(key)||[]),s]);}
     return [...groups.values()].filter(g=>g.length>1);
   }
-  const api={crm,channels,lastContact,attention,saveContact,settings,timeline,filterStudents,batchTasks,handoffTasks,reassignOwners,checklist,templates,workload,duplicateCandidates};
+  const api={crm,channels,teams,teamOfStudent,teamMembers,taskForOwner,dashboardScope,lastContact,attention,saveContact,settings,timeline,filterStudents,batchTasks,handoffTasks,reassignOwners,checklist,templates,workload,duplicateCandidates};
   root.PrepCRM=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window==='undefined'?globalThis:window);

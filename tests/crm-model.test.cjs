@@ -61,3 +61,13 @@ test('admin handover moves only unfinished tasks owned by removed consultants at
  assert.equal(C.reassignOwners(st,['new'],false,{role:'admin'}).tasks[0].ownerId,'old');
  assert.throws(()=>C.reassignOwners(st,['new'],true,{role:'staff'}),/관리자/);
 });
+test('team scope uses exact program/team values and separates joint-owner tasks',()=>{
+ const a={id:'a',program:'시니어 보딩',owners:['s','t'],tasks:[{id:'x',title:'S',ownerId:'s',deadline:'2026-01-01'},{id:'y',title:'T',ownerId:'t',deadline:'2026-01-01'}]},b={id:'b',program:'대학원',owners:['t']},c={id:'c',program:'대학',owners:['s']};
+ assert.equal(C.teamOfStudent(a),'시니어보딩');assert.deepEqual(C.dashboardScope([a,b,c],'대학').map(s=>s.id),['c']);
+ assert.deepEqual(C.teamMembers([a,b,c],[{id:'s'},{id:'t'},{id:'empty'}],{empty:['시니어보딩']},'시니어보딩').map(p=>p.id),['s','t','empty']);
+ assert.equal(C.attention(a,'2026-09-18','s').find(x=>x.key==='overdue').title,'지연 업무 1건');
+ assert.deepEqual(O.tasks(a).filter(t=>C.taskForOwner(t,a,'s')).map(t=>t.id),['x']);
+ assert.equal(C.teamOfStudent({...a,operations:{crm:{team:'플래티넘'}}}),'플래티넘');
+ assert.equal(C.teamOfStudent({program:'알 수 없는 프로그램'}),'');
+ assert.deepEqual(C.dashboardScope([a],'보딩프렙','s'),[]);
+});

@@ -139,3 +139,14 @@ test('material requests use a guarded parent reply and consultant review cycle',
  assert.deepEqual(tables.prep_records[0].payload.parentPortal.requests[0].reviews.map(r=>r.status),['returned','accepted']);
  assert(tables.prep_records[0].payload.parentPortal.requests[0].reviews.every(r=>r.authorId==='s'));
 });
+test('only admins maintain staff teams; team metadata never grants student access',async()=>{
+ const {run,tables}=await setup();const changes=[{id:'__settings',kind:'config',expectedVersion:0,payload:{staffTeams:{s:['시니어보딩','시니어보딩']},teamEvents:[]}}];
+ await assert.rejects(()=>run({action:'save',changes},'s'),e=>e.status===403);
+ await run({action:'save',changes},'a');assert.deepEqual((await run({action:'load'},'a')).staffTeams,{s:['시니어보딩']});
+ assert.deepEqual((await run({action:'load'},'s')).students.map(s=>s.id),['one']);
+ await run({action:'save',changes:[{id:'__settings',kind:'config',expectedVersion:1,payload:{teamEvents:[{id:'event'}]}}]},'a');
+ assert.deepEqual((await run({action:'load'},'a')).staffTeams,{s:['시니어보딩']});
+ await assert.rejects(()=>run({action:'save',changes:[{id:'__settings',kind:'config',expectedVersion:2,payload:{staffTeams:{p:['대학']}}}]},'a'),/담당자/);
+ await assert.rejects(()=>run({action:'save',changes:[{id:'__settings',kind:'config',expectedVersion:2,payload:{staffTeams:{s:['Unknown']}}}]},'a'),/팀/);
+ assert(!JSON.stringify(await run({action:'load'},'p')).includes('staffTeams'));
+});

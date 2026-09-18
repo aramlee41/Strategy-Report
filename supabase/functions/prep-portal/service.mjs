@@ -2,6 +2,7 @@ export class PortalError extends Error {
   constructor(message, status = 400, code = 'INVALID_REQUEST') { super(message); this.status = status; this.code = code; }
 }
 export const allowedOrigins = new Set(['https://strategy-report-lake.vercel.app', 'https://aramlee41.github.io', 'http://127.0.0.1:8765', 'http://localhost:8765']);
+const teamNames=['시니어보딩','주니어보딩','보딩프렙','대학','편입','대학원','플래티넘'];
 export function shapeProfile(profile) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile)) throw new PortalError('학생 정보 형식을 확인해 주세요.');
   if (!profile.basic || typeof profile.basic !== 'object' || Array.isArray(profile.basic)) throw new PortalError('기본 정보를 확인해 주세요.');
@@ -57,7 +58,7 @@ export function createService(db, model) {
     const workspaces=check(await db.from('prep_workspaces').select('user_id,payload,version'));
     const mine=workspaces.find(w=>w.user_id===member.user_id);
     const settings=records.find(r=>r.id==='__settings')?.payload||{};
-    return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>({...r.payload,id:r.id})),staffAccounts:staff.map(m=>({id:m.user_id,name:m.name,email:m.email,role:m.role})),schools:records.find(r=>r.id==='__schools')?.payload.schools,teamEvents:settings.teamEvents||[],opportunities:settings.opportunities,workspace:mine?.payload||{},workspaceVersion:mine?.version||0,sharedCalendar:sharedCalendar(workspaces,staff),versions:versionsOf(records)};
+    return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>({...r.payload,id:r.id})),staffAccounts:staff.map(m=>({id:m.user_id,name:m.name,email:m.email,role:m.role})),schools:records.find(r=>r.id==='__schools')?.payload.schools,teamEvents:settings.teamEvents||[],staffTeams:settings.staffTeams||{},opportunities:settings.opportunities,workspace:mine?.payload||{},workspaceVersion:mine?.version||0,sharedCalendar:sharedCalendar(workspaces,staff),versions:versionsOf(records)};
   }
   async function redeem(body,token) {
     if (!/^[a-f0-9]{64}$/.test(body.inviteToken||'')) throw new PortalError('유효하지 않은 초대입니다.',403,'INVALID_INVITATION');
@@ -155,7 +156,22 @@ export function createService(db, model) {
       for(const change of body.changes) {
         if(!Number.isSafeInteger(change.expectedVersion)||change.expectedVersion<0) throw new PortalError('자료를 새로 불러온 후 저장해 주세요.',409,'VERSION_CONFLICT');
         if(typeof change.id!=='string'||change.id.length>160||!change.payload||typeof change.payload!=='object') throw new PortalError('저장 항목을 확인해 주세요.');
-        if(change.kind==='config') { adminOnly(member); if(!['__schools','__settings'].includes(change.id)) throw new PortalError('알 수 없는 설정입니다.'); changes.push(change); continue; }
+        if(change.kind==='config') {
+          adminOnly(member);if(!['__schools','__settings'].includes(change.id))throw new PortalError('알 수 없는 설정입니다.');
+          if(change.id==='__settings'){
+            const prior=check(await db.from('prep_records').select('*').eq('id','__settings').maybeSingle());
+            const payload={...prior?.payload,...change.payload};
+            if(payload.staffTeams!==undefined){
+              if(!payload.staffTeams||typeof payload.staffTeams!=='object'||Array.isArray(payload.staffTeams)||Object.keys(payload.staffTeams).length>500)throw new PortalError('담당자 팀 설정 형식을 확인해 주세요.');
+              const people=check(await db.from('prep_members').select('user_id').in('role',['admin','staff']));
+              const ids=new Set(people.map(p=>p.user_id));
+              for(const [id,teams] of Object.entries(payload.staffTeams))if(!ids.has(id)||!Array.isArray(teams)||teams.length>7||teams.some(t=>!teamNames.includes(t)))throw new PortalError('등록된 담당자와 팀을 선택해 주세요.');
+              payload.staffTeams=Object.fromEntries(Object.entries(payload.staffTeams).map(([id,teams])=>[id,[...new Set(teams)]]));
+            }
+            changes.push({...change,payload});
+          }else changes.push(change);
+          continue;
+        }
         if(change.kind!=='student'||change.id.startsWith('__')) throw new PortalError('저장 항목을 확인해 주세요.');
         const existing=check(await db.from('prep_records').select('*').eq('id',change.id).maybeSingle());
         if(existing && !(await access(member,change.id))) throw new PortalError('담당 학생만 수정할 수 있습니다.',403,'ACCESS_DENIED');
@@ -201,6 +217,7 @@ export function createService(db, model) {
         const incomingCRM=payload.operations?.crm;
         if(incomingCRM!==undefined){
           if(!incomingCRM||typeof incomingCRM!=='object'||Array.isArray(incomingCRM)||!['active','paused','completed'].includes(incomingCRM.status||'active'))throw new PortalError('CRM 관리 상태를 확인해 주세요.');
+          if(incomingCRM.team&&!teamNames.includes(incomingCRM.team))throw new PortalError('관리 팀을 선택해 주세요.');
           if(incomingCRM.contacts!==undefined&&!Array.isArray(incomingCRM.contacts))throw new PortalError('연락 기록 형식을 확인해 주세요.');
           const contacts=incomingCRM.contacts||[],oldContacts=existing?.payload.operations?.crm?.contacts||[];
           if(contacts.length>2000||new Set(contacts.map(c=>c?.id)).size!==contacts.length)throw new PortalError('연락 기록 수 또는 중복을 확인해 주세요.');

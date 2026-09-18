@@ -9,7 +9,7 @@ const V2_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `${i + 1}학년`);
 const V2_SIBLING_GRADE_OPTIONS = [...V2_GRADE_OPTIONS, "졸업"];
 const V2_TARGET_GRADE_OPTIONS = [...V2_GRADE_OPTIONS, "대학"];
 const V2_YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() + i));
-const V2_PROGRAM_OPTIONS = ["주니어보딩", "시니어보딩", "보딩프렙"];
+const V2_PROGRAM_OPTIONS = ["주니어보딩", "시니어보딩", "보딩프렙", "대학", "편입", "대학원", "플래티넘"];
 const V2_SCHOOL_TYPES = ["보딩스쿨", "국제학교 (Day School)", "외국인학교", "공립학교", "특목고/자사고", "온라인 스쿨", "홈스쿨링", "기타"];
 const V2_COUNTRIES = ["대한민국", "미국", "기타"];
 const V2_LANGUAGES = ["한국어", "영어", "중국어", "일본어", "스페인어", "프랑스어", "기타"];
@@ -2724,7 +2724,7 @@ function V2Sidebar({ user, view, setView, logout }) {
   const [menuOpen,setMenuOpen]=useState(false);
   const items = [["dashboard", "대시보드"], ["students", "학생 관리"], ["crm", "CRM 관리"], ["schedule", "일정 관리"], ["reports", "보고서 제작"], ["parents", "학부모 포털"], ["admin", "어드민"]];
   if (user.cloud) items.splice(items.length - 1, 0, ["accounts", "계정 / 초대 관리"]);
-return <aside className="side"><div className="ops-side-heading"><div><div className="brand">YES STUDY ABROAD</div><div className="brand-title">Prep LMS</div></div><button className="ops-mobile-menu navbtn" aria-label="업무 메뉴" aria-expanded={menuOpen} aria-controls="ops-staff-navigation" onClick={()=>setMenuOpen(!menuOpen)}><PPIcon name={menuOpen?'X':'Menu'}/></button></div><div id="ops-staff-navigation" className={'ops-side-content '+(menuOpen?'is-open':'')}><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "관리자" : "컨설턴트"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => {setView(i[0]);setMenuOpen(false);}}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></div></aside>;
+return <aside className="side"><div className="ops-side-heading"><div><img className="brand-logo" src="yesuhak-logo.png" alt="예스유학" width="204" height="70"/><div className="brand-title">Prep LMS</div></div><button className="ops-mobile-menu navbtn" aria-label="업무 메뉴" aria-expanded={menuOpen} aria-controls="ops-staff-navigation" onClick={()=>setMenuOpen(!menuOpen)}><PPIcon name={menuOpen?'X':'Menu'}/></button></div><div id="ops-staff-navigation" className={'ops-side-content '+(menuOpen?'is-open':'')}><div className="userbox"><b>{user.name}</b><span>{user.role === "admin" ? "관리자" : "컨설턴트"}</span></div>{items.filter(i => i[0] !== "admin" || user.role === "admin").map(i => <button key={i[0]} className={"navbtn " + (view === i[0] ? "active" : "")} onClick={() => {setView(i[0]);setMenuOpen(false);}}>{i[1]}</button>)}<button className="navbtn" onClick={logout}>로그아웃</button></div></aside>;
 }
 function V2Dashboard({ students, setView, setSelected, setStage }) {
   return <div className="grid"><div className="grid g4"><Metric title="관리 학생" val={students.length} /><Metric title="평균 입력률" val={Math.round(students.reduce((n, s) => n + V2_STAGE_KEYS.reduce((a, [k]) => a + v2StageCompletion(s, k), 0) / 5, 0) / Math.max(students.length, 1)) + "%"} /><Metric title="Stage 1 완료" val={students.filter(s => v2StageCompletion(s, "stage1") >= 80).length} /><Metric title="원서 단계" val={students.filter(s => s.stage === "stage4").length} /></div><V2Section title="학생 Stage 현황">{students.map(s => {

@@ -33,8 +33,8 @@ function CRMDirectory({students,user,data,persist,saveWorkspace,openStudent,add}
     {modal&&<CRMBatchDialog students={students} selected={selected} user={user} staff={staff} persist={persist} data={data} close={()=>{setModal(false);setSelected([]);}}/>}
   </div>;
 }
-function CRMAttention({students,openStudent,compact=false}){
-  const [kind,setKind]=useState('all');const rows=students.flatMap(s=>CRM.attention(s).map(a=>({...a,student:s}))).filter(a=>kind==='all'?a.level>=2:kind==='allLevels'||a.key===kind).sort((a,b)=>b.level-a.level||a.student.name.localeCompare(b.student.name));
+function CRMAttention({students,openStudent,compact=false,ownerId=''}){
+  const [kind,setKind]=useState('all');const rows=students.flatMap(s=>CRM.attention(s,undefined,ownerId).map(a=>({...a,student:s}))).filter(a=>kind==='all'?a.level>=2:kind==='allLevels'||a.key===kind).sort((a,b)=>b.level-a.level||a.student.name.localeCompare(b.student.name));
   return <section className="ops-band"><div className="ops-toolbar"><h2>지금 확인할 사항 <span className="ops-tag">{rows.length}</span></h2>{!compact&&<OpsField label="확인 목록 종류" value={kind} options={[["all","관리 필요"],["allLevels","기록 확인 포함"],["overdue","지연 업무"],["contact","정기 연락"],["submissions","학부모 자료"],["requestReview","요청 자료 회신"],["requestOverdue","요청 자료 지연"],["programEnd","프로그램 종료"],["applicationDate","원서 마감"],["soon","3일 내 마감"]]} onChange={setKind}/>}</div>{rows.slice(0,compact?6:100).map(a=><div className="crm-alert-row" key={a.student.id+':'+a.key}><span className={'ops-tag '+(a.level>=2?'warn':'')}>{a.level===3?'우선 확인':'확인'}</span><div><CRMStudentLink student={a.student} openStudent={openStudent} tab={a.tab}/><b> · {a.title}</b><p className="ops-muted">{a.detail}</p></div><OpsButton icon="ArrowRight" onClick={()=>openStudent(a.student,a.tab)}>확인하기</OpsButton></div>)}{!rows.length&&<OpsEmpty>현재 조건에 해당하는 확인 사항이 없습니다.</OpsEmpty>}</section>;
 }
 function CRMTaskCenter({students,data,persist,staff,user,openStudent}){

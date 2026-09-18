@@ -29,3 +29,8 @@ test('backend rejects malformed parent profiles',async()=>{
  assert.throws(()=>shapeProfile({basic:{nationalities:{}}}),/형식/);
  assert.deepEqual(shapeProfile({basic:{},tests:[]}),{basic:{},tests:[]});
 });
+test('staff team configuration persists without dropping company events or opportunities',()=>{
+ const b={students:[],schools:[],teamEvents:[{id:'e'}],opportunities:[{id:'o'}],staffTeams:{s:['시니어보딩']}};
+ const changes=changesBetween(b,{...b,staffTeams:{s:['대학','편입']}});
+ assert.deepEqual(changes,[{id:'__settings',kind:'config',payload:{teamEvents:b.teamEvents,opportunities:b.opportunities,staffTeams:{s:['대학','편입']}}}]);
+});
