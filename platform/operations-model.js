@@ -60,7 +60,8 @@
     if(!meeting.title?.trim()||!date(meeting.date))throw Error('미팅 제목과 날짜를 입력해 주세요.');
     const o=operations(st),mid=meeting.id||id();
     if(o.meetings.some(m=>m.id===mid&&m.appliedAt))throw Error('이미 반영된 미팅입니다. 후속 미팅으로 추가해 주세요.');
-    const next=clone(st);next.ecs=rows(st.ecs,'ec');next.awards=rows(st.awards,'award');next.tasks=rows(st.tasks,'tasks');next.calendarEvents=rows(st.calendarEvents,'calendar');
+    const next=clone(st);next.ecs=rows(st.ecs,'ec');next.awards=rows(st.awards,'award');next.tasks=rows(st.tasks,'tasks');next.calendarEvents=rows(st.calendarEvents,'calendar');next.academicTerms=clone(list(st.academicTerms));next.tests=clone(list(st.tests));next.applications=clone(list(st.applications));
+    let meetingGoals=clone(o.goals);
     const effects=list(meeting.effects).filter(e=>e.selected!==false);
     for(const [i,e] of effects.entries()){
       const eid=e.id||`${mid}-${i}`,origin={meetingId:mid,updatedAt:now};
@@ -81,7 +82,39 @@
         next.awards.push({id:'meeting-award-'+eid,awardName:e.awardName,competition:e.competition||'',level:e.level||'School',date:e.date,...origin});
       }
     }
-    next.operations={...recordUpdate(st,'미팅 기록 반영',meeting.title,now),meetings:[{...meeting,id:mid,effects,appliedAt:now},...o.meetings.filter(m=>m.id!==mid)]};
+    for(const row of list(meeting.academicRows)){
+      const termIndex=next.academicTerms.findIndex((term,index)=>(row.termId&&term.termId===row.termId)||(!row.termId&&index===row.termIndex));
+      if(termIndex<0)continue;
+      const subjects=list(next.academicTerms[termIndex].subjects),subject=subjects[row.subjectIndex];
+      if(!subject)continue;
+      subjects[row.subjectIndex]={...subject,meetingProgressStatus:row.progressStatus||'',meetingProgressNote:row.progressNote||'',meetingIssue:row.issue||'',lastMeetingAt:now};
+      next.academicTerms[termIndex]={...next.academicTerms[termIndex],subjects};
+    }
+    for(const row of list(meeting.testRows)){
+      if(!row.type)continue;
+      const goalIndex=meetingGoals.findIndex(goal=>goal.id===row.goalId);
+      const goalPatch={metric:row.type,target:row.target??'',to:date(row.nextDate),progressStatus:row.progressStatus||'',progressNote:row.progressNote||'',issue:row.issue||'',updatedAt:now};
+      if(goalIndex>=0)meetingGoals[goalIndex]={...meetingGoals[goalIndex],...goalPatch};
+      else if(row.newGoal)meetingGoals.push({id:row.goalId||`meeting-goal-${mid}-${id()}`,title:`${row.type} 목표`,horizon:'시험 준비',from:meeting.date,to:date(row.nextDate),shareWithFamily:false,...goalPatch,milestones:[]});
+      const testIndex=next.tests.findIndex((test,index)=>(row.testId&&test.id===row.testId)||(!row.testId&&index===row.testIndex)||test.type===row.type);
+      if(testIndex>=0)next.tests[testIndex]={...next.tests[testIndex],nextDate:date(row.nextDate),prepStatus:row.progressStatus||'',prepProgress:row.progressNote||'',prepIssue:row.issue||'',lastMeetingAt:now};
+    }
+    for(const row of list(meeting.activityRows)){
+      const activityIndex=next.ecs.findIndex((activity,index)=>(row.activityId&&(activity.activityId===row.activityId||activity.id===row.activityId))||(!row.activityId&&index===row.activityIndex));
+      if(activityIndex>=0)next.ecs[activityIndex]={...next.ecs[activityIndex],meetingProgressStatus:row.progressStatus||'',meetingProgressNote:row.progressNote||'',meetingIssue:row.issue||'',lastMeetingAt:now};
+    }
+    for(const row of list(meeting.interviewRows)){
+      const applicationIndex=next.applications.findIndex((application,index)=>(row.applicationId&&application.id===row.applicationId)||(!row.applicationId&&index===row.applicationIndex));
+      if(applicationIndex>=0)next.applications[applicationIndex]={...next.applications[applicationIndex],interviewDate:date(row.date),interviewStatus:row.status||'미예약',interviewPrepStatus:row.prepStatus||'',interviewNotes:row.notes||'',interviewDocUrl:row.docUrl||'',lastMeetingAt:now};
+    }
+    for(const row of list(meeting.essayRows)){
+      const applicationIndex=next.applications.findIndex((application,index)=>(row.applicationId&&application.id===row.applicationId)||(!row.applicationId&&index===row.applicationIndex));
+      if(applicationIndex<0)continue;
+      const essays=clone(list(next.applications[applicationIndex].essays)),essayIndex=essays.findIndex((essay,index)=>(row.essayId&&essay.id===row.essayId)||(!row.essayId&&index===row.essayIndex));
+      if(essayIndex>=0)essays[essayIndex]={...essays[essayIndex],deadline:date(row.deadline),priority:row.priority||'',status:row.status||'미시작',progressNote:row.progressNote||'',docUrl:row.docUrl||'',lastMeetingAt:now};
+      next.applications[applicationIndex]={...next.applications[applicationIndex],essays};
+    }
+    next.operations={...recordUpdate(st,'미팅 기록 반영',meeting.title,now),goals:meetingGoals,meetings:[{...meeting,id:mid,effects,appliedAt:now},...o.meetings.filter(m=>m.id!==mid)]};
     return next;
   }
   const inPeriod=(value,g)=>{const v=String(value||'');if(!v)return false;const d=v.length===7?v+'-01':v;return (!g.from||d>=g.from)&&(!g.to||d<=g.to);};

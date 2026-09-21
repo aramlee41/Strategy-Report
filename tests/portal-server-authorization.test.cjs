@@ -150,3 +150,12 @@ test('only admins maintain staff teams; team metadata never grants student acces
  await assert.rejects(()=>run({action:'save',changes:[{id:'__settings',kind:'config',expectedVersion:2,payload:{staffTeams:{s:['Unknown']}}}]},'a'),/팀/);
  assert(!JSON.stringify(await run({action:'load'},'p')).includes('staffTeams'));
 });
+test('only admins can delete students and deletion immediately removes staff and parent visibility',async()=>{
+ const {run,tables}=await setup();
+ await assert.rejects(()=>run({action:'deleteStudents',students:[{id:'one',expectedVersion:1}]},'s'),error=>error.status===403);
+ await assert.rejects(()=>run({action:'deleteStudents',students:[{id:'one',expectedVersion:99}]},'a'),error=>error.status===409);
+ const result=await run({action:'deleteStudents',students:[{id:'one',expectedVersion:1}]},'a');
+ assert.deepEqual(result.deleted,['one']);assert.equal(result.versions.one,2);assert(tables.prep_records[0].payload.deletedAt);assert.equal(tables.prep_records[0].payload.parentPortal.enabled,false);
+ assert.deepEqual((await run({action:'load'},'a')).students.map(student=>student.id),['two']);
+ assert.deepEqual((await run({action:'load'},'p')).students,[]);
+});

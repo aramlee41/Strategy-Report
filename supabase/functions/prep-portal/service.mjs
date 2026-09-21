@@ -38,7 +38,7 @@ export function createService(db, model) {
   const recordFor = async (member,id) => {
     if (!id || !(await access(member,id))) throw new PortalError('이 학생 자료에 접근할 수 없습니다.',403,'ACCESS_DENIED');
     const r=check(await db.from('prep_records').select('*').eq('id',id).eq('kind','student').maybeSingle());
-    if (!r || (member.role==='parent' && !r.payload.parentPortal?.enabled)) throw new PortalError('이 학생 자료에 접근할 수 없습니다.',403,'ACCESS_DENIED');
+    if (!r || r.payload?.deletedAt || (member.role==='parent' && !r.payload.parentPortal?.enabled)) throw new PortalError('이 학생 자료에 접근할 수 없습니다.',403,'ACCESS_DENIED');
     return r;
   };
   const versionsOf = records => Object.fromEntries(records.map(r=>[r.id,r.version]));
@@ -52,7 +52,7 @@ export function createService(db, model) {
       records=grants.length ? check(await db.from('prep_records').select('*').in('id',grants.map(g=>g.student_id)).order('id')) : [];
       if (member.role==='staff') records.push(...check(await db.from('prep_records').select('*').eq('kind','config')));
     }
-    const rows=records.filter(r=>r.kind==='student' && (member.role!=='parent'||r.payload.parentPortal?.enabled));
+    const rows=records.filter(r=>r.kind==='student' && !r.payload?.deletedAt && (member.role!=='parent'||r.payload.parentPortal?.enabled));
     if (member.role==='parent') return {user:{id:member.user_id,name:member.name,email:member.email,role:member.role},students:rows.map(r=>model.publicStudent({...r.payload,id:r.id})),versions:versionsOf(rows)};
     const staff=check(await db.from('prep_members').select('user_id,email,name,role,active').in('role',['admin','staff']).eq('active',true));
     const workspaces=check(await db.from('prep_workspaces').select('user_id,payload,version'));
@@ -104,6 +104,21 @@ export function createService(db, model) {
       }
       const workspace=member.role==='parent'?null:check(await db.from('prep_workspaces').select('version').eq('user_id',member.user_id).maybeSingle());
       return {versions:versionsOf(records),workspaceVersion:workspace?.version||0};
+    }
+    if(body.action==='deleteStudents') {
+      adminOnly(member);
+      const requested=Array.isArray(body.students)?body.students:[];
+      if(!requested.length||requested.length>50||new Set(requested.map(item=>item?.id)).size!==requested.length)throw new PortalError('삭제할 학생을 확인해 주세요.');
+      const changes=[],deletedAt=new Date().toISOString();
+      for(const item of requested){
+        if(!item||typeof item.id!=='string'||item.id.startsWith('__')||!Number.isSafeInteger(item.expectedVersion)||item.expectedVersion<1)throw new PortalError('학생 삭제 요청을 확인해 주세요.');
+        const existing=check(await db.from('prep_records').select('*').eq('id',item.id).eq('kind','student').maybeSingle());
+        if(!existing)throw new PortalError('삭제할 학생을 찾을 수 없습니다.',404,'NOT_FOUND');
+        if(existing.version!==item.expectedVersion)throw new PortalError('다른 사용자가 학생 자료를 변경했습니다. 새로 불러온 후 다시 시도해 주세요.',409,'VERSION_CONFLICT');
+        changes.push({id:item.id,kind:'student',expectedVersion:item.expectedVersion,payload:{...existing.payload,deletedAt,deletedBy:member.user_id,parentPortal:{...(existing.payload.parentPortal||{}),enabled:false}}});
+      }
+      const versions=check(await db.rpc('prep_commit',{actor:member.user_id,event_name:'students_deleted',changes}));
+      return {deleted:requested.map(item=>item.id),versions};
     }
     if(body.action==='saveWorkspace') {
       staffOnly(member);
