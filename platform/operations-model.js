@@ -72,7 +72,7 @@
         else next.ecs.push({id:'meeting-ec-'+eid,activityId:'meeting-ec-'+eid,status:'진행 중',...patch,...origin});
       }else if(e.kind==='task'){
         if(!e.title?.trim())throw Error('할 일의 제목을 입력해 주세요.');
-        next.tasks.push({id:'meeting-task-'+eid,title:e.title,deadline:date(e.date),done:false,importance:Number(e.importance)||3,ownerId:e.ownerId||'',...origin});
+        next.tasks.push({id:'meeting-task-'+eid,title:e.title,deadline:date(e.date),done:!!e.done,importance:Number(e.importance)||3,ownerId:e.ownerId||'',responsibleName:e.responsibleName||'',url:e.url||'',...origin});
       }else if(e.kind==='event'){
         if(!e.title?.trim()||!date(e.date))throw Error('일정의 제목과 날짜를 입력해 주세요.');
         next.calendarEvents.push({id:'meeting-event-'+eid,title:e.title,date:e.date,time:e.time||'',type:'Meeting action',...origin});

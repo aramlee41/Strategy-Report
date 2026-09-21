@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="parent-portal.css?v=20260917-ops-release-1">
 <link rel="stylesheet" href="portal-cloud.css?v=20260917-ops-release-1">
 <link rel="stylesheet" href="operations.css?v=20260917-ops-release-1">
-<script src="operations-model.js?v=20260917-crm-release-1"></script>
+<script src="operations-model.js?v=20260921-student-workflow-1"></script>
 <script src="crm-model.js?v=20260918-teams-release-1"></script>
 <link rel="stylesheet" href="crm.css?v=20260917-crm-release-1">
 <script src="operations-intake.js?v=20260917-ops-release-1"></script>
@@ -33,7 +33,7 @@ body{background:#f1f7fb;color:#18324a;font-size:15px}.side{background:#16344d;co
 @media print{@page{size:A4;margin:12mm}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{background:white!important;font-size:12px!important}.side,.topbar,.report-actions,.report-selector{display:none!important}.app{display:block!important}.main,.report-page{padding:0!important;max-width:none!important;margin:0!important}.report{border:0!important;border-radius:0!important;width:100%!important}.report-cover{border-radius:0!important;padding:24px!important}.report-cover h2{font-size:24px!important}.card{box-shadow:none!important;break-inside:avoid;page-break-inside:avoid}.report-body{padding:18px 0!important}.report-body .grid{display:grid!important}.report-body .g4,.report-body .rubrics{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}.report-body .g3{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}.report-body .g2{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}.report-body .card{padding:10px!important}.report-body .metric strong{font-size:22px!important}.report-body .metric span{font-size:10px!important}.report-body .rubric{padding:9px!important}.report-body .rubric strong{font-size:20px!important}.report-body .section-title{margin:16px 0 10px!important}.report-body p{line-height:1.55!important}.report-body .table{font-size:11px!important}.report-body svg{max-height:230px!important}}
 </style>
 <link rel="stylesheet" href="brand-theme.css?v=20260918-workspace-1">
-<link rel="stylesheet" href="workspace-layout.css?v=20260918-workspace-1">
+<link rel="stylesheet" href="workspace-layout.css?v=20260921-student-workflow-1">
 </head>
 <body>
 <div id="root"><div class="app-loading" role="status"><img src="yesuhak-logo.png" width="204" height="70" alt="예스유학"><p>LMS를 불러오고 있습니다.</p></div></div>
@@ -134,16 +134,19 @@ function FinalAdmin({data,updateSchools,setSelected,setView}){const [adminTab,se
 window.FinalApp = FinalApp;
 </script>
 <script type="text/babel" src="stage-upgrade.jsx?v=20260622-v2-only"></script>
-<script type="text/babel" src="stage-lms-v2.jsx?v=20260918-workspace-1"></script>
+<script type="text/babel" src="stage-lms-v2.jsx?v=20260921-student-workflow-1"></script>
+<script type="text/babel" src="student-registration.jsx?v=20260921-registration-1"></script>
 <script type="text/babel" src="parent-portal.jsx?v=20260918-workspace-1"></script>
 <script type="text/babel" src="workspace-layout.jsx?v=20260918-workspace-1"></script>
 <script type="text/babel" src="operations-ui.jsx?v=20260918-workspace-1"></script>
 <script type="text/babel" src="operations-routines.jsx?v=20260917-ops-release-1"></script>
+<script src="meeting-record-model.js?v=20260921-meetings-1"></script>
 <script type="text/babel" src="operations-student.jsx?v=20260917-ops-release-1"></script>
+<script type="text/babel" src="meeting-editor-v2.jsx?v=20260921-meetings-1"></script>
 <script type="text/babel" src="operations-applications.jsx?v=20260917-ops-release-1"></script>
 <script type="text/babel" src="operations-resume.jsx?v=20260918-resume-1"></script>
   <script type="text/babel" src="operations-catalogue.jsx?v=20260917-ops-release-1"></script>
-<script type="text/babel" src="operations-hub.jsx?v=20260917-crm-release-1"></script>
+<script type="text/babel" src="operations-hub.jsx?v=20260921-student-workflow-1"></script>
 <script type="text/babel" src="crm-ui.jsx?v=20260918-teams-release-1"></script>
 <script type="text/babel" src="crm-requests.jsx?v=20260917-crm-release-1"></script>
 <script type="text/babel" src="crm-workspace.jsx?v=20260918-teams-release-1"></script>

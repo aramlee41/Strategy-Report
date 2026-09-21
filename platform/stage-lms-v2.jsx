@@ -2493,15 +2493,17 @@ function V2ClientStrategyReport({ st, schools }) {
   </div>;
 }
 
-function V2Field({ label, val, set, type = "text", list = [] }) {
+function V2Field({ label, val, set, type = "text", list = [], required = false }) {
   const id = React.useId();
-  return <div className="field"><label className="label" htmlFor={id}>{label}</label><input id={id} className="input" type={type} value={val ?? ""} list={list.length ? id+'-options' : undefined} onChange={e => set(e.target.value)} />{list.length > 0 && <datalist id={id+'-options'}>{list.map(o => <option key={o} value={o} />)}</datalist>}</div>;
+  const empty=required&&!String(val??"").trim();
+  return <div className={'field '+(empty?'is-required-empty':'')}><label className="label" htmlFor={id}>{label}{required?' *':''}</label><input id={id} className="input" type={type} value={val ?? ""} required={required} aria-invalid={empty||undefined} list={list.length ? id+'-options' : undefined} onChange={e => set(e.target.value)} />{list.length > 0 && <datalist id={id+'-options'}>{list.map(o => <option key={o} value={o} />)}</datalist>}</div>;
 }
 function V2Text({ label, val, set, minHeight }) { const id=React.useId();return <div className="field"><label className="label" htmlFor={id}>{label}</label><textarea id={id} className="textarea" style={minHeight ? { minHeight } : undefined} value={val ?? ""} onChange={e => set(e.target.value)} /></div>; }
-function V2Select({ label, val, set, options }) {
+function V2Select({ label, val, set, options, required = false }) {
   const id=React.useId();
   const display = o => label === "Stage" ? (V2_STAGE_KEYS.find(x => x[0] === o)?.[1] || o) : o;
-  return <div className="field"><label className="label" htmlFor={id}>{label}</label><select id={id} className="select" value={val ?? ""} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
+  const empty=required&&!String(val??"").trim();
+  return <div className={'field '+(empty?'is-required-empty':'')}><label className="label" htmlFor={id}>{label}{required?' *':''}</label><select id={id} className="select" value={val ?? ""} required={required} aria-invalid={empty||undefined} onChange={e => set(e.target.value)}><option value="">선택</option>{options.map(o => <option key={o} value={o}>{display(o)}</option>)}</select></div>;
 }
 function V2SearchSelect({ label, val, set, options = [] }) {
   const [open, setOpen] = useState(false);
@@ -2588,16 +2590,51 @@ function V2LanguageLevelPicker({ label, values = [], levels = {}, setBoth, optio
   const setLevel = (lang, level) => setBoth(values, { ...levels, [lang]: level });
   return <div className="field"><span className="label">{label}</span><div className="grid g3"><V2Select label="언어 선택" val={pending} set={chooseLanguage} options={options.filter(o => !values.includes(o))} /><div className="field"><span className="label">&nbsp;</span><button type="button" className="btn ghost" onClick={add}>언어 추가</button></div></div><div className="grid">{values.map(lang => <div key={lang} className="language-row selected" style={{ gridTemplateColumns: lang === "기타" ? "120px minmax(180px,1fr) 180px auto" : "1fr 180px auto" }}><span>{lang}</span>{lang === "기타" && <input className="input" value={otherValue || ""} onChange={e => setOther(e.target.value)} placeholder="직접 입력" />}<select className="select" value={levels[lang] || "Intermediate"} onChange={e => setLevel(lang, e.target.value)}><option>Beginner</option><option>Intermediate</option><option>Fluent</option></select><button type="button" className="btn ghost" onClick={() => remove(lang)}>삭제</button></div>)}</div></div>;
 }
-function V2AddressSearchButtons({ address }) {
-  const openRoad = () => {
-    const q = encodeURIComponent(address.searchQuery || address.koreanAddress || "");
-    window.open(`https://www.juso.go.kr/openIndexPage.do?keyword=${q}`, "_blank");
+let v2KakaoPostcodePromise;
+function v2LoadKakaoPostcode() {
+  const ready = () => window.daum?.Postcode || window.kakao?.Postcode;
+  if (ready()) return Promise.resolve(ready());
+  if (v2KakaoPostcodePromise) return v2KakaoPostcodePromise;
+  v2KakaoPostcodePromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-prep-address-search]');
+    const finish = () => ready() ? resolve(ready()) : reject(new Error('주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'));
+    if (existing) {
+      existing.addEventListener('load', finish, { once: true });
+      existing.addEventListener('error', () => reject(new Error('주소 검색 서비스에 연결하지 못했습니다.')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.async = true;
+    script.dataset.prepAddressSearch = 'true';
+    script.onload = finish;
+    script.onerror = () => reject(new Error('주소 검색 서비스에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.'));
+    document.head.appendChild(script);
+  }).catch(error => { v2KakaoPostcodePromise = null; throw error; });
+  return v2KakaoPostcodePromise;
+}
+function V2AddressSearchButtons({ address, select }) {
+  const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  React.useEffect(() => { v2LoadKakaoPostcode().catch(() => {}); }, []);
+  const openSearch = async () => {
+    setBusy(true);setError('');
+    try {
+      const Postcode = await v2LoadKakaoPostcode();
+      new Postcode({
+        oncomplete: data => {
+          const koreanAddress = data.roadAddress || data.autoRoadAddress || data.jibunAddress || data.address || '';
+          const englishAddress = data.roadAddressEnglish || data.jibunAddressEnglish || data.addressEnglish || '';
+          select({ zip: data.zonecode || '', searchQuery: koreanAddress, koreanAddress, englishAddress, sameAs: '' });
+          setBusy(false);
+        },
+        onclose: () => setBusy(false)
+      }).open({ q: address.searchQuery || address.koreanAddress || '' });
+    } catch (cause) {
+      setError(cause.message || '주소 검색을 시작하지 못했습니다.');
+      setBusy(false);
+    }
   };
-  const openEnglish = () => {
-    const q = encodeURIComponent(address.koreanAddress || address.searchQuery || "");
-    window.open(`https://www.jusoen.com/?query=${q}`, "_blank");
-  };
-  return <div className="field"><span className="label">&nbsp;</span><div className="right"><button type="button" className="btn ghost" onClick={openRoad}>도로명주소 검색</button><button type="button" className="btn ghost" onClick={openEnglish}>영문주소 변환</button></div></div>;
+  return <div className="field address-search-action"><span className="label">주소 자동 입력</span><button type="button" className="btn ghost" disabled={busy} onClick={openSearch}><PPIcon name="MapPin" size={17}/>{busy ? ' 검색 준비 중…' : ' 도로명·건물명·지번 검색'}</button>{error && <span role="alert" className="address-search-error">{error}</span>}</div>;
 }
 function V2AddressHelper({ basic, setBasic }) {
   const addresses = v2ApplyAddressLinks(basic.addresses || [V2_EMPTY_ADDRESS("Permanent Address"), V2_EMPTY_ADDRESS("Mailing Address")]);
@@ -2614,8 +2651,8 @@ function V2AddressHelper({ basic, setBasic }) {
   return <V2Section title="학생 주소/연락처">
     <div className="grid g2"><V2Field label="개인 이메일" val={basic.personalEmail} set={v => setBasic("personalEmail", v)} /><V2Field label="학교 이메일" val={basic.schoolEmail} set={v => setBasic("schoolEmail", v)} /></div>
     <ArrayEditor title="학생 연락처" rows={phones} add={() => setBasic("phones", [...phones, V2_EMPTY_PHONE()])} render={(p, i) => <div className="grid g4"><V2Select label="연락처 구분" val={p.type} set={v => editPhone(i, { type: v })} options={V2_PHONE_TYPES} />{p.type === "기타" && <V2Field label="연락처 구분 직접 입력" val={p.typeOther} set={v => editPhone(i, { typeOther: v })} />}<V2Select label="지역/국가번호" val={p.countryCode} set={v => editPhone(i, { countryCode: v })} options={V2_COUNTRY_CODES} />{p.countryCode === "기타" && <V2Field label="국가번호 직접 입력" val={p.countryCodeOther} set={v => editPhone(i, { countryCodeOther: v })} />}<V2Field label="전화번호/ID" val={p.number} set={v => editPhone(i, { number: v })} /><V2Select label="대표 연락처" val={p.preferred} set={v => editPhone(i, { preferred: v })} options={["Yes", "No"]} /></div>} />
-    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}><div>{a.type !== "Permanent Address" && <label className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={a.sameAs === "Permanent Address"} onChange={e => toggleSameAsPermanent(i, e.target.checked)} />Permanent Address와 동일</label>}</div>{i > 1 && <button type="button" className="btn ghost" onClick={() => deleteAddress(i)}>주소 삭제</button>}</div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v, sameAs: "" })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v, sameAs: "" })} /><V2AddressSearchButtons address={a} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v, sameAs: "" })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v, sameAs: "" })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
-    <p className="small muted">현재 버전은 GitHub Pages에서 동작하는 정적 프로토타입이라 주소 검색 결과를 자동으로 가져오지는 않고, 검색 서비스를 새 창으로 열어 복사 입력하는 방식입니다.</p>
+    <ArrayEditor title="주소" rows={addresses} add={() => setBasic("addresses", [...addresses, V2_EMPTY_ADDRESS("기타")])} render={(a, i) => <div><div className="right" style={{ justifyContent: "space-between", marginBottom: 10 }}><div>{a.type !== "Permanent Address" && <label className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><input type="checkbox" checked={a.sameAs === "Permanent Address"} onChange={e => toggleSameAsPermanent(i, e.target.checked)} />Permanent Address와 동일</label>}</div>{i > 1 && <button type="button" className="btn ghost" onClick={() => deleteAddress(i)}>주소 삭제</button>}</div><div className="grid g3"><V2Select label="주소 구분" val={a.type} set={v => editAddress(i, { type: v })} options={V2_ADDRESS_TYPES} />{a.type === "기타" && <V2Field label="주소 구분 직접 입력" val={a.typeOther} set={v => editAddress(i, { typeOther: v })} />}<V2Field label="우편번호" val={a.zip} set={v => editAddress(i, { zip: v, sameAs: "" })} /><V2Field label="주소 검색어" val={a.searchQuery} set={v => editAddress(i, { searchQuery: v, sameAs: "" })} /><V2AddressSearchButtons address={a} select={patch => editAddress(i, patch)} /></div><div className="grid g2"><V2Text label="한국어 주소" val={a.koreanAddress} set={v => editAddress(i, { koreanAddress: v, sameAs: "" })} /><V2Text label="영문 주소" val={a.englishAddress} set={v => editAddress(i, { englishAddress: v, sameAs: "" })} /></div><V2Field label="주소 메모" val={a.notes} set={v => editAddress(i, { notes: v })} /></div>} />
+    <p className="small muted">주소 검색 결과를 선택하면 우편번호, 한국어 도로명주소와 영문주소가 자동으로 입력됩니다. 상세주소는 선택 후 주소란에서 추가해 주세요.</p>
   </V2Section>;
 }
 function v2EducationStage(level = "") {
@@ -2691,9 +2728,11 @@ function V2App({ cloud = null }) {
   const [view, setView] = useState("dashboard");
   const [selected, setSelected] = useState(data.students[0]?.id);
   const [studentPanel,setStudentPanel]=useState("overview");
+  const [newStudentOpen,setNewStudentOpen]=useState(false);
   const [stage, setStage] = useState("stage1");
   const [login, setLogin] = useState({ email: "admin@yesuhak.com", password: "prep2026" });
   const users = [...accounts, ...(data.staffAccounts || [])].map(a => ({ ...a, password: a.password || "prep2026" }));
+  const staffDirectory = [...new Map(users.map(a => [a.id || a.email, a])).values()];
   const persist = next => {
     if (!cloud) return v2Persist(setData, next);
     const fixed = v2PrepareCloudSave(data,next);
@@ -2717,9 +2756,16 @@ function V2App({ cloud = null }) {
     return persist({ ...data, students: data.students.map(s => s.id === st.id ? v2NormalizeStudent({ ...s, ...nextPatch, last: new Date().toISOString().slice(0, 10) }) : s) });
   };
   const updateSchools = schools => persist({ ...data, schools: (schools || []).map(v2NormalizeSchool), schoolDataVersion: window.PREP_SCHOOL_DATA_VERSION || data.schoolDataVersion });
+  const registerStudent = ns => {
+    persist({ ...data, students: [v2NormalizeStudent(ns), ...data.students] });
+    setSelected(ns.id);
+    setStudentPanel("overview");
+    setView("student");
+    setNewStudentOpen(false);
+  };
   if (view === "parents") return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPManager data={data} persist={persist} user={user} initialStudentId={selected} /></main></div>;
   if (view === "accounts" && cloud) return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><PPCloudAccounts students={visible} admin={user.role === "admin"} onImport={user.role === "admin" ? cloud.importLocal : undefined} /></main></div>;
-  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><Header view={view} />{view === "dashboard" && <OpsWorkspace data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={openStudent} />}{view === "students" && <CRMDirectory data={data} persist={persist} saveWorkspace={saveWorkspace} students={visible} user={user} openStudent={openStudent} add={() => { const ns = v2NormalizeStudent({ ...blankStudent(), owners: [cloud ? user.id : (user.role === "admin" ? "aram" : user.id)], owner: cloud ? user.id : (user.role === "admin" ? "aram" : user.id) }); persist({ ...data, students: [ns, ...data.students] }); setSelected(ns.id); setStudentPanel("overview"); setView("student"); }} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail initialTab={studentPanel} st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} user={user} opportunities={data.opportunities} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <OpsWorkspace calendarOnly data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={openStudent} />}{view === "crm" && <CRMWorkspace students={visible} data={data} persist={persist} user={user} openStudent={openStudent} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main></div>;
+  return <div className="app"><V2Sidebar user={user} view={view} setView={setView} logout={logout} /><main className="main"><Header view={view} />{view === "dashboard" && <OpsWorkspace data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={openStudent} />}{view === "students" && <CRMDirectory data={data} persist={persist} saveWorkspace={saveWorkspace} students={visible} user={user} openStudent={openStudent} add={() => setNewStudentOpen(true)} setSelected={setSelected} setView={setView} setStage={setStage} />}{view === "student" && st && <V2StudentDetail initialTab={studentPanel} st={st} update={updateStudent} schools={data.schools} staff={data.staffAccounts || []} user={user} opportunities={data.opportunities} stage={st.stage || stage || "stage1"} setStage={setStage} />}{view === "schedule" && <OpsWorkspace calendarOnly data={data} students={visible} user={user} persist={persist} saveWorkspace={saveWorkspace} openStudent={openStudent} />}{view === "crm" && <CRMWorkspace students={visible} data={data} persist={persist} user={user} openStudent={openStudent} />}{view === "reports" && <V2Reports students={visible} selected={st} setSelected={setSelected} schools={data.schools} />}{view === "admin" && user.role === "admin" && <V2Admin data={data} persist={persist} updateSchools={updateSchools} setSelected={setSelected} setView={setView} setStage={setStage} />}</main>{newStudentOpen && <V2NewStudentDialog users={staffDirectory} currentUser={user} save={registerStudent} close={() => setNewStudentOpen(false)} />}</div>;
 }
 function V2Sidebar({ user, view, setView, logout }) {
   const [menuOpen,setMenuOpen]=useState(false);
@@ -2754,7 +2800,7 @@ function V2StageOne({ st, update, schools, staff }) {
     const nb = typeof k === "object" ? { ...basic, ...k } : { ...basic, [k]: v };
     update({ basic: nb, ...v2NamePatch(nb) });
   };
-  const tabs = [["identity", "기본 정보"], ["program", "프로그램/목표"], ["schools", "학교 정보"], ["grades", "성적표"], ["tests", "시험"], ["ecs", "EC 기본"], ["awards", "수상내역"], ["report", "기초 보고서"]];
+  const tabs = [["identity", "기본 정보"], ["program", "프로그램/지원목표"], ["schools", "학교 정보"], ["grades", "성적표"], ["tests", "시험"], ["ecs", "EC 기본"], ["awards", "수상내역"], ["report", "기초 보고서"]];
   return <div><V2SubTabs tabs={tabs} active={sub} set={setSub} />{sub === "identity" && <V2Identity st={st} basic={basic} setBasic={setBasic} update={update} staff={staff} />}{sub === "program" && <V2Program st={st} update={update} schools={schools} />}{sub === "schools" && <V2SchoolInfo st={st} update={update} schools={schools} />}{sub === "grades" && <V2TranscriptWithScale st={st} update={update} schools={schools} />}{sub === "tests" && <V2Tests st={st} update={update} />}{sub === "ecs" && <V2Ecs st={st} update={update} />}{sub === "awards" && <V2StandaloneAwards st={st} update={update} />}{sub === "report" && <V2BasicReport st={st} schools={schools} />}</div>;
 }
 function V2Identity({ st, basic, setBasic, update, staff, parentMode = false }) {
@@ -2770,7 +2816,7 @@ function V2Identity({ st, basic, setBasic, update, staff, parentMode = false }) 
   </div>;
 }
 function V2Program({ st, update, schools }) {
-  return <div className="grid"><V2Section title="프로그램 / 지원 목표"><div className="grid g3"><V2Select label="소속 프로그램" val={st.program} set={v => update({ program: v })} options={V2_PROGRAM_OPTIONS} /><V2Select label="현재 학년" val={st.currentGrade} set={v => update({ currentGrade: v, grade: v })} options={V2_GRADE_OPTIONS} /><V2Select label="지원 연도" val={st.targetYear} set={v => update({ targetYear: v })} options={V2_YEAR_OPTIONS} /><V2Select label="지원 학년" val={st.targetGrade} set={v => update({ targetGrade: v })} options={V2_TARGET_GRADE_OPTIONS} /><V2Field label="프로그램 종료일" type="date" val={st.programEndDate} set={v => update({ programEndDate: v, deadline: v })} /><V2Select label="Stage" val={st.stage} set={v => update({ stage: v })} options={V2_STAGE_KEYS.map(x => x[0])} /></div></V2Section><V2InterestSchools st={st} update={update} schools={schools} /></div>;
+  return <div className="grid"><V2Section title="프로그램 / 지원목표"><div className="grid g3"><V2Select required label="소속 프로그램" val={st.program} set={v => update({ program: v })} options={V2_PROGRAM_OPTIONS} /><V2Select required label="현재 학년" val={st.currentGrade} set={v => update({ currentGrade: v, grade: v })} options={V2_GRADE_OPTIONS} /><V2Select required label="지원 연도" val={st.targetYear} set={v => update({ targetYear: v })} options={V2_YEAR_OPTIONS} /><V2Select required label="지원 학년" val={st.targetGrade} set={v => update({ targetGrade: v })} options={V2_TARGET_GRADE_OPTIONS} /><V2Field required label="프로그램 종료일" type="date" val={st.programEndDate} set={v => update({ programEndDate: v, deadline: v })} /></div><p className="required-note">붉게 표시된 항목은 아직 입력되지 않은 필수 정보입니다.</p></V2Section><V2InterestSchools st={st} update={update} schools={schools} /></div>;
 }
 function V2SchoolInfo({ st, update, schools }) {
   const [modal, setModal] = useState(null);
@@ -4360,7 +4406,7 @@ function V2StageThree({ st, update, schools, staff }) {
     const events = names.flatMap(name => (v2FindSchool(schools, name)?.calendar || []).map(e => ({ ...e, title: `${name}: ${e.title}`, source: "school-copy" })));
     update({ calendarEvents: [...(st.calendarEvents || []), ...events] });
   };
-  return <div><V2SubTabs tabs={[["actions", "액션 플랜"], ["calendar", "캘린더"], ["meetings", "미팅/커뮤니케이션"]]} active={sub} set={setSub} />{sub === "actions" && <V2Section title="Stage 2 전략 실행 관리"><V2Text label="주간 액션 플랜" val={plan.weeklyPlan} set={v => setPlan({ weeklyPlan: v })} /><EnhancedRoadmap st={st} update={update} schools={schools} /></V2Section>}{sub === "calendar" && <div className="grid"><V2Section title="학교 기본 일정 가져오기"><button className="btn primary" onClick={importSchoolCalendar}>학교 학사일정 복사</button><p className="small muted">복사된 일정은 이 학생 캘린더에서만 수정/삭제됩니다.</p></V2Section><OpsStudentCalendar st={st} update={update} /></div>}{sub === "meetings" && <OpsMeetings st={st} update={update} staff={staff} />}</div>;
+  return <div><V2SubTabs tabs={[["actions", "액션 플랜"], ["calendar", "캘린더"], ["meetings", "미팅/커뮤니케이션"]]} active={sub} set={setSub} />{sub === "actions" && <V2Section title="Stage 2 전략 실행 관리"><V2Text label="주간 액션 플랜" val={plan.weeklyPlan} set={v => setPlan({ weeklyPlan: v })} /><EnhancedRoadmap st={st} update={update} schools={schools} /></V2Section>}{sub === "calendar" && <div className="grid"><V2Section title="학교 기본 일정 가져오기"><button className="btn primary" onClick={importSchoolCalendar}>학교 학사일정 복사</button><p className="small muted">복사된 일정은 이 학생 캘린더에서만 수정/삭제됩니다.</p></V2Section><OpsStudentCalendar st={st} update={update} /></div>}{sub === "meetings" && <OpsMeetingsV2 st={st} update={update} staff={staff} />}</div>;
 }
 function V2PreviousApplicationHistory({ st, update }) {
   const rows = st.previousApplications || [];
