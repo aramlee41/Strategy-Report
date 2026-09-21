@@ -1,14 +1,31 @@
 const MEETING_PROGRESS_OPTIONS=[['','상태 선택'],['on-track','순조로움'],['needs-attention','확인 필요'],['blocked','문제 발생'],['complete','완료']];
 const MEETING_TEST_TYPES=['SSAT','PSAT','SAT','ACT','TOEFL','TOEFL Jr','IELTS','DET','ISEE','MAP'];
 const MEETING_ACTIVITY_GROUPS=[['school','학교 활동'],['external','외부 활동'],['project','프로젝트']];
+const MEETING_SECTION_CATALOG={
+  since:{title:'SINCE LAST MEETING',label:'지난 미팅 이후',guide:'지난 미팅에서 정한 할 일과 실제 결과를 한 항목씩 확인합니다.'},
+  focus:{title:'MEETING FOCUS',label:'오늘 목표',guide:'오늘 확인하거나 결정할 목표를 한 줄씩 적습니다.'},
+  academics:{title:'ACADEMICS',label:'학업',guide:'이번 학기에 수강 중인 과목의 진행상황과 문제 상황을 기록합니다.'},
+  testing:{title:'TESTING / PREP',label:'시험 / 준비',guide:'현재 시험 목표, 준비 진행상황과 다음 응시일을 함께 관리합니다.'},
+  activities:{title:'ACTIVITIES',label:'활동',guide:'진행 중인 활동을 학교 활동, 외부 활동, 프로젝트로 나누어 확인합니다.'},
+  interviews:{title:'INTERVIEWS',label:'인터뷰',guide:'지원학교 인터뷰 일정, 준비 상태와 연결 문서를 확인합니다.'},
+  essays:{title:'ESSAYS',label:'에세이',guide:'학교별 질문, 마감, 우선순위와 Google Doc을 한곳에서 관리합니다.'},
+  other:{title:'OTHER',label:'기타',guide:'위 분류에 포함되지 않는 내용을 한 줄씩 기록합니다.'},
+  actions:{title:'ACTION ITEMS / HOMEWORK',label:'다음 할 일',guide:'자연어 날짜를 인식해 할 일과 캘린더에 함께 반영합니다.'},
+  notes:{title:'NOTES FOR PARENTS & CONSULTANT',label:'학부모 / 내부 메모',guide:'학부모 전달 내용과 내부 메모를 분리해 기록합니다.'}
+};
 
-function MeetingSection({number,title,guide,children}){
-  return <section className="meeting-section"><div className="meeting-section-head"><span>{number}</span><div><h3>{title}</h3>{guide&&<p>{guide}</p>}</div></div><div className="meeting-section-body">{children}</div></section>;
+function MeetingSection({number,title,guide,controls,children}){
+  return <section className="meeting-section"><div className="meeting-section-head"><span>{number}</span><div><h3>{title}</h3>{guide&&<p>{guide}</p>}</div>{controls&&<div className="meeting-section-controls">{controls}</div>}</div><div className="meeting-section-body">{children}</div></section>;
 }
 function MeetingNoteRows({value,onChange,label,placeholder}){
   const rows=String(value||'').split('\n').filter(Boolean).length?String(value||'').split('\n') : [''];
   const setRows=next=>onChange(next.filter((row,index)=>row.trim()||index===next.length-1).join('\n'));
   return <div className="meeting-line-list"><div className="ops-toolbar"><h4>{label}</h4><OpsButton icon="Plus" onClick={()=>setRows([...rows,''])}>행 추가</OpsButton></div>{rows.map((row,index)=><div className="meeting-line-row" key={index}><span>{index+1}</span><input className="input" aria-label={`${label} ${index+1}`} value={row} placeholder={placeholder} onChange={e=>setRows(rows.map((item,i)=>i===index?e.target.value:item))}/>{rows.length>1&&<OpsButton icon="Trash2" aria-label={`${label} ${index+1} 삭제`} onClick={()=>setRows(rows.filter((_,i)=>i!==index))}/>}</div>)}</div>;
+}
+function MeetingPreviousItems({items,setItems}){
+  const change=(index,patch)=>setItems(items.map((item,i)=>i===index?{...item,...patch}:item));
+  const add=()=>setItems([...items,{id:`previous-manual-${O.id()}`,title:'',dueDate:'',resultStatus:'확인 필요',note:'',manual:true}]);
+  return <div className="meeting-previous-items"><div className="ops-toolbar"><h4>지난 미팅 할 일</h4><OpsButton icon="Plus" onClick={add}>항목 추가</OpsButton></div>{items.map((item,index)=><article className="meeting-previous-row" key={item.id||index}><div className="meeting-linked-context"><b>{item.title||'새 확인 항목'}</b>{item.dueDate&&<span>기한 {item.dueDate}</span>}</div>{item.manual&&<OpsField label="확인할 일" value={item.title||''} onChange={value=>change(index,{title:value})}/>}<OpsField label="결과" value={item.resultStatus||'확인 필요'} options={['확인 필요','완료','진행 중','미완료','보류']} onChange={value=>change(index,{resultStatus:value})}/><OpsField label="진행 결과 / 미완료 사유" value={item.note||''} onChange={value=>change(index,{note:value})}/><OpsButton icon="Trash2" aria-label="지난 미팅 항목 삭제" onClick={()=>setItems(items.filter((_,i)=>i!==index))}/></article>)}{!items.length&&<OpsEmpty>지난 미팅에 등록된 할 일이 없습니다.</OpsEmpty>}</div>;
 }
 function MeetingLinkedRow({title,meta,row,change,onAction,children}){
   return <article className="meeting-linked-row"><div className="meeting-linked-context"><b>{title}</b>{meta&&<span>{meta}</span>}</div>{children||<><OpsField label="진행 상태" value={row.progressStatus||''} options={MEETING_PROGRESS_OPTIONS.slice(1)} onChange={value=>change({progressStatus:value})}/><OpsField label="진행 내용" value={row.progressNote||''} onChange={value=>change({progressNote:value})}/><OpsField label="문제 상황 / 확인 필요" value={row.issue||''} onChange={value=>change({issue:value})}/></>}<OpsButton icon="ListPlus" onClick={()=>onAction(title)}>후속 할 일 추가</OpsButton></article>;
@@ -43,31 +60,54 @@ function MeetingActionItems({items,setItems,staff,studentName,meetingDate}){
 }
 function OpsMeetingEditorLinked({st,meeting,history=[],update,close,staff=[]}){
   const model=window.PrepMeetingRecords;
-  const seed=model.hydrate({id:O.id(),date:O.today(),...meeting},st);if(!seed.id)seed.id=O.id();if(!seed.date)seed.date=O.today();
-  const [d,setD]=useState(seed),[sourceId,setSourceId]=useState('');
+  const base=model.hydrate({id:O.id(),date:O.today(),...meeting},st);if(!base.id)base.id=O.id();if(!base.date)base.date=O.today();
+  const rememberedSections=model.normalizeSectionOrder(O.operations(st).meetingSectionOrder),initialSections=base.sectionOrder.length?base.sectionOrder:(rememberedSections.length?rememberedSections:model.defaultSectionOrder);
+  const seed=model.seedPreviousActions({...base,sectionOrder:initialSections},history,st);
+  const [d,setD]=useState(seed),[sourceId,setSourceId]=useState(''),[showHeaders,setShowHeaders]=useState(false);
   const set=(key,value)=>setD(old=>({...old,[key]:value}));
   const setRows=(key,value)=>setD(old=>({...old,[key]:value}));
   const addAction=label=>setD(old=>({...old,actionItems:[...old.actionItems,{id:O.id(),title:`${label} 후속: `,responsibleId:'student',responsibleName:st.name||'학생',dueDate:'',dueDateAuto:true,done:false,url:'',createTask:true}]}));
-  const useExisting=id=>{setSourceId(id);if(!id)return;const source=history.find(item=>item.id===id);if(source)setD(model.hydrate(model.copyForNew(source,O.id(),O.today()),st));};
+  const useExisting=id=>{setSourceId(id);if(!id)return;const source=history.find(item=>item.id===id);if(source){const copied=model.hydrate(model.copyForNew(source,O.id(),O.today()),st);setD({...copied,sectionOrder:copied.sectionOrder.length?copied.sectionOrder:d.sectionOrder});}};
   const build=()=>model.payload(d,O.id);
-  const saveDraft=()=>{const payload=build();if(!payload.title.trim()||!O.date(payload.date))throw Error('미팅 제목과 날짜를 확인해 주세요.');const operations=O.operations(st);return update({operations:{...operations,meetings:[payload,...operations.meetings.filter(item=>item.id!==payload.id)]}});};
-  const dateChange=value=>setD(old=>({...old,date:value,...(old.autoTitle||old.title===model.formatMeetingTitle(old.date)?{title:model.formatMeetingTitle(value),autoTitle:true}:{})}));
+  const saveDraft=()=>{const payload=build();if(!payload.title.trim()||!O.date(payload.date))throw Error('미팅 제목과 날짜를 확인해 주세요.');const operations=O.operations(st);return update({operations:{...operations,meetingSectionOrder:payload.sectionOrder,meetings:[payload,...operations.meetings.filter(item=>item.id!==payload.id)]}});};
+  const dateChange=value=>setD(old=>{const generated=model.sourceRows(st,value).academicRows,academicRows=generated.map(row=>({...row,...(old.academicRows.find(saved=>saved.id===row.id)||{})}));return {...old,date:value,academicRows,...(old.autoTitle||old.title===model.formatMeetingTitle(old.date)?{title:model.formatMeetingTitle(value),autoTitle:true}:{})};});
+  const moveSection=(key,offset)=>setD(old=>{const order=[...old.sectionOrder],index=order.indexOf(key),target=index+offset;if(index<0||target<0||target>=order.length)return old;[order[index],order[target]]=[order[target],order[index]];return {...old,sectionOrder:order};});
+  const removeSection=key=>setD(old=>({...old,sectionOrder:old.sectionOrder.filter(item=>item!==key)}));
+  const addSection=key=>setD(old=>({...old,sectionOrder:[...old.sectionOrder,key]}));
+  const sectionBody=key=>{
+    if(key==='since')return <MeetingPreviousItems items={d.sinceLastMeetingItems} setItems={value=>set('sinceLastMeetingItems',value)}/>;
+    if(key==='focus')return <MeetingNoteRows label="오늘 목표" value={d.todayGoal} onChange={value=>set('todayGoal',value)} placeholder="오늘 확인하거나 결정할 목표"/>;
+    if(key==='academics')return <MeetingAcademicRows rows={d.academicRows} setRows={value=>setRows('academicRows',value)} onAction={addAction}/>;
+    if(key==='testing')return <MeetingTestRows rows={d.testRows} setRows={value=>setRows('testRows',value)} onAction={addAction}/>;
+    if(key==='activities')return <MeetingActivityRows rows={d.activityRows} setRows={value=>setRows('activityRows',value)} onAction={addAction}/>;
+    if(key==='interviews')return <MeetingInterviewRows rows={d.interviewRows} setRows={value=>setRows('interviewRows',value)} onAction={addAction}/>;
+    if(key==='essays')return <MeetingEssayRows rows={d.essayRows} setRows={value=>setRows('essayRows',value)} onAction={addAction}/>;
+    if(key==='other')return <MeetingNoteRows label="기타 사항" value={d.otherRows.map(row=>row.note).join('\n')} onChange={value=>set('otherRows',value.split('\n').map((note,index)=>({id:`other-${index+1}`,note})))} placeholder="기타 확인 사항"/>;
+    if(key==='actions')return <MeetingActionItems items={d.actionItems} setItems={value=>set('actionItems',value)} staff={staff} studentName={st.name} meetingDate={d.date}/>;
+    return <><OpsField label="학부모 전달 요약" type="textarea" rows={6} value={d.parentSummary} onChange={value=>set('parentSummary',value)}/><OpsCheck label="학부모 공개 진행상황에 전달 요약 포함" value={d.shareWithFamily} onChange={value=>set('shareWithFamily',value)}/><OpsField label="내부 전용 메모" type="textarea" rows={4} value={d.internalNotes} onChange={value=>set('internalNotes',value)}/></>;
+  };
+  const inactive=model.sectionKeys.filter(key=>!d.sectionOrder.includes(key));
   return <PPDialog title="미팅 기록" close={close} wide><div className="ops meeting-editor"><div className="meeting-load-existing"><OpsField label="기존 기록 불러오기" emptyLabel="기록을 선택해 새 초안으로 복제" value={sourceId} options={history.filter(item=>item.id!==d.id).map(item=>[item.id,`${item.date||'날짜 미정'} · ${item.title}`])} onChange={useExisting}/><p>원본 기록은 보존되며 새 미팅 기록으로 저장됩니다.</p></div><div className="ops-grid three"><OpsField label="미팅 제목 *" value={d.title} onChange={value=>setD(old=>({...old,title:value,autoTitle:false}))}/><OpsField label="날짜 *" type="date" value={d.date} onChange={dateChange}/><OpsField label="시각" type="time" value={d.time} onChange={value=>set('time',value)}/></div>
-    <MeetingSection number="1" title="SINCE LAST MEETING" guide="지난 미팅의 약속과 실제 완료 내용을 한 항목씩 확인합니다."><MeetingNoteRows label="지난 미팅 이후" value={d.sinceLastMeeting} onChange={value=>set('sinceLastMeeting',value)} placeholder="완료한 일 또는 미완료 사유"/></MeetingSection>
-    <MeetingSection number="2" title="MEETING FOCUS" guide="오늘 확인하거나 결정할 목표를 명확하게 적습니다."><OpsField label="오늘 목표" value={d.todayGoal} onChange={value=>set('todayGoal',value)}/></MeetingSection>
-    <MeetingSection number="3" title="ACADEMICS" guide="등록된 학기와 과목별 진행상황, 문제 상황을 기록합니다."><MeetingAcademicRows rows={d.academicRows} setRows={value=>setRows('academicRows',value)} onAction={addAction}/></MeetingSection>
-    <MeetingSection number="4" title="TESTING / PREP" guide="현재 시험 목표, 준비 진행상황과 다음 응시일을 함께 관리합니다."><MeetingTestRows rows={d.testRows} setRows={value=>setRows('testRows',value)} onAction={addAction}/></MeetingSection>
-    <MeetingSection number="5" title="ACTIVITIES" guide="진행 중인 활동을 학교 활동, 외부 활동, 프로젝트로 나누어 확인합니다."><MeetingActivityRows rows={d.activityRows} setRows={value=>setRows('activityRows',value)} onAction={addAction}/></MeetingSection>
-    <MeetingSection number="6" title="INTERVIEWS" guide="지원학교 인터뷰 일정, 준비 상태와 연결 문서를 확인합니다."><MeetingInterviewRows rows={d.interviewRows} setRows={value=>setRows('interviewRows',value)} onAction={addAction}/></MeetingSection>
-    <MeetingSection number="7" title="ESSAYS" guide="학교별 질문, 마감, 우선순위와 Google Doc을 한곳에서 관리합니다."><MeetingEssayRows rows={d.essayRows} setRows={value=>setRows('essayRows',value)} onAction={addAction}/></MeetingSection>
-    <MeetingSection number="8" title="OTHER" guide="위 분류에 포함되지 않는 내용을 한 줄씩 기록합니다."><MeetingNoteRows label="기타 사항" value={d.otherRows.map(row=>row.note).join('\n')} onChange={value=>set('otherRows',value.split('\n').map((note,index)=>({id:`other-${index+1}`,note})))} placeholder="기타 확인 사항"/></MeetingSection>
-    <MeetingSection number="9" title="ACTION ITEMS / HOMEWORK" guide="자연어로 날짜를 입력하면 마감일이 자동 입력되고, 저장 시 할 일과 캘린더에 함께 표시됩니다."><MeetingActionItems items={d.actionItems} setItems={value=>set('actionItems',value)} staff={staff} studentName={st.name} meetingDate={d.date}/></MeetingSection>
-    <MeetingSection number="10" title="NOTES FOR PARENTS & CONSULTANT" guide="학부모 전달 내용과 내부 메모를 분리해 기록합니다."><OpsField label="학부모 전달 요약" type="textarea" rows={6} value={d.parentSummary} onChange={value=>set('parentSummary',value)}/><OpsCheck label="학부모 공개 진행상황에 전달 요약 포함" value={d.shareWithFamily} onChange={value=>set('shareWithFamily',value)}/><OpsField label="내부 전용 메모" type="textarea" rows={4} value={d.internalNotes} onChange={value=>set('internalNotes',value)}/></MeetingSection>
+    <div className="meeting-header-manager"><div><b>미팅 헤더</b><p>필요한 헤더만 남기고 순서를 조정할 수 있습니다. 설정은 다음 미팅에도 유지됩니다.</p></div><OpsButton icon={showHeaders?'ChevronUp':'Plus'} onClick={()=>setShowHeaders(!showHeaders)}>{showHeaders?'닫기':'헤더 추가'}</OpsButton>{showHeaders&&<div className="meeting-header-options">{inactive.map(key=><OpsButton key={key} icon="Plus" onClick={()=>addSection(key)}>{MEETING_SECTION_CATALOG[key].label}</OpsButton>)}{!inactive.length&&<span className="ops-muted">추가할 수 있는 헤더가 없습니다.</span>}</div>}</div>
+    {d.sectionOrder.map((key,index)=>{const meta=MEETING_SECTION_CATALOG[key];if(!meta)return null;const controls=<><OpsButton icon="ChevronUp" aria-label={`${meta.label} 위로 이동`} disabled={index===0} onClick={()=>moveSection(key,-1)}>위로</OpsButton><OpsButton icon="ChevronDown" aria-label={`${meta.label} 아래로 이동`} disabled={index===d.sectionOrder.length-1} onClick={()=>moveSection(key,1)}>아래로</OpsButton><OpsButton icon="Trash2" className="btn ghost ops-icon danger-action" aria-label={`${meta.label} 헤더 삭제`} onClick={()=>removeSection(key)}>삭제</OpsButton></>;return <MeetingSection key={key} number={String(index+1)} title={meta.title} guide={meta.guide} controls={controls}>{sectionBody(key)}</MeetingSection>;})}
     <div className="ops-sticky ops-toolbar"><OpsSave run={saveDraft} onDone={close}>임시저장 / 미팅 예약</OpsSave><OpsSave run={()=>update(O.applyMeeting(st,build()))} onDone={close}>검토 완료 · 기록과 변경사항 반영</OpsSave></div></div></PPDialog>;
 }
 function OpsMeetingRecordLinked({meeting,close,onReuse}){
-  const d=window.PrepMeetingRecords.normalize(meeting),groups=[['학업',d.academicRows,'subject'],['시험 / 준비',d.testRows,'type'],['활동',d.activityRows,'name'],['인터뷰',d.interviewRows,'school'],['에세이',d.essayRows,'title']];
-  return <PPDialog title={d.title} close={close} wide><div className="ops meeting-record-view"><p className="ops-muted">{d.date} {d.time}</p><MeetingSection number="1" title="지난 미팅 이후"><p>{d.sinceLastMeeting||'기록 없음'}</p></MeetingSection><MeetingSection number="2" title="오늘 목표"><p>{d.todayGoal||'기록 없음'}</p></MeetingSection>{groups.map(([label,rows,key],index)=><MeetingSection key={label} number={String(index+3)} title={label}>{rows.length?<div className="meeting-summary-list">{rows.map(row=><article key={row.id}><b>{row[key]}</b><span>{row.progressStatus||row.status||row.prepStatus||'상태 미입력'}</span><p>{row.progressNote||row.notes||row.issue||'진행 기록 없음'}</p></article>)}</div>:<OpsEmpty/>}</MeetingSection>)}<MeetingSection number="8" title="다음 할 일">{d.actionItems.length?<ul className="ops-list">{d.actionItems.map(item=><li key={item.id}>{item.done?'완료':'진행'} · {item.title} · {item.dueDate||'기한 미정'}</li>)}</ul>:<OpsEmpty/>}</MeetingSection><MeetingSection number="9" title="학부모 전달 / 내부 메모"><h4>학부모 전달 요약</h4><p>{d.parentSummary||'미작성'}</p><h4>내부 전용 메모</h4><p>{d.internalNotes||'미작성'}</p></MeetingSection><OpsButton icon="CopyPlus" onClick={()=>onReuse(meeting)}>이 기록을 불러와 새 미팅 작성</OpsButton></div></PPDialog>;
+  const model=window.PrepMeetingRecords,d=model.normalize(meeting),order=d.sectionOrder.length?d.sectionOrder:model.defaultSectionOrder;
+  const summary=(rows,key)=>rows.length?<div className="meeting-summary-list">{rows.map(row=><article key={row.id}><b>{row[key]}</b><span>{row.progressStatus||row.status||row.prepStatus||'상태 미입력'}</span><p>{row.progressNote||row.notes||row.issue||'진행 기록 없음'}</p></article>)}</div>:<OpsEmpty/>;
+  const body=key=>{
+    if(key==='since')return d.sinceLastMeetingItems.length?<div className="meeting-summary-list">{d.sinceLastMeetingItems.map(item=><article key={item.id}><b>{item.title}</b><span>{item.resultStatus||'확인 필요'}</span><p>{item.note||'결과 메모 없음'}</p></article>)}</div>:<p>{d.sinceLastMeeting||'기록 없음'}</p>;
+    if(key==='focus')return <p>{d.todayGoal||'기록 없음'}</p>;
+    if(key==='academics')return summary(d.academicRows,'subject');
+    if(key==='testing')return summary(d.testRows,'type');
+    if(key==='activities')return summary(d.activityRows,'name');
+    if(key==='interviews')return summary(d.interviewRows,'school');
+    if(key==='essays')return summary(d.essayRows,'title');
+    if(key==='other')return d.otherRows.some(row=>row.note)?<ul className="ops-list">{d.otherRows.filter(row=>row.note).map(row=><li key={row.id}>{row.note}</li>)}</ul>:<OpsEmpty/>;
+    if(key==='actions')return d.actionItems.length?<ul className="ops-list">{d.actionItems.map(item=><li key={item.id}>{item.done?'완료':'진행'} · {item.title} · {item.dueDate||'기한 미정'}</li>)}</ul>:<OpsEmpty/>;
+    return <><h4>학부모 전달 요약</h4><p>{d.parentSummary||'미작성'}</p><h4>내부 전용 메모</h4><p>{d.internalNotes||'미작성'}</p></>;
+  };
+  return <PPDialog title={d.title} close={close} wide><div className="ops meeting-record-view"><p className="ops-muted">{d.date} {d.time}</p>{order.map((key,index)=>{const meta=MEETING_SECTION_CATALOG[key];return meta&&<MeetingSection key={key} number={String(index+1)} title={meta.title}>{body(key)}</MeetingSection>;})}<OpsButton icon="CopyPlus" onClick={()=>onReuse(meeting)}>이 기록을 불러와 새 미팅 작성</OpsButton></div></PPDialog>;
 }
 function OpsMeetingsLinked({st,update,staff=[]}){
   const [editing,setEditing]=useState(null),[view,setView]=useState(null),operations=O.operations(st),meetings=operations.meetings;

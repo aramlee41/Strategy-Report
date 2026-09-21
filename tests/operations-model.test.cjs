@@ -74,11 +74,12 @@ test('application results cannot be reset from operational task completion',()=>
 });
 test('structured meeting rows update their linked source records and natural-date tasks reach the calendar',()=>{
  const st={id:'s',name:'Student',academicTerms:[{termId:'term',subjects:[{subject:'Math'}]}],tests:[{id:'test',type:'SSAT'}],ecs:[{activityId:'ec',name:'Baseball'}],applications:[{id:'app',school:'School',essays:[{id:'essay',title:'Community'}]}],operations:{goals:[{id:'goal',title:'SSAT 목표',metric:'SSAT',target:95}]}};
- const meeting={id:'m',title:'09/21/2026 미팅',date:'2026-09-21',academicRows:[{termId:'term',subjectIndex:0,progressStatus:'on-track',progressNote:'과제 완료',issue:''}],testRows:[{goalId:'goal',testId:'test',type:'SSAT',target:97,nextDate:'2026-10-10',progressStatus:'needs-attention',progressNote:'어휘 보완'}],activityRows:[{activityId:'ec',progressStatus:'on-track',progressNote:'주 3회 훈련'}],interviewRows:[{applicationId:'app',date:'2026-11-01',status:'예약 완료',prepStatus:'on-track',docUrl:'https://docs.google.com/document/d/test'}],essayRows:[{applicationId:'app',essayId:'essay',deadline:'2026-12-01',priority:'높음',status:'진행 중',docUrl:'https://docs.google.com/document/d/essay'}],effects:[{id:'task',kind:'task',title:'초안 제출',date:'2026-09-24'}]};
+ const meeting={id:'m',title:'09/21/2026 미팅',date:'2026-09-21',sectionOrder:['since','focus','academics','actions'],academicRows:[{termId:'term',subjectIndex:0,progressStatus:'on-track',progressNote:'과제 완료',issue:''}],testRows:[{goalId:'goal',testId:'test',type:'SSAT',target:97,nextDate:'2026-10-10',progressStatus:'needs-attention',progressNote:'어휘 보완'}],activityRows:[{activityId:'ec',progressStatus:'on-track',progressNote:'주 3회 훈련'}],interviewRows:[{applicationId:'app',date:'2026-11-01',status:'예약 완료',prepStatus:'on-track',docUrl:'https://docs.google.com/document/d/test'}],essayRows:[{applicationId:'app',essayId:'essay',deadline:'2026-12-01',priority:'높음',status:'진행 중',docUrl:'https://docs.google.com/document/d/essay'}],effects:[{id:'task',kind:'task',title:'초안 제출',date:'2026-09-24'}]};
  const next=O.applyMeeting(st,meeting);
  assert.equal(next.academicTerms[0].subjects[0].meetingProgressNote,'과제 완료');
  assert.equal(next.operations.goals[0].target,97);assert.equal(next.tests[0].nextDate,'2026-10-10');
  assert.equal(next.ecs[0].meetingProgressNote,'주 3회 훈련');
  assert.equal(next.applications[0].interviewStatus,'예약 완료');assert.equal(next.applications[0].essays[0].priority,'높음');
+ assert.deepEqual(next.operations.meetingSectionOrder,['since','focus','academics','actions']);
  assert(O.eventRows(next).some(event=>event.title==='초안 제출'&&event.date==='2026-09-24'));
 });

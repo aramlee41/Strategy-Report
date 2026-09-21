@@ -114,7 +114,7 @@
       if(essayIndex>=0)essays[essayIndex]={...essays[essayIndex],deadline:date(row.deadline),priority:row.priority||'',status:row.status||'미시작',progressNote:row.progressNote||'',docUrl:row.docUrl||'',lastMeetingAt:now};
       next.applications[applicationIndex]={...next.applications[applicationIndex],essays};
     }
-    next.operations={...recordUpdate(st,'미팅 기록 반영',meeting.title,now),goals:meetingGoals,meetings:[{...meeting,id:mid,effects,appliedAt:now},...o.meetings.filter(m=>m.id!==mid)]};
+    next.operations={...recordUpdate(st,'미팅 기록 반영',meeting.title,now),goals:meetingGoals,meetingSectionOrder:list(meeting.sectionOrder),meetings:[{...meeting,id:mid,effects,appliedAt:now},...o.meetings.filter(m=>m.id!==mid)]};
     return next;
   }
   const inPeriod=(value,g)=>{const v=String(value||'');if(!v)return false;const d=v.length===7?v+'-01':v;return (!g.from||d>=g.from)&&(!g.to||d<=g.to);};
